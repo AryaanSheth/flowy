@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flowey — Local Speech to Text</title>
+  <meta name="description" content="Hold a hotkey, speak, release — your words appear instantly. No internet. No API keys. No subscription. Just fast local AI on your machine." />
+  <style>
+    /* ─── Variables ─────────────────────────────────────────── */
+    :root {
+      --bg:          #0d0d10;
+      --bg-card:     #13131a;
+      --bg-card-alt: #16161f;
+      --border:      #1e1e2e;
+      --border-mid:  #252535;
+      --accent:      #6ee7b7;
+      --accent-dim:  #3ecf8e33;
+      --accent-glow: #6ee7b740;
+      --text:        #e8e8f0;
+      --text-muted:  #7878a0;
+      --text-faint:  #44445a;
+      --radius:      12px;
+      --radius-lg:   18px;
+      --font:        -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      --mono:        "SF Mono", "Fira Code", "Cascadia Code", Consolas, monospace;
+    }
+
+    /* ─── Reset ─────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--font);
+      font-size: 16px;
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      overflow-x: hidden;
+    }
+
+    /* ─── Scrollbar ──────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-faint); }
+
+    /* ─── Typography ─────────────────────────────────────────── */
+    h1 { font-size: clamp(2.4rem, 6vw, 4.2rem); font-weight: 800; line-height: 1.1; letter-spacing: -0.03em; }
+    h2 { font-size: clamp(1.7rem, 4vw, 2.4rem); font-weight: 700; letter-spacing: -0.02em; }
+    h3 { font-size: 1.1rem; font-weight: 600; letter-spacing: -0.01em; }
+    p  { color: var(--text-muted); }
+    a  { color: inherit; text-decoration: none; }
+
+    /* ─── Layout helpers ─────────────────────────────────────── */
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+    .section { padding: 96px 0; }
+
+    /* ─── Buttons ────────────────────────────────────────────── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border-radius: 50px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: var(--font);
+      cursor: pointer;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, opacity 0.18s ease;
+      border: none;
+      text-decoration: none;
+    }
+    .btn-primary {
+      background: var(--accent);
+      color: #0a1a12;
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 32px var(--accent-glow);
+    }
+    .btn-outline {
+      background: transparent;
+      color: var(--text);
+      border: 1.5px solid var(--border-mid);
+    }
+    .btn-outline:hover {
+      border-color: var(--accent);
+      color: var(--accent);
+      transform: translateY(-2px);
+    }
+    .btn-sm {
+      padding: 9px 18px;
+      font-size: 0.875rem;
+    }
+
+    /* ─── Navbar ─────────────────────────────────────────────── */
+    nav {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(13, 13, 16, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--border);
+    }
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      height: 60px;
+    }
+    .nav-logo {
+      font-size: 1.1rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .nav-logo span { color: var(--accent); }
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      list-style: none;
+    }
+    .nav-links a {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      transition: color 0.15s;
+    }
+    .nav-links a:hover { color: var(--text); }
+    .nav-links .nav-cta .btn {
+      padding: 8px 18px;
+      font-size: 0.875rem;
+    }
+
+    /* ─── Hero ───────────────────────────────────────────────── */
+    .hero {
+      padding: 100px 0 80px;
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before {
+      content: "";
+      position: absolute;
+      top: -200px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 800px;
+      height: 600px;
+      background: radial-gradient(ellipse at center, var(--accent-dim) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+    .hero-inner {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: center;
+    }
+    .hero-text { }
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 5px 12px;
+      border-radius: 50px;
+      border: 1px solid var(--border-mid);
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--accent);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 24px;
+    }
+    .hero-badge-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .hero h1 {
+      margin-bottom: 20px;
+      background: linear-gradient(135deg, #ffffff 30%, #a8f0d8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    .hero p {
+      font-size: 1.1rem;
+      line-height: 1.7;
+      margin-bottom: 36px;
+      max-width: 480px;
+    }
+    .hero-ctas {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    /* ─── SVG Mockup ─────────────────────────────────────────── */
+    .hero-visual {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      position: relative;
+    }
+    .mockup-glow {
+      position: absolute;
+      width: 380px;
+      height: 380px;
+      background: radial-gradient(ellipse, var(--accent-dim) 0%, transparent 65%);
+      border-radius: 50%;
+      pointer-events: none;
+    }
+    .mockup-svg {
+      position: relative;
+      z-index: 1;
+      filter: drop-shadow(0 24px 64px rgba(0,0,0,0.6));
+      max-width: 100%;
+    }
+
+    /* ─── Stats bar ──────────────────────────────────────────── */
+    .stats-bar {
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+      padding: 36px 0;
+      background: var(--bg-card);
+    }
+    .stats-inner {
+      display: flex;
+      justify-content: center;
+      gap: 0;
+    }
+    .stat {
+      flex: 1;
+      text-align: center;
+      padding: 0 32px;
+      border-right: 1px solid var(--border);
+    }
+    .stat:last-child { border-right: none; }
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 800;
+      color: var(--accent);
+      letter-spacing: -0.03em;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+    .stat-label {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* ─── Features ───────────────────────────────────────────── */
+    .features { }
+    .section-header {
+      text-align: center;
+      margin-bottom: 56px;
+    }
+    .section-header h2 { margin-bottom: 12px; }
+    .section-header p { font-size: 1.05rem; max-width: 500px; margin: 0 auto; }
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+    }
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 28px 24px;
+      transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .feature-card:hover {
+      transform: translateY(-4px);
+      border-color: var(--accent-glow);
+      box-shadow: 0 12px 40px rgba(110, 231, 183, 0.08);
+    }
+    .feature-icon {
+      font-size: 1.6rem;
+      margin-bottom: 14px;
+      display: block;
+    }
+    .feature-card h3 {
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .feature-card p {
+      font-size: 0.9rem;
+      line-height: 1.6;
+    }
+
+    /* ─── How it works ───────────────────────────────────────── */
+    .how-it-works {
+      background: var(--bg-card);
+      border-top: 1px solid var(--border);
+      border-bottom: 1px solid var(--border);
+    }
+    .steps-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 24px;
+    }
+    .step-card {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      position: relative;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    .step-card:hover {
+      border-color: var(--border-mid);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .step-number {
+      font-size: 3rem;
+      font-weight: 900;
+      line-height: 1;
+      color: var(--text-faint);
+      margin-bottom: 20px;
+      font-variant-numeric: tabular-nums;
+    }
+    .step-card h3 {
+      font-size: 1.15rem;
+      margin-bottom: 10px;
+      color: var(--text);
+    }
+    .step-card p { font-size: 0.92rem; line-height: 1.65; }
+
+    /* ─── Download ───────────────────────────────────────────── */
+    .download { }
+    .platforms-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 20px;
+      margin-bottom: 64px;
+    }
+    .platform-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 32px 24px;
+      text-align: center;
+      transition: border-color 0.2s ease, transform 0.2s ease;
+    }
+    .platform-card:hover {
+      border-color: var(--border-mid);
+      transform: translateY(-3px);
+    }
+    .platform-icon {
+      font-size: 2.4rem;
+      margin-bottom: 12px;
+      display: block;
+    }
+    .platform-card h3 {
+      font-size: 1.15rem;
+      margin-bottom: 6px;
+    }
+    .platform-card .req {
+      font-size: 0.8rem;
+      color: var(--text-faint);
+      margin-bottom: 20px;
+    }
+    .model-section {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 36px;
+    }
+    .model-section h3 {
+      font-size: 1.2rem;
+      margin-bottom: 8px;
+      color: var(--text);
+    }
+    .model-section > p {
+      margin-bottom: 20px;
+      font-size: 0.92rem;
+    }
+    .code-block {
+      background: #080810;
+      border: 1px solid var(--border-mid);
+      border-radius: var(--radius);
+      padding: 18px 20px;
+      font-family: var(--mono);
+      font-size: 0.875rem;
+      color: var(--accent);
+      overflow-x: auto;
+      margin-bottom: 28px;
+      position: relative;
+    }
+    .code-block::before {
+      content: "$ ";
+      color: var(--text-faint);
+    }
+    .model-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+    .model-table th {
+      text-align: left;
+      padding: 10px 16px;
+      color: var(--text-faint);
+      font-size: 0.78rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      border-bottom: 1px solid var(--border);
+    }
+    .model-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      color: var(--text-muted);
+    }
+    .model-table tr:last-child td { border-bottom: none; }
+    .model-table td:first-child { color: var(--text); font-weight: 600; font-family: var(--mono); }
+    .badge-rec {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: var(--accent-dim);
+      color: var(--accent);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+    }
+
+    /* ─── Footer ─────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 40px 0;
+      text-align: center;
+    }
+    footer p {
+      font-size: 0.875rem;
+      color: var(--text-faint);
+      margin-bottom: 6px;
+    }
+    footer a {
+      color: var(--text-muted);
+      transition: color 0.15s;
+    }
+    footer a:hover { color: var(--accent); }
+    .footer-links {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .footer-links a {
+      font-size: 0.875rem;
+      color: var(--text-muted);
+    }
+
+    /* ─── Divider ────────────────────────────────────────────── */
+    .divider {
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--border-mid), transparent);
+      margin: 0;
+    }
+
+    /* ─── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 900px) {
+      .features-grid, .steps-grid, .platforms-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+      .hero-inner {
+        grid-template-columns: 1fr;
+        gap: 48px;
+        text-align: center;
+      }
+      .hero p { max-width: 100%; }
+      .hero-ctas { justify-content: center; }
+      .hero-visual { order: -1; }
+    }
+
+    @media (max-width: 768px) {
+      .nav-links li:not(.nav-cta) { display: none; }
+      .features-grid, .steps-grid, .platforms-grid {
+        grid-template-columns: 1fr;
+      }
+      .stats-inner {
+        flex-direction: column;
+        gap: 24px;
+      }
+      .stat { border-right: none; border-bottom: 1px solid var(--border); padding: 16px 0; }
+      .stat:last-child { border-bottom: none; }
+      .hero { padding: 60px 0 48px; }
+      .section { padding: 64px 0; }
+      .model-section { padding: 24px; }
+    }
+
+    @media (max-width: 480px) {
+      .hero-ctas { flex-direction: column; align-items: stretch; }
+      .hero-ctas .btn { justify-content: center; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     NAV
+══════════════════════════════════════════════ -->
+<nav>
+  <div class="container">
+    <div class="nav-inner">
+      <a href="#" class="nav-logo">🌿 <span>Flowey</span></a>
+      <ul class="nav-links">
+        <li><a href="#features">Features</a></li>
+        <li><a href="#how-it-works">How it Works</a></li>
+        <li class="nav-cta">
+          <a href="#download" class="btn btn-primary">Download</a>
+        </li>
+      </ul>
+    </div>
+  </div>
+</nav>
+
+
+<!-- ══════════════════════════════════════════════
+     HERO
+══════════════════════════════════════════════ -->
+<section class="hero">
+  <div class="container">
+    <div class="hero-inner">
+
+      <div class="hero-text">
+        <div class="hero-badge">
+          <span class="hero-badge-dot"></span>
+          Open Source · Free Forever
+        </div>
+        <h1>Speech to text.<br/>Completely local.</h1>
+        <p>Hold a hotkey, speak, release — your words appear instantly. No internet. No API keys. No subscription. Just fast local AI on your machine.</p>
+        <div class="hero-ctas">
+          <a href="#download" class="btn btn-primary">Download free →</a>
+          <a href="https://github.com/AryaanSheth/flowey" target="_blank" class="btn btn-outline">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0 0 24 12c0-6.63-5.37-12-12-12z"/>
+            </svg>
+            View on GitHub
+          </a>
+        </div>
+      </div>
+
+      <!-- SVG App Mockup -->
+      <div class="hero-visual">
+        <div class="mockup-glow"></div>
+        <svg class="mockup-svg" width="440" height="340" viewBox="0 0 440 340" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Flowey settings window mockup">
+          <!-- Drop shadow layer -->
+          <defs>
+            <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="8" stdDeviation="16" flood-color="#000" flood-opacity="0.7"/>
+            </filter>
+            <filter id="shadow-sm" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.5"/>
+            </filter>
+            <linearGradient id="window-grad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#1a1a28"/>
+              <stop offset="100%" stop-color="#13131a"/>
+            </linearGradient>
+            <linearGradient id="accent-grad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stop-color="#6ee7b7"/>
+              <stop offset="100%" stop-color="#34d399"/>
+            </linearGradient>
+          </defs>
+
+          <!-- Main window -->
+          <rect x="20" y="20" width="400" height="300" rx="14" fill="url(#window-grad)" filter="url(#shadow)" stroke="#252535" stroke-width="1"/>
+
+          <!-- Title bar -->
+          <rect x="20" y="20" width="400" height="44" rx="14" fill="#1a1a28"/>
+          <rect x="20" y="50" width="400" height="14" fill="#1a1a28"/>
+
+          <!-- Traffic lights -->
+          <circle cx="46" cy="42" r="6" fill="#ff5f57"/>
+          <circle cx="66" cy="42" r="6" fill="#febc2e"/>
+          <circle cx="86" cy="42" r="6" fill="#28c840"/>
+
+          <!-- Window title -->
+          <text x="220" y="47" text-anchor="middle" fill="#7878a0" font-size="12" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" font-weight="600">Flowey — Settings</text>
+
+          <!-- Sidebar -->
+          <rect x="20" y="64" width="120" height="256" fill="#111118" rx="0"/>
+          <rect x="139" y="64" width="1" height="256" fill="#1e1e2e"/>
+
+          <!-- Sidebar items -->
+          <!-- Active: General -->
+          <rect x="28" y="80" width="104" height="32" rx="7" fill="#6ee7b715"/>
+          <text x="50" y="100" fill="#6ee7b7" font-size="11" font-family="-apple-system, sans-serif" font-weight="600">⚙  General</text>
+
+          <text x="50" y="132" fill="#44445a" font-size="11" font-family="-apple-system, sans-serif">🎙  Audio</text>
+          <text x="50" y="164" fill="#44445a" font-size="11" font-family="-apple-system, sans-serif">📖  Dictionary</text>
+          <text x="50" y="196" fill="#44445a" font-size="11" font-family="-apple-system, sans-serif">🔑  Hotkeys</text>
+          <text x="50" y="228" fill="#44445a" font-size="11" font-family="-apple-system, sans-serif">ℹ  About</text>
+
+          <!-- Main content area -->
+          <!-- Model Path field -->
+          <text x="156" y="98" fill="#7878a0" font-size="10" font-family="-apple-system, sans-serif" font-weight="600" letter-spacing="0.05em">MODEL PATH</text>
+          <rect x="156" y="104" width="248" height="30" rx="7" fill="#0d0d14" stroke="#252535" stroke-width="1"/>
+          <text x="168" y="123" fill="#44445a" font-size="10.5" font-family="'SF Mono', Consolas, monospace">~/models/ggml-base.en.bin</text>
+          <rect x="376" y="108" width="22" height="22" rx="5" fill="#1e1e2e"/>
+          <text x="387" y="123" text-anchor="middle" fill="#7878a0" font-size="10">…</text>
+
+          <!-- Hotkey field -->
+          <text x="156" y="154" fill="#7878a0" font-size="10" font-family="-apple-system, sans-serif" font-weight="600" letter-spacing="0.05em">PUSH-TO-TALK HOTKEY</text>
+          <rect x="156" y="160" width="140" height="30" rx="7" fill="#0d0d14" stroke="#252535" stroke-width="1"/>
+          <rect x="164" y="168" width="44" height="14" rx="4" fill="#1e1e2e" stroke="#252535" stroke-width="1"/>
+          <text x="186" y="179" text-anchor="middle" fill="#e8e8f0" font-size="10" font-family="'SF Mono', Consolas, monospace" font-weight="600">⌘</text>
+          <rect x="212" y="168" width="36" height="14" rx="4" fill="#1e1e2e" stroke="#252535" stroke-width="1"/>
+          <text x="230" y="179" text-anchor="middle" fill="#e8e8f0" font-size="10" font-family="'SF Mono', Consolas, monospace" font-weight="600">⌥</text>
+          <rect x="252" y="168" width="36" height="14" rx="4" fill="#6ee7b720" stroke="#6ee7b740" stroke-width="1"/>
+          <text x="270" y="179" text-anchor="middle" fill="#6ee7b7" font-size="10" font-family="'SF Mono', Consolas, monospace" font-weight="600">F</text>
+
+          <!-- Language dropdown -->
+          <text x="156" y="212" fill="#7878a0" font-size="10" font-family="-apple-system, sans-serif" font-weight="600" letter-spacing="0.05em">LANGUAGE</text>
+          <rect x="156" y="218" width="140" height="30" rx="7" fill="#0d0d14" stroke="#252535" stroke-width="1"/>
+          <text x="168" y="237" fill="#e8e8f0" font-size="11" font-family="-apple-system, sans-serif">English (US)</text>
+          <text x="282" y="237" fill="#7878a0" font-size="9">▾</text>
+
+          <!-- Autostart toggle -->
+          <text x="156" y="268" fill="#7878a0" font-size="10" font-family="-apple-system, sans-serif" font-weight="600" letter-spacing="0.05em">LAUNCH AT LOGIN</text>
+          <!-- Toggle ON -->
+          <rect x="156" y="275" width="36" height="20" rx="10" fill="url(#accent-grad)"/>
+          <circle cx="182" cy="285" r="8" fill="white"/>
+
+          <!-- Save button -->
+          <rect x="320" y="270" width="84" height="30" rx="8" fill="url(#accent-grad)"/>
+          <text x="362" y="289" text-anchor="middle" fill="#0a1a12" font-size="11" font-family="-apple-system, sans-serif" font-weight="700">Save</text>
+
+          <!-- Status bar at bottom -->
+          <rect x="20" y="296" width="400" height="24" rx="0" fill="#0f0f17"/>
+          <rect x="20" y="308" width="400" height="12" rx="0" fill="#0f0f17"/>
+          <rect x="20" y="296" width="400" height="24" rx="0" fill="#0f0f17"/>
+          <!-- Round bottom corners -->
+          <rect x="20" y="308" width="400" height="12" fill="#0f0f17"/>
+          <rect x="26" y="310" width="8" height="8" rx="4" fill="#28c840"/>
+          <text x="40" y="317" fill="#44445a" font-size="9" font-family="-apple-system, sans-serif">Ready · Listening for hotkey</text>
+
+          <!-- System tray bubble (floating, top-right) -->
+          <g filter="url(#shadow-sm)">
+            <rect x="308" y="2" width="130" height="56" rx="10" fill="#1e1e2e" stroke="#252535" stroke-width="1"/>
+            <text x="320" y="20" fill="#7878a0" font-size="9" font-family="-apple-system, sans-serif" font-weight="600" letter-spacing="0.05em">SYSTEM TRAY</text>
+            <text x="320" y="36" fill="#e8e8f0" font-size="11" font-family="-apple-system, sans-serif">🌿 Flowey</text>
+            <rect x="360" y="26" width="52" height="18" rx="5" fill="#6ee7b715" stroke="#6ee7b730" stroke-width="1"/>
+            <text x="386" y="38" text-anchor="middle" fill="#6ee7b7" font-size="9" font-family="-apple-system, sans-serif" font-weight="600">Running</text>
+            <!-- Tray tail -->
+            <polygon points="373,56 383,56 378,63" fill="#1e1e2e"/>
+          </g>
+
+          <!-- Recording indicator bubble (floating, bottom-left) -->
+          <g filter="url(#shadow-sm)">
+            <rect x="0" y="252" width="110" height="48" rx="10" fill="#1a1a28" stroke="#252535" stroke-width="1"/>
+            <circle cx="18" cy="276" r="5" fill="#6ee7b7">
+              <animate attributeName="r" values="5;7;5" dur="1.4s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="1;0.5;1" dur="1.4s" repeatCount="indefinite"/>
+            </circle>
+            <text x="30" y="272" fill="#e8e8f0" font-size="10" font-family="-apple-system, sans-serif" font-weight="600">Recording…</text>
+            <text x="30" y="285" fill="#7878a0" font-size="9" font-family="-apple-system, sans-serif">Hold ⌘⌥F to speak</text>
+          </g>
+        </svg>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════
+     STATS BAR
+══════════════════════════════════════════════ -->
+<div class="stats-bar">
+  <div class="container">
+    <div class="stats-inner">
+      <div class="stat">
+        <div class="stat-value">&lt; 15 MB</div>
+        <div class="stat-label">App binary size</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">100% Private</div>
+        <div class="stat-label">Zero network requests</div>
+      </div>
+      <div class="stat">
+        <div class="stat-value">Apple Silicon</div>
+        <div class="stat-label">Built for macOS, M-series ready</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════
+     FEATURES
+══════════════════════════════════════════════ -->
+<section class="section features" id="features">
+  <div class="container">
+    <div class="section-header">
+      <h2>Built for speed.<br/>Built for privacy.</h2>
+      <p>Every decision was made with one goal: transcription that just works, without ever phoning home.</p>
+    </div>
+    <div class="features-grid">
+
+      <div class="feature-card">
+        <span class="feature-icon">🔒</span>
+        <h3>100% Private</h3>
+        <p>Audio never leaves your machine. No cloud, no servers, no telemetry. Your words stay yours.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">⚡</span>
+        <h3>Fast Transcription</h3>
+        <p>Powered by local Whisper AI running entirely on your CPU or GPU. No round-trips, no latency spikes.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">📖</span>
+        <h3>Custom Dictionary</h3>
+        <p>Map your own word substitutions. Teach Flowey your domain jargon, names, and shortcuts.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🔑</span>
+        <h3>Push-to-Talk</h3>
+        <p>Hold any hotkey combination to start recording. Release to transcribe. Works in any focused window.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🚀</span>
+        <h3>Autostart</h3>
+        <p>Enable launch-at-login and Flowey sits silently in your system tray — always ready, never in the way.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">🎯</span>
+        <h3>Tiny Footprint</h3>
+        <p>Built with Tauri and Rust, not Electron. The whole app is under 15 MB. Your RAM will thank you.</p>
+      </div>
+
+      <div class="feature-card">
+        <span class="feature-icon">✨</span>
+        <h3>Ollama Enhancement</h3>
+        <p>Optional polish pass through a local LLM — punctuation, capitalization, and grammar cleanup with zero round-trips to the cloud.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- ══════════════════════════════════════════════
+     HOW IT WORKS
+══════════════════════════════════════════════ -->
+<section class="section how-it-works" id="how-it-works">
+  <div class="container">
+    <div class="section-header">
+      <h2>Simple as 1 – 2 – 3</h2>
+      <p>Up and running in under five minutes. No accounts, no configuration wizards.</p>
+    </div>
+    <div class="steps-grid">
+
+      <div class="step-card">
+        <div class="step-number">01</div>
+        <h3>Download a model</h3>
+        <p>Grab a free Whisper model (75 MB – 461 MB) from Hugging Face. No account needed. One <code style="font-family:var(--mono);color:var(--accent);font-size:0.85em">curl</code> command and you're done.</p>
+      </div>
+
+      <div class="step-card">
+        <div class="step-number">02</div>
+        <h3>Set your hotkey</h3>
+        <p>Open Flowey's settings, pick any key combo that fits your workflow. Hold to record, release to transcribe — every time.</p>
+      </div>
+
+      <div class="step-card">
+        <div class="step-number">03</div>
+        <h3>Speak anywhere</h3>
+        <p>Click into any text field — email, code editor, chat app, doc — and hold your hotkey. Your words appear instantly when you let go.</p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+
+<!-- ══════════════════════════════════════════════
+     DOWNLOAD
+══════════════════════════════════════════════ -->
+<section class="section download" id="download">
+  <div class="container">
+    <div class="section-header">
+      <h2>Get Flowey for macOS</h2>
+      <p>Native, signed, notarized. Free and open source, always. Windows &amp; Linux on the roadmap.</p>
+    </div>
+
+    <div class="platforms-grid">
+
+      <div class="platform-card">
+        <span class="platform-icon">🍎</span>
+        <h3>macOS</h3>
+        <p class="req">macOS 11 Big Sur or later · Apple Silicon &amp; Intel</p>
+        <a href="https://github.com/AryaanSheth/flowey/releases" target="_blank" class="btn btn-primary btn-sm">
+          Download .dmg
+        </a>
+      </div>
+
+      <div class="platform-card" style="opacity:.55">
+        <span class="platform-icon">🪟</span>
+        <h3>Windows</h3>
+        <p class="req">Coming soon</p>
+        <span class="btn btn-primary btn-sm" style="pointer-events:none;background:var(--surface);color:var(--muted)">
+          Soon
+        </span>
+      </div>
+
+      <div class="platform-card" style="opacity:.55">
+        <span class="platform-icon">🐧</span>
+        <h3>Linux</h3>
+        <p class="req">Coming soon</p>
+        <span class="btn btn-primary btn-sm" style="pointer-events:none;background:var(--surface);color:var(--muted)">
+          Soon
+        </span>
+      </div>
+
+    </div>
+
+    <!-- Model download sub-section -->
+    <div class="model-section">
+      <h3>Download a Whisper model</h3>
+      <p>Flowey uses <a href="https://github.com/ggerganov/whisper.cpp" target="_blank" style="color:var(--accent);text-decoration:underline;text-underline-offset:3px;">whisper.cpp</a> compatible GGML models. Grab the recommended <strong style="color:var(--text)">base.en</strong> model with one command:</p>
+      <div class="code-block">curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin</div>
+      <table class="model-table">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Size</th>
+            <th>Speed</th>
+            <th>Accuracy</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>ggml-tiny.en.bin</td>
+            <td>75 MB</td>
+            <td>Fastest</td>
+            <td>Good</td>
+            <td></td>
+          </tr>
+          <tr>
+            <td>ggml-base.en.bin</td>
+            <td>141 MB</td>
+            <td>Fast</td>
+            <td>Better</td>
+            <td><span class="badge-rec">Recommended</span></td>
+          </tr>
+          <tr>
+            <td>ggml-small.en.bin</td>
+            <td>461 MB</td>
+            <td>Moderate</td>
+            <td>Best</td>
+            <td></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- ══════════════════════════════════════════════
+     FOOTER
+══════════════════════════════════════════════ -->
+<footer>
+  <div class="container">
+    <div class="footer-links">
+      <a href="https://github.com/AryaanSheth/flowey" target="_blank">GitHub</a>
+      <a href="https://github.com/AryaanSheth/flowey/releases" target="_blank">Releases</a>
+      <a href="https://github.com/AryaanSheth/flowey/issues" target="_blank">Issues</a>
+      <a href="https://github.com/AryaanSheth/flowey/blob/main/LICENSE" target="_blank">License</a>
+    </div>
+    <p>MIT License · Built with Rust + Tauri · <a href="https://github.com/AryaanSheth/flowey" target="_blank">Open source on GitHub</a></p>
+    <p style="margin-top:6px">© 2024 Flowey contributors · Made with 🌿 and a lot of local compute</p>
+  </div>
+</footer>
+
+</body>
+</html>

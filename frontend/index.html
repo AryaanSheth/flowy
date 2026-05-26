@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flowey — Settings</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- ── App shell ──────────────────────────────────────────── -->
+<div class="shell">
+
+  <!-- Sidebar -->
+  <nav class="sidebar">
+    <div class="sidebar-logo">🌿</div>
+
+    <button class="nav-item active" data-section="model">
+      <span class="nav-icon">🤖</span>
+      <span class="nav-label">Model</span>
+    </button>
+    <button class="nav-item" data-section="shortcut">
+      <span class="nav-icon">⌨️</span>
+      <span class="nav-label">Shortcut</span>
+    </button>
+    <button class="nav-item" data-section="audio">
+      <span class="nav-icon">🎙️</span>
+      <span class="nav-label">Audio</span>
+    </button>
+    <button class="nav-item" data-section="output">
+      <span class="nav-icon">📤</span>
+      <span class="nav-label">Output</span>
+    </button>
+    <button class="nav-item" data-section="dictionary">
+      <span class="nav-icon">📚</span>
+      <span class="nav-label">Dictionary</span>
+    </button>
+    <button class="nav-item" data-section="ai">
+      <span class="nav-icon">✨</span>
+      <span class="nav-label">AI</span>
+    </button>
+    <button class="nav-item" data-section="history">
+      <span class="nav-icon">🕒</span>
+      <span class="nav-label">History</span>
+    </button>
+    <button class="nav-item" data-section="system">
+      <span class="nav-icon">⚙️</span>
+      <span class="nav-label">System</span>
+    </button>
+  </nav>
+
+  <!-- Main area -->
+  <div class="main">
+
+    <!-- Header -->
+    <header class="topbar">
+      <span class="topbar-title" id="section-title">Model</span>
+      <span id="status-badge" class="status-badge idle">● Idle</span>
+    </header>
+
+    <!-- Content panels -->
+    <div class="content">
+
+      <!-- ── Model ─────────────────────────────────────── -->
+      <section id="section-model" class="panel active">
+        <div class="field-group">
+          <label class="field-label">Model file <span class="required">*</span></label>
+          <div class="row">
+            <input id="model-path" type="text"
+                   placeholder="Path to ggml-*.bin …" spellcheck="false" />
+            <button id="model-browse" class="btn-sm">Browse</button>
+          </div>
+          <p class="hint">
+            Download a model at
+            <code>github.com/ggerganov/whisper.cpp/releases</code>.<br />
+            <strong>ggml-base.en.bin</strong> (~141 MB) is fast and accurate enough for most uses.
+          </p>
+          <div id="model-status" class="inline-status"></div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Language</label>
+          <select id="language">
+            <option value="auto">Auto-detect</option>
+            <option value="en">English</option>
+            <option value="es">Spanish</option>
+            <option value="fr">French</option>
+            <option value="de">German</option>
+            <option value="it">Italian</option>
+            <option value="pt">Portuguese</option>
+            <option value="nl">Dutch</option>
+            <option value="ja">Japanese</option>
+            <option value="zh">Chinese</option>
+            <option value="ko">Korean</option>
+            <option value="ru">Russian</option>
+            <option value="ar">Arabic</option>
+            <option value="hi">Hindi</option>
+            <option value="tr">Turkish</option>
+            <option value="pl">Polish</option>
+          </select>
+          <p class="hint">Specifying a language is faster than auto-detection.</p>
+        </div>
+
+        <div class="callout">
+          <strong>First time?</strong> Download a model, set its path above, then
+          hold <kbd>CmdOrCtrl+Shift+Space</kbd> anywhere to start recording.
+        </div>
+      </section>
+
+      <!-- ── Shortcut ───────────────────────────────────── -->
+      <section id="section-shortcut" class="panel">
+        <div class="field-group">
+          <label class="field-label">Push-to-talk hotkey</label>
+          <div class="hotkey-row">
+            <input id="hotkey" type="text"
+                   placeholder="e.g. CmdOrCtrl+Shift+Space" spellcheck="false"
+                   readonly />
+            <button id="hotkey-record" class="btn-sm">Change</button>
+            <button id="hotkey-reset"  class="btn-sm secondary" title="Reset to default">↺</button>
+          </div>
+          <div id="hotkey-recording-hint" class="hint" style="display:none">
+            Press any key combination… <span id="hotkey-preview" class="key-preview"></span>
+          </div>
+          <p class="hint">
+            Hold to record, release to transcribe.<br />
+            Syntax: <kbd>CmdOrCtrl</kbd> <kbd>Alt</kbd> <kbd>Shift</kbd>
+            <kbd>Super</kbd> + key name.
+          </p>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Max recording duration</label>
+          <div class="row row-compact">
+            <input id="max-secs" type="number" min="5" max="300" step="5"
+                   style="width:90px" />
+            <span class="unit">seconds</span>
+          </div>
+          <p class="hint">Recording stops automatically after this many seconds. (5–300 s)</p>
+        </div>
+      </section>
+
+      <!-- ── Audio ──────────────────────────────────────── -->
+      <section id="section-audio" class="panel">
+        <div class="field-group">
+          <label class="field-label">Input device</label>
+          <div class="row">
+            <select id="input-device" style="flex:1"></select>
+            <button id="refresh-devices" class="btn-sm secondary" title="Refresh">↻</button>
+          </div>
+          <p class="hint">Choose which microphone Flowey records from.</p>
+        </div>
+      </section>
+
+      <!-- ── Output ─────────────────────────────────────── -->
+      <section id="section-output" class="panel">
+        <div class="field-group">
+          <label class="field-label">Text delivery mode</label>
+          <div class="radio-group">
+            <label class="radio-item">
+              <input type="radio" name="output-mode" value="type" />
+              <span class="radio-label">
+                <strong>Keystroke injection</strong>
+                <span class="radio-sub">Types directly into the focused window (default)</span>
+              </span>
+            </label>
+            <label class="radio-item">
+              <input type="radio" name="output-mode" value="clipboard" />
+              <span class="radio-label">
+                <strong>Clipboard only</strong>
+                <span class="radio-sub">Copies text to clipboard — paste manually with Ctrl+V</span>
+              </span>
+            </label>
+            <label class="radio-item">
+              <input type="radio" name="output-mode" value="typeAndClipboard" />
+              <span class="radio-label">
+                <strong>Both</strong>
+                <span class="radio-sub">Types AND copies — most flexible option</span>
+              </span>
+            </label>
+          </div>
+        </div>
+
+        <div class="callout callout-info">
+          <strong>macOS users:</strong> keystroke injection requires
+          <em>Accessibility</em> permission (System Settings → Privacy → Accessibility).
+          Use <strong>Clipboard only</strong> as a fallback.
+        </div>
+      </section>
+
+      <!-- ── Dictionary ─────────────────────────────────── -->
+      <section id="section-dictionary" class="panel">
+        <p class="hint" style="margin-bottom:12px">
+          Word substitutions applied after every transcription.
+          Case-insensitive. Whole-word matching.
+        </p>
+
+        <div class="dict-toolbar">
+          <button id="dict-add" class="btn-sm">+ Add entry</button>
+          <button id="dict-import" class="btn-sm secondary">Import JSON</button>
+          <button id="dict-export" class="btn-sm secondary">Export JSON</button>
+        </div>
+
+        <div id="dict-entries"></div>
+
+        <div class="dict-test-row">
+          <span class="dict-test-label">Test:</span>
+          <input id="dict-test-input"  type="text" placeholder="Type something…" />
+          <span class="dict-arrow">→</span>
+          <span id="dict-test-output" class="dict-test-output">—</span>
+        </div>
+      </section>
+
+      <!-- ── AI / Ollama ────────────────────────────────── -->
+      <section id="section-ai" class="panel">
+        <div class="callout callout-info">
+          <strong>Optional cleanup pass.</strong> Send transcribed text through a
+          local Ollama model to fix punctuation, capitalization and grammar.
+          Requires <a href="https://ollama.com" target="_blank">Ollama</a> running locally.
+        </div>
+
+        <div class="field-group">
+          <label class="toggle-row">
+            <input id="ollama-enabled" type="checkbox" />
+            <span class="toggle-label"><strong>Enable Ollama enhancement</strong></span>
+          </label>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Endpoint</label>
+          <div class="row">
+            <input id="ollama-endpoint" type="text"
+                   placeholder="http://localhost:11434" spellcheck="false" />
+            <button id="ollama-check" class="btn-sm">Test</button>
+          </div>
+          <div id="ollama-status" class="inline-status"></div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Model</label>
+          <div class="row">
+            <select id="ollama-model" style="flex:1"></select>
+            <input id="ollama-model-manual" type="text"
+                   placeholder="or type a model name" spellcheck="false"
+                   style="flex:1" />
+          </div>
+          <p class="hint">
+            Recommended: <code>llama3.2:3b</code> (fast, ~2 GB) or
+            <code>qwen2.5:3b</code>. Pull with
+            <code>ollama pull llama3.2:3b</code>.
+          </p>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">System prompt</label>
+          <textarea id="ollama-prompt" rows="5" spellcheck="false"></textarea>
+          <p class="hint">
+            The instruction sent to the model before each transcription.
+            Keep it short and explicit.
+          </p>
+        </div>
+      </section>
+
+      <!-- ── History ────────────────────────────────────── -->
+      <section id="section-history" class="panel">
+        <div class="history-toolbar">
+          <span class="history-count" id="history-count">0 entries</span>
+          <button id="history-clear" class="btn-sm secondary danger">Clear all</button>
+        </div>
+        <div id="history-list" class="history-list">
+          <p class="empty-state">No transcriptions yet. Hold the hotkey and speak!</p>
+        </div>
+      </section>
+
+      <!-- ── System ─────────────────────────────────────── -->
+      <section id="section-system" class="panel">
+        <div class="field-group">
+          <label class="field-label">Startup</label>
+          <label class="toggle-row">
+            <input id="autostart" type="checkbox" />
+            <span class="toggle-label">Launch Flowey at login</span>
+          </label>
+          <p class="hint">Flowey will run silently in the background at system startup.</p>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">About</label>
+          <div class="about-card">
+            <div class="about-logo">🌿</div>
+            <div>
+              <p><strong>Flowey</strong> v0.1.0</p>
+              <p class="hint">Local speech-to-text · Tauri + Rust + whisper.cpp</p>
+              <p class="hint">MIT License</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Config file</label>
+          <div id="config-path" class="code-path">—</div>
+          <p class="hint">Edit manually if needed, then restart Flowey.</p>
+        </div>
+      </section>
+
+    </div><!-- /content -->
+
+    <!-- Footer -->
+    <footer class="footer">
+      <span id="save-status" class="save-status"></span>
+      <div class="footer-btns">
+        <button id="discard-btn" class="btn secondary">Discard</button>
+        <button id="save-btn"    class="btn">Save</button>
+      </div>
+    </footer>
+
+  </div><!-- /main -->
+</div><!-- /shell -->
+
+<script src="settings.js"></script>
+</body>
+</html>
