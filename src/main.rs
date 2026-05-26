@@ -1,18 +1,19 @@
-//! Flowey — minimal local speech-to-text for the desktop.
+//! Flowey — minimal push-to-talk speech-to-text for macOS.
 //!
 //! Pipeline overview:
 //!
 //!   Global hotkey (tauri-plugin-global-shortcut)
-//!     Key down  ──► spawn OS thread: record_until_stopped()
-//!     Key up    ──► store(true, AtomicBool)  → thread stops
+//!     Key press  ──► spawn OS thread: record_until_stopped()
+//!     Key press  ──► stop signal → thread stops, sends audio
 //!                           │
-//!                   std::sync::mpsc  (try_send, non-blocking)
+//!                   std::sync::mpsc  (bounded, capacity 8)
 //!                           │
 //!             Background thread: pipeline_loop()
-//!               ① resample to 16 kHz mono   (rubato)
-//!               ② transcribe                 (whisper-rs)
+//!               ① downmix to mono + write WAV
+//!               ② SFSpeechRecognizer (macOS native)
 //!               ③ apply dictionary
-//!               ④ deliver text               (enigo / clipboard)
+//!               ④ Ollama enhancement (optional)
+//!               ⑤ deliver text (keystrokes / clipboard)
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -22,7 +23,6 @@ mod config;
 mod dictionary;
 mod hotkey;
 mod ollama;
-mod resample;
 mod state;
 mod transcribe;
 mod tray;
@@ -30,7 +30,7 @@ mod typer;
 
 use std::sync::{mpsc, Arc};
 
-use transcribe::Transcriber;
+use tauri::Emitter;
 
 use crate::state::{AppState, AppStatus, AudioData};
 
@@ -41,13 +41,11 @@ fn main() {
 
     let config = config::Config::load();
 
-    // Bounded channel: capacity 8 gives comfortable back-pressure without
-    // blocking the recording thread for more than one pending transcript.
     let (audio_tx, audio_rx) = mpsc::sync_channel::<AudioData>(8);
 
     let state = Arc::new(AppState::new(config, audio_tx));
 
-    // Spawn the pipeline thread BEFORE app.run() (which blocks).
+    // Spawn pipeline thread BEFORE app.run() blocks.
     let pipeline_state = Arc::clone(&state);
     std::thread::Builder::new()
         .name("flowey-pipeline".into())
@@ -63,26 +61,29 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .manage(Arc::clone(&state))
         .setup(move |app| {
-            // Store handle so the pipeline thread can update the tray.
             *state.app_handle.lock() = Some(app.handle().clone());
 
-            // Build tray.
             tray::build(app.handle())?;
 
-            // Preload Whisper model if a path is already saved.
-            let model_path = state.config.read().model_path.clone();
-            if !model_path.is_empty() {
-                match Transcriber::load(&model_path) {
-                    Ok(t) => *state.transcriber.lock() = Some(t),
-                    Err(e) => log::warn!("Could not preload model: {e}"),
-                }
-            } else {
-                log::info!("No model path configured — open Settings to set one");
-            }
+            // Request speech recognition permission — shows system dialog on
+            // first run; subsequent calls are no-ops handled by the OS.
+            transcribe::request_authorization();
 
-            // Register PTT hotkey.
+            // Register the PTT hotkey.
             let hotkey = state.config.read().hotkey.clone();
             hotkey::register_shortcut(app.handle(), &state, &hotkey);
+
+            // Request Accessibility so CGEventTap (used by global-shortcut)
+            // can receive events.  This opens System Settings → Accessibility
+            // and highlights this process if not already trusted.
+            if !transcribe::request_accessibility() {
+                log::warn!(
+                    "Accessibility not granted — global hotkey will not fire. \
+                     Grant access in System Settings → Privacy & Security → Accessibility."
+                );
+            }
+
+            tray::toggle_settings_window(app.handle());
 
             Ok(())
         })
@@ -93,13 +94,13 @@ fn main() {
             commands::get_history,
             commands::clear_history,
             commands::list_audio_devices,
-            commands::browse_model_file,
             commands::test_dictionary,
             commands::check_ollama,
+            commands::start_recording,
+            commands::stop_recording,
+            commands::check_permissions,
         ])
         .on_window_event(|win, event| {
-            // Hide the settings window instead of destroying it — re-opening
-            // is instant and the JS state is preserved.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if win.label() == "settings" {
                     api.prevent_close();
@@ -119,60 +120,44 @@ fn pipeline_loop(rx: mpsc::Receiver<AudioData>, state: Arc<AppState>) {
     while let Ok((raw_samples, sample_rate, channels)) = rx.recv() {
         let output_mode = state.config.read().output_mode;
 
-        // Check model loaded BEFORE flipping the tray to "Transcribing" so
-        // the user is not confused by a spinner that immediately does nothing.
-        let has_model = state.transcriber.lock().is_some();
-        if !has_model {
-            log::warn!("No Whisper model loaded — open Settings to configure one");
+        // ── Status: Transcribing ─────────────────────────────
+        *state.status.lock() = AppStatus::Transcribing;
+        broadcast_status(&state);
+
+        // ── 1. Transcribe via macOS Speech framework ─────────
+        if !transcribe::is_authorized() {
+            log::warn!(
+                "Speech recognition not authorized — open System Settings → \
+                 Privacy & Security → Speech Recognition and enable Flowey"
+            );
             reset_status(&state);
             continue;
         }
 
-        // ── Status: Transcribing ─────────────────────────────
-        *state.status.lock() = AppStatus::Transcribing;
-        update_tray(&state);
-
-        // ── 1. Resample ──────────────────────────────────────
-        let samples_16k = match resample::to_16khz_mono(&raw_samples, sample_rate, channels) {
-            Ok(s) => s,
+        let text = match transcribe::transcribe(&raw_samples, sample_rate, channels) {
+            Ok(t)  => t,
             Err(e) => {
-                log::error!("Resample error: {e}");
+                log::error!("Transcription error: {e}");
                 reset_status(&state);
                 continue;
             }
         };
 
-        // ── 2. Transcribe ────────────────────────────────────
-        let (language, dict, history_size) = {
-            let cfg = state.config.read();
-            (cfg.language.clone(), cfg.dictionary.clone(), cfg.history_size)
-        };
-
-        let text = {
-            // Use try_lock with a fallback to avoid deadlock if model reload
-            // is happening concurrently.
-            match state.transcriber.lock().as_ref() {
-                None => { reset_status(&state); continue; }
-                Some(t) => match t.transcribe(&samples_16k, &language) {
-                    Ok(s) => s,
-                    Err(e) => {
-                        log::error!("Transcription error: {e}");
-                        String::new()
-                    }
-                },
-            }
-        };
-
         if text.is_empty() {
+            log::debug!("Transcription produced no text (silence?)");
             reset_status(&state);
             continue;
         }
 
-        // ── 3. Dictionary ────────────────────────────────────
+        // ── 2. Dictionary ────────────────────────────────────
+        let (dict, history_size) = {
+            let cfg = state.config.read();
+            (cfg.dictionary.clone(), cfg.history_size)
+        };
         let text = dictionary::apply(&text, &dict);
         log::info!("Transcribed: {:?}", text);
 
-        // ── 3b. Ollama enhancement (optional) ───────────────
+        // ── 3. Ollama enhancement (optional) ─────────────────
         let text = {
             let cfg = state.config.read();
             if cfg.ollama_enabled && !text.is_empty() {
@@ -185,7 +170,7 @@ fn pipeline_loop(rx: mpsc::Receiver<AudioData>, state: Arc<AppState>) {
                         log::info!("Enhanced: {:?}", enhanced);
                         enhanced
                     }
-                    Ok(_) => text,
+                    Ok(_)  => text,
                     Err(e) => {
                         log::warn!("Ollama enhancement failed, using raw text: {e}");
                         text
@@ -218,14 +203,17 @@ fn pipeline_loop(rx: mpsc::Receiver<AudioData>, state: Arc<AppState>) {
 
 fn reset_status(state: &AppState) {
     *state.status.lock() = AppStatus::Idle;
-    update_tray(state);
+    broadcast_status(state);
 }
 
-fn update_tray(state: &AppState) {
+/// Update the tray icon AND push an instant `status` event to the frontend.
+fn broadcast_status(state: &AppState) {
     let status = *state.status.lock();
     if let Some(handle) = state.app_handle.lock().as_ref() {
         if let Some(tray) = handle.tray_by_id("main") {
             tray::update_status(&tray, status);
         }
+        // Push directly to the settings window — no 1.5 s polling lag.
+        let _ = handle.emit("flowey:status", status);
     }
 }

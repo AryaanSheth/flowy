@@ -1,7 +1,7 @@
 use tauri::{
     image::Image,
     menu::{Menu, MenuItem},
-    tray::{TrayIcon, TrayIconBuilder},
+    tray::{MouseButton, MouseButtonState, TrayIcon, TrayIconBuilder, TrayIconEvent},
     AppHandle, Manager, Runtime,
 };
 
@@ -27,15 +27,20 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> {
         .menu(&menu)
         .tooltip("Flowey — Idle\nHold hotkey to record")
         .show_menu_on_left_click(false)
-        .on_menu_event(|app, event| match event.id.as_ref() {
-            "settings" => {
-                if let Some(win) = app.get_webview_window("settings") {
-                    let _ = win.show();
-                    let _ = win.set_focus();
-                } else {
-                    log::error!("Settings window not found");
-                }
+        // Left-click toggles the settings window
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } = event
+            {
+                let app = tray.app_handle();
+                toggle_settings_window(app);
             }
+        })
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "settings" => toggle_settings_window(app),
             "quit" => {
                 log::info!("Quitting Flowey");
                 app.exit(0);
@@ -43,6 +48,23 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> {
             _ => {}
         })
         .build(app)
+}
+
+/// Show the settings window if hidden; bring it to front if already visible.
+/// Called from both left-click tray event and the "Settings" menu item.
+pub fn toggle_settings_window<R: Runtime>(app: &AppHandle<R>) {
+    if let Some(win) = app.get_webview_window("settings") {
+        let visible = win.is_visible().unwrap_or(false);
+        if visible {
+            // Already open — just focus it
+            let _ = win.set_focus();
+        } else {
+            let _ = win.show();
+            let _ = win.set_focus();
+        }
+    } else {
+        log::error!("Settings window not found");
+    }
 }
 
 /// Update the tray icon and tooltip to reflect the current pipeline status.

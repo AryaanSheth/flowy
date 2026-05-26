@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 
-// ── Output mode ──────────────────────────────────────────────
+// ── Output mode ───────────────────────────────────────────────
 
 /// How transcribed text is delivered to the user.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, Default)]
@@ -17,23 +17,17 @@ pub enum OutputMode {
     TypeAndClipboard,
 }
 
-// ── Config ───────────────────────────────────────────────────
+// ── Config ────────────────────────────────────────────────────
 
 /// Persisted application settings.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct Config {
-    /// Path to the whisper ggml model file (.bin).
-    pub model_path: String,
-
     /// Global PTT hotkey string, e.g. "CmdOrCtrl+Shift+Space".
     pub hotkey: String,
 
     /// Whether to launch Flowey at system login.
     pub autostart: bool,
-
-    /// Whisper language code ("en", "fr", …) or "auto".
-    pub language: String,
 
     /// Word-substitution map applied after transcription.
     pub dictionary: HashMap<String, String>,
@@ -73,7 +67,7 @@ pub struct Config {
     pub ollama_prompt: String,
 }
 
-fn default_max_recording_secs() -> u32 { 60 }
+fn default_max_recording_secs() -> u32   { 60 }
 fn default_history_size()       -> usize { 20 }
 fn default_ollama_endpoint()    -> String { "http://localhost:11434".into() }
 fn default_ollama_model()       -> String { "llama3.2:3b".into() }
@@ -87,19 +81,17 @@ fn default_ollama_prompt()      -> String {
 impl Default for Config {
     fn default() -> Self {
         Self {
-            model_path:          String::new(),
-            hotkey:              "CmdOrCtrl+Shift+Space".into(),
-            autostart:           false,
-            language:            "auto".into(),
-            dictionary:          HashMap::new(),
-            input_device:        None,
-            output_mode:         OutputMode::Type,
-            max_recording_secs:  default_max_recording_secs(),
-            history_size:        default_history_size(),
-            ollama_enabled:      false,
-            ollama_endpoint:     default_ollama_endpoint(),
-            ollama_model:        default_ollama_model(),
-            ollama_prompt:       default_ollama_prompt(),
+            hotkey:             "CmdOrCtrl+Shift+Space".into(),
+            autostart:          false,
+            dictionary:         HashMap::new(),
+            input_device:       None,
+            output_mode:        OutputMode::Type,
+            max_recording_secs: default_max_recording_secs(),
+            history_size:       default_history_size(),
+            ollama_enabled:     false,
+            ollama_endpoint:    default_ollama_endpoint(),
+            ollama_model:       default_ollama_model(),
+            ollama_prompt:      default_ollama_prompt(),
         }
     }
 }
@@ -108,7 +100,7 @@ impl Config {
     /// Load from disk, falling back to defaults if absent or malformed.
     pub fn load() -> Self {
         match Self::try_load() {
-            Ok(c) => c,
+            Ok(c)  => c,
             Err(e) => {
                 log::warn!("Could not load config, using defaults: {e}");
                 Self::default()
@@ -122,6 +114,7 @@ impl Config {
             return Ok(Self::default());
         }
         let raw = std::fs::read_to_string(&path)?;
+        // Unknown fields (e.g. modelPath from an old config) are silently ignored.
         Ok(serde_json::from_str(&raw)?)
     }
 
@@ -136,12 +129,10 @@ impl Config {
     }
 
     /// `~/Library/Application Support/flowey/config.json`
-    ///
-    /// Reads `$HOME` directly — no cross-platform `dirs` crate needed on macOS.
     pub fn path() -> anyhow::Result<PathBuf> {
         let home = std::env::var("HOME")
             .map(PathBuf::from)
-            .map_err(|_| anyhow::anyhow!("$HOME environment variable is not set"))?;
+            .map_err(|_| anyhow::anyhow!("$HOME is not set"))?;
         Ok(home
             .join("Library")
             .join("Application Support")

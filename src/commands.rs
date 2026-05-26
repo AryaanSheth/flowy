@@ -1,14 +1,15 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::HashMap,
+    sync::{atomic::{AtomicBool, Ordering}, Arc},
+};
 
-use tauri::{command, AppHandle, State};
+use tauri::{command, AppHandle, Emitter, State};
 use tauri_plugin_autostart::ManagerExt;
-use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 use crate::{
     config::Config,
     state::{AppState, AppStatus},
-    transcribe::Transcriber,
 };
 
 // ── Config ────────────────────────────────────────────────────
@@ -22,7 +23,6 @@ pub fn get_config(state: State<Arc<AppState>>) -> Config {
 /// Persist an updated configuration, applying side effects:
 ///   - Hotkey changes   → un-register old, register new
 ///   - Autostart toggle → enable/disable OS autostart
-///   - Model path change → reload Whisper in background
 #[command]
 pub async fn save_config(
     new_config: Config,
@@ -31,14 +31,11 @@ pub async fn save_config(
 ) -> Result<(), String> {
     let old_config = state.config.read().clone();
 
-    // Persist first so a reload race sees the new value.
     new_config.save().map_err(|e| e.to_string())?;
 
-    // ── Hotkey ──────────────────────────────────────────────
+    // ── Hotkey ───────────────────────────────────────────────
     if new_config.hotkey != old_config.hotkey {
         let gs = app.global_shortcut();
-        // Targeted un-register — do NOT use unregister_all() as it would
-        // destroy shortcuts registered by other plugins.
         if let Err(e) = gs.unregister(old_config.hotkey.as_str()) {
             log::warn!("Could not unregister old hotkey '{}': {e}", old_config.hotkey);
         }
@@ -54,70 +51,96 @@ pub async fn save_config(
         }
     }
 
-    // ── Whisper model ────────────────────────────────────────
-    if new_config.model_path != old_config.model_path && !new_config.model_path.is_empty() {
-        let path = new_config.model_path.clone();
-        let state_arc = Arc::clone(&*state);
-        tauri::async_runtime::spawn_blocking(move || {
-            match Transcriber::load(&path) {
-                Ok(t) => {
-                    *state_arc.transcriber.lock() = Some(t);
-                    log::info!("Model loaded from '{path}'");
-                }
-                Err(e) => log::error!("Failed to load model: {e}"),
-            }
-        });
-    }
-
-    // Commit to shared state.
     *state.config.write() = new_config;
     Ok(())
 }
 
-// ── Status & history ─────────────────────────────────────────
+// ── Status & history ──────────────────────────────────────────
 
-/// Return the current pipeline status.
 #[command]
 pub fn get_status(state: State<Arc<AppState>>) -> AppStatus {
     *state.status.lock()
 }
 
-/// Return recent transcriptions, newest first.
 #[command]
 pub fn get_history(state: State<Arc<AppState>>) -> Vec<String> {
     state.history.lock().iter().cloned().collect()
 }
 
-/// Wipe the transcription history.
 #[command]
 pub fn clear_history(state: State<Arc<AppState>>) {
     state.history.lock().clear();
 }
 
+// ── Recording (UI button) ─────────────────────────────────────
+
+/// Start recording from the settings UI (bypasses the global hotkey).
+#[command]
+pub fn start_recording(app: AppHandle, state: State<Arc<AppState>>) {
+    let mut sig_guard = state.stop_signal.lock();
+    if sig_guard.is_some() { return; } // already recording
+
+    let stop = Arc::new(AtomicBool::new(false));
+    *sig_guard = Some(Arc::clone(&stop));
+    drop(sig_guard);
+
+    let (device_name, max_secs) = {
+        let cfg = state.config.read();
+        (cfg.input_device.clone(), cfg.max_recording_secs)
+    };
+
+    *state.status.lock() = AppStatus::Recording;
+    let _ = app.emit("flowey:status", AppStatus::Recording);
+    if let Some(tray) = app.tray_by_id("main") {
+        crate::tray::update_status(&tray, AppStatus::Recording);
+    }
+
+    let tx = state.audio_tx.clone();
+    std::thread::Builder::new()
+        .name("flowey-record-ui".into())
+        .spawn(move || {
+            match crate::audio::record_until_stopped(stop, device_name.as_deref(), max_secs) {
+                Ok(data) => { let _ = tx.try_send(data); }
+                Err(e)   => log::error!("Recording error: {e}"),
+            }
+        })
+        .expect("spawn record thread");
+}
+
+/// Stop an in-progress recording (triggered by releasing the UI button).
+#[command]
+pub fn stop_recording(state: State<Arc<AppState>>) {
+    if let Some(sig) = state.stop_signal.lock().take() {
+        sig.store(true, Ordering::Relaxed);
+    }
+}
+
+// ── Permissions ───────────────────────────────────────────────
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Permissions {
+    pub speech:        bool,
+    pub accessibility: bool,
+}
+
+#[command]
+pub fn check_permissions() -> Permissions {
+    Permissions {
+        speech:        crate::transcribe::is_authorized(),
+        accessibility: crate::transcribe::is_accessibility_trusted(),
+    }
+}
+
 // ── Audio devices ─────────────────────────────────────────────
 
-/// List available audio input devices.
-/// First entry is always "" meaning "System default".
 #[command]
 pub fn list_audio_devices() -> Vec<String> {
     crate::audio::list_input_devices()
 }
 
-// ── File picker ───────────────────────────────────────────────
+// ── Ollama ────────────────────────────────────────────────────
 
-/// Open a native file-picker and return the selected path (for model browsing).
-#[command]
-pub async fn browse_model_file(app: AppHandle) -> Option<String> {
-    app.dialog()
-        .file()
-        .add_filter("Whisper GGML Model", &["bin"])
-        .blocking_pick_file()
-        .map(|p| p.to_string())
-}
-
-// ── Ollama post-processor ─────────────────────────────────────
-
-/// Status of an Ollama probe — returned to the settings UI.
 #[derive(serde::Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OllamaStatus {
@@ -126,7 +149,6 @@ pub struct OllamaStatus {
     pub error:     Option<String>,
 }
 
-/// Ping Ollama at `endpoint`, returning the list of installed models on success.
 #[command]
 pub fn check_ollama(endpoint: String) -> OllamaStatus {
     if !crate::ollama::ping(&endpoint) {
@@ -148,7 +170,6 @@ pub fn check_ollama(endpoint: String) -> OllamaStatus {
 
 // ── Dictionary preview ────────────────────────────────────────
 
-/// Live-preview a dictionary substitution without saving.
 #[command]
 pub fn test_dictionary(input: String, dict: HashMap<String, String>) -> String {
     crate::dictionary::apply(&input, &dict)
