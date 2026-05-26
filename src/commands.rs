@@ -3,6 +3,7 @@ use std::{collections::HashMap, sync::Arc};
 use tauri::{command, AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_dialog::DialogExt;
+use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
 use crate::{
     config::Config,
@@ -10,33 +11,18 @@ use crate::{
     transcribe::Transcriber,
 };
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+// ── Config ────────────────────────────────────────────────────
 
-fn re_register_shortcut(app: &AppHandle, state: &Arc<AppState>, hotkey: &str) {
-    use tauri_plugin_global_shortcut::GlobalShortcutExt;
-    let gs = app.global_shortcut();
-    let _ = gs.unregister_all();
-    crate::hotkey::register_shortcut(app, state, hotkey);
-}
-
-// ---------------------------------------------------------------------------
-// Commands called from the Settings window
-// ---------------------------------------------------------------------------
-
-/// Return the current configuration (serialised as JSON for the frontend).
+/// Return the current configuration for the settings window.
 #[command]
 pub fn get_config(state: State<Arc<AppState>>) -> Config {
     state.config.read().clone()
 }
 
-/// Persist an updated configuration.
-///
-/// Side effects:
-///   - Re-registers the global hotkey if it changed.
-///   - Toggles autostart.
-///   - Reloads the Whisper model if the model path changed.
+/// Persist an updated configuration, applying side effects:
+///   - Hotkey changes   → un-register old, register new
+///   - Autostart toggle → enable/disable OS autostart
+///   - Model path change → reload Whisper in background
 #[command]
 pub async fn save_config(
     new_config: Config,
@@ -45,57 +31,81 @@ pub async fn save_config(
 ) -> Result<(), String> {
     let old_config = state.config.read().clone();
 
-    // Persist to disk first.
+    // Persist first so a reload race sees the new value.
     new_config.save().map_err(|e| e.to_string())?;
 
-    // Hotkey changed → re-register.
+    // ── Hotkey ──────────────────────────────────────────────
     if new_config.hotkey != old_config.hotkey {
-        re_register_shortcut(&app, &state, &new_config.hotkey);
+        let gs = app.global_shortcut();
+        // Targeted un-register — do NOT use unregister_all() as it would
+        // destroy shortcuts registered by other plugins.
+        if let Err(e) = gs.unregister(old_config.hotkey.as_str()) {
+            log::warn!("Could not unregister old hotkey '{}': {e}", old_config.hotkey);
+        }
+        crate::hotkey::register_shortcut(&app, &state, &new_config.hotkey);
     }
 
-    // Autostart changed.
+    // ── Autostart ────────────────────────────────────────────
     if new_config.autostart != old_config.autostart {
         let al = app.autolaunch();
-        let result = if new_config.autostart {
-            al.enable()
-        } else {
-            al.disable()
-        };
+        let result = if new_config.autostart { al.enable() } else { al.disable() };
         if let Err(e) = result {
             log::warn!("Autostart toggle failed: {e}");
         }
     }
 
-    // Model path changed → reload Whisper.
-    if new_config.model_path != old_config.model_path {
+    // ── Whisper model ────────────────────────────────────────
+    if new_config.model_path != old_config.model_path && !new_config.model_path.is_empty() {
         let path = new_config.model_path.clone();
-        // Clone the outer Arc<AppState> so the blocking task owns it.
         let state_arc = Arc::clone(&*state);
-        // Run on a blocking thread since model loading can take a moment.
         tauri::async_runtime::spawn_blocking(move || {
             match Transcriber::load(&path) {
                 Ok(t) => {
                     *state_arc.transcriber.lock() = Some(t);
-                    log::info!("Model reloaded from '{path}'");
+                    log::info!("Model loaded from '{path}'");
                 }
-                Err(e) => log::error!("Failed to reload model: {e}"),
+                Err(e) => log::error!("Failed to load model: {e}"),
             }
         });
     }
 
-    // Commit the new config into shared state.
+    // Commit to shared state.
     *state.config.write() = new_config;
-
     Ok(())
 }
 
-/// Return the current pipeline status (for the settings UI indicator).
+// ── Status & history ─────────────────────────────────────────
+
+/// Return the current pipeline status.
 #[command]
 pub fn get_status(state: State<Arc<AppState>>) -> AppStatus {
     *state.status.lock()
 }
 
-/// Open a native file-picker and return the chosen path (for model selection).
+/// Return recent transcriptions, newest first.
+#[command]
+pub fn get_history(state: State<Arc<AppState>>) -> Vec<String> {
+    state.history.lock().iter().cloned().collect()
+}
+
+/// Wipe the transcription history.
+#[command]
+pub fn clear_history(state: State<Arc<AppState>>) {
+    state.history.lock().clear();
+}
+
+// ── Audio devices ─────────────────────────────────────────────
+
+/// List available audio input devices.
+/// First entry is always "" meaning "System default".
+#[command]
+pub fn list_audio_devices() -> Vec<String> {
+    crate::audio::list_input_devices()
+}
+
+// ── File picker ───────────────────────────────────────────────
+
+/// Open a native file-picker and return the selected path (for model browsing).
 #[command]
 pub async fn browse_model_file(app: AppHandle) -> Option<String> {
     app.dialog()
@@ -104,6 +114,8 @@ pub async fn browse_model_file(app: AppHandle) -> Option<String> {
         .blocking_pick_file()
         .map(|p| p.to_string())
 }
+
+// ── Dictionary preview ────────────────────────────────────────
 
 /// Live-preview a dictionary substitution without saving.
 #[command]

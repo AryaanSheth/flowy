@@ -1,19 +1,18 @@
 //! Flowey — minimal local speech-to-text for the desktop.
 //!
-//! Architecture:
-//!   ┌─────────────────────────────────────────────────────────────┐
-//!   │  Global hotkey (tauri-plugin-global-shortcut)               │
-//!   │  Key down  ──► spawn recording thread                       │
-//!   │  Key up    ──► signal stop (AtomicBool)                     │
-//!   └───────────────────────┬─────────────────────────────────────┘
-//!                           │ std::sync::mpsc (AudioData)
-//!   ┌───────────────────────▼─────────────────────────────────────┐
-//!   │  Pipeline thread (std::thread)                              │
-//!   │  1. Resample to 16 kHz mono (rubato)                        │
-//!   │  2. Transcribe (whisper-rs / whisper.cpp)                   │
-//!   │  3. Apply custom dictionary substitutions                   │
-//!   │  4. Inject text into focused window (enigo)                 │
-//!   └─────────────────────────────────────────────────────────────┘
+//! Pipeline overview:
+//!
+//!   Global hotkey (tauri-plugin-global-shortcut)
+//!     Key down  ──► spawn OS thread: record_until_stopped()
+//!     Key up    ──► store(true, AtomicBool)  → thread stops
+//!                           │
+//!                   std::sync::mpsc  (try_send, non-blocking)
+//!                           │
+//!             Background thread: pipeline_loop()
+//!               ① resample to 16 kHz mono   (rubato)
+//!               ② transcribe                 (whisper-rs)
+//!               ③ apply dictionary
+//!               ④ deliver text               (enigo / clipboard)
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -41,46 +40,46 @@ fn main() {
 
     let config = config::Config::load();
 
-    // Channel connecting the recording thread → pipeline thread.
-    let (audio_tx, audio_rx) = mpsc::sync_channel::<AudioData>(4);
+    // Bounded channel: capacity 8 gives comfortable back-pressure without
+    // blocking the recording thread for more than one pending transcript.
+    let (audio_tx, audio_rx) = mpsc::sync_channel::<AudioData>(8);
 
     let state = Arc::new(AppState::new(config, audio_tx));
 
-    // Spawn the pipeline thread *before* calling app.run() (which blocks).
+    // Spawn the pipeline thread BEFORE app.run() (which blocks).
     let pipeline_state = Arc::clone(&state);
     std::thread::Builder::new()
         .name("flowey-pipeline".into())
         .spawn(move || pipeline_loop(audio_rx, pipeline_state))
         .expect("Failed to spawn pipeline thread");
 
-    // Build and run the Tauri application.
     tauri::Builder::default()
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_autostart::init(
             tauri_plugin_autostart::MacosLauncher::LaunchAgent,
             None,
         ))
+        .plugin(tauri_plugin_dialog::init())
         .manage(Arc::clone(&state))
         .setup(move |app| {
-            // Store the app handle so the pipeline thread can update the tray.
+            // Store handle so the pipeline thread can update the tray.
             *state.app_handle.lock() = Some(app.handle().clone());
 
-            // Build the system tray icon + menu.
+            // Build tray.
             tray::build(app.handle())?;
 
-            // Load Whisper model if a path is already configured.
+            // Preload Whisper model if a path is already saved.
             let model_path = state.config.read().model_path.clone();
             if !model_path.is_empty() {
                 match Transcriber::load(&model_path) {
                     Ok(t) => *state.transcriber.lock() = Some(t),
-                    Err(e) => log::warn!("Could not load model on startup: {e}"),
+                    Err(e) => log::warn!("Could not preload model: {e}"),
                 }
             } else {
-                log::info!("No model path configured — open Settings to set one.");
+                log::info!("No model path configured — open Settings to set one");
             }
 
-            // Register the push-to-talk hotkey.
+            // Register PTT hotkey.
             let hotkey = state.config.read().hotkey.clone();
             hotkey::register_shortcut(app.handle(), &state, &hotkey);
 
@@ -90,12 +89,15 @@ fn main() {
             commands::get_config,
             commands::save_config,
             commands::get_status,
-            commands::test_dictionary,
+            commands::get_history,
+            commands::clear_history,
+            commands::list_audio_devices,
             commands::browse_model_file,
+            commands::test_dictionary,
         ])
         .on_window_event(|win, event| {
-            // Hide settings window on close instead of destroying it,
-            // so re-opening it is instant.
+            // Hide the settings window instead of destroying it — re-opening
+            // is instant and the JS state is preserved.
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 if win.label() == "settings" {
                     api.prevent_close();
@@ -107,18 +109,28 @@ fn main() {
         .expect("error while running Flowey");
 }
 
-// ---------------------------------------------------------------------------
-// Background pipeline thread
-// ---------------------------------------------------------------------------
+// ── Pipeline thread ───────────────────────────────────────────
 
 fn pipeline_loop(rx: mpsc::Receiver<AudioData>, state: Arc<AppState>) {
     log::info!("Pipeline thread started");
 
     while let Ok((raw_samples, sample_rate, channels)) = rx.recv() {
-        // --- 1. Resample ---
+        let output_mode = state.config.read().output_mode;
+
+        // Check model loaded BEFORE flipping the tray to "Transcribing" so
+        // the user is not confused by a spinner that immediately does nothing.
+        let has_model = state.transcriber.lock().is_some();
+        if !has_model {
+            log::warn!("No Whisper model loaded — open Settings to configure one");
+            reset_status(&state);
+            continue;
+        }
+
+        // ── Status: Transcribing ─────────────────────────────
         *state.status.lock() = AppStatus::Transcribing;
         update_tray(&state);
 
+        // ── 1. Resample ──────────────────────────────────────
         let samples_16k = match resample::to_16khz_mono(&raw_samples, sample_rate, channels) {
             Ok(s) => s,
             Err(e) => {
@@ -128,19 +140,17 @@ fn pipeline_loop(rx: mpsc::Receiver<AudioData>, state: Arc<AppState>) {
             }
         };
 
-        // --- 2. Transcribe ---
-        let (language, dict) = {
+        // ── 2. Transcribe ────────────────────────────────────
+        let (language, dict, history_size) = {
             let cfg = state.config.read();
-            (cfg.language.clone(), cfg.dictionary.clone())
+            (cfg.language.clone(), cfg.dictionary.clone(), cfg.history_size)
         };
 
         let text = {
-            let guard = state.transcriber.lock();
-            match guard.as_ref() {
-                None => {
-                    log::warn!("No Whisper model loaded — open Settings to configure one");
-                    String::new()
-                }
+            // Use try_lock with a fallback to avoid deadlock if model reload
+            // is happening concurrently.
+            match state.transcriber.lock().as_ref() {
+                None => { reset_status(&state); continue; }
                 Some(t) => match t.transcribe(&samples_16k, &language) {
                     Ok(s) => s,
                     Err(e) => {
@@ -156,13 +166,22 @@ fn pipeline_loop(rx: mpsc::Receiver<AudioData>, state: Arc<AppState>) {
             continue;
         }
 
-        // --- 3. Custom dictionary ---
+        // ── 3. Dictionary ────────────────────────────────────
         let text = dictionary::apply(&text, &dict);
         log::info!("Transcribed: {:?}", text);
 
-        // --- 4. Inject text ---
-        if let Err(e) = typer::type_text(&text) {
-            log::error!("Text injection failed: {e}");
+        // ── 4. Store in history ──────────────────────────────
+        {
+            let mut hist = state.history.lock();
+            hist.push_front(text.clone());
+            while hist.len() > history_size {
+                hist.pop_back();
+            }
+        }
+
+        // ── 5. Deliver text ──────────────────────────────────
+        if let Err(e) = typer::output_text(&text, output_mode) {
+            log::error!("Text delivery failed: {e}");
         }
 
         reset_status(&state);

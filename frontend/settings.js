@@ -1,80 +1,275 @@
-/* Flowey settings UI — plain vanilla JS, no build step. */
+/**
+ * Flowey Settings UI
+ * Plain vanilla JS — no build step, no framework.
+ * Tauri commands accessed via window.__TAURI__.core.invoke().
+ */
 
 const { invoke } = window.__TAURI__.core;
 
-// ── DOM refs ────────────────────────────────────────────────
-const $  = id => document.getElementById(id);
-const modelPath    = $('model-path');
-const modelBrowse  = $('model-browse');
-const modelStatus  = $('model-status');
-const hotkeyInput  = $('hotkey');
-const langSelect   = $('language');
-const autostartCb  = $('autostart');
-const dictEntries  = $('dict-entries');
-const dictAdd      = $('dict-add');
-const dictTestIn   = $('dict-test-input');
-const dictTestOut  = $('dict-test-output');
-const saveBtn      = $('save');
-const saveStatus   = $('save-status');
-const modelLink    = $('model-link');
+// ── DOM helpers ───────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const $$ = sel => document.querySelectorAll(sel);
 
-// ── Suppress navigation on the model-download link ──────────
-modelLink.addEventListener('click', e => e.preventDefault());
+// ── Elements ──────────────────────────────────────────────────
+const sectionTitle  = $('section-title');
+const statusBadge   = $('status-badge');
 
-// ── Load config on open ─────────────────────────────────────
+const modelPath     = $('model-path');
+const modelBrowse   = $('model-browse');
+const modelStatus   = $('model-status');
+const langSelect    = $('language');
+
+const hotkeyInput       = $('hotkey');
+const hotkeyRecord      = $('hotkey-record');
+const hotkeyReset       = $('hotkey-reset');
+const hotkeyHint        = $('hotkey-recording-hint');
+const hotkeyPreview     = $('hotkey-preview');
+const maxSecsInput      = $('max-secs');
+
+const inputDeviceSelect  = $('input-device');
+const refreshDevicesBtn  = $('refresh-devices');
+
+const autostartCb   = $('autostart');
+const configPath    = $('config-path');
+
+const dictEntries   = $('dict-entries');
+const dictAdd       = $('dict-add');
+const dictImport    = $('dict-import');
+const dictExport    = $('dict-export');
+const dictTestIn    = $('dict-test-input');
+const dictTestOut   = $('dict-test-output');
+
+const historyList   = $('history-list');
+const historyCount  = $('history-count');
+const historyClear  = $('history-clear');
+
+const saveBtn       = $('save-btn');
+const discardBtn    = $('discard-btn');
+const saveStatus    = $('save-status');
+
+// ── Cached config (used for discard) ─────────────────────────
+let loadedConfig = null;
+
+// ── Navigation ────────────────────────────────────────────────
+const sectionNames = {
+  model:      'Model',
+  shortcut:   'Shortcut',
+  audio:      'Audio',
+  output:     'Output',
+  dictionary: 'Dictionary',
+  history:    'History',
+  system:     'System',
+};
+
+$$('.nav-item').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const id = btn.dataset.section;
+    $$('.nav-item').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    $$('.panel').forEach(p => p.classList.remove('active'));
+    $(`section-${id}`).classList.add('active');
+    sectionTitle.textContent = sectionNames[id] ?? id;
+
+    // Lazy-load data for specific sections
+    if (id === 'history') refreshHistory();
+    if (id === 'audio')   refreshDevices();
+  });
+});
+
+// ── Load config on window open ────────────────────────────────
 async function loadConfig() {
   try {
     const cfg = await invoke('get_config');
-    modelPath.value   = cfg.modelPath   ?? '';
-    hotkeyInput.value = cfg.hotkey      ?? '';
-    langSelect.value  = cfg.language    ?? 'auto';
-    autostartCb.checked = cfg.autostart ?? false;
-
-    // Dictionary
-    dictEntries.innerHTML = '';
-    for (const [key, val] of Object.entries(cfg.dictionary ?? {})) {
-      addDictRow(key, val);
-    }
+    loadedConfig = cfg;
+    applyConfig(cfg);
   } catch (e) {
     console.error('Failed to load config:', e);
   }
 }
 
+function applyConfig(cfg) {
+  modelPath.value        = cfg.modelPath   ?? '';
+  langSelect.value       = cfg.language    ?? 'auto';
+  hotkeyInput.value      = cfg.hotkey      ?? 'CmdOrCtrl+Shift+Space';
+  maxSecsInput.value     = cfg.maxRecordingSecs ?? 60;
+  autostartCb.checked    = cfg.autostart   ?? false;
+
+  // Output mode
+  const mode = cfg.outputMode ?? 'type';
+  const radio = document.querySelector(`input[name="output-mode"][value="${mode}"]`);
+  if (radio) radio.checked = true;
+
+  // Input device (populated after device list loads)
+  inputDeviceSelect.dataset.pendingValue = cfg.inputDevice ?? '';
+
+  // Dictionary
+  dictEntries.innerHTML = '';
+  for (const [k, v] of Object.entries(cfg.dictionary ?? {})) {
+    addDictRow(k, v);
+  }
+
+  // Config path
+  if (cfg.configPath) configPath.textContent = cfg.configPath;
+
+  setModelStatus(cfg.modelPath ? '✓ Model path configured' : '', cfg.modelPath ? 'ok' : '');
+}
+
 loadConfig();
 
-// ── Browse for model file (Rust-side native dialog) ─────────
+// ── Status polling ────────────────────────────────────────────
+const STATUS_LABELS = {
+  Idle:         '● Idle',
+  Recording:    '⏺ Recording',
+  Transcribing: '⟳ Transcribing',
+};
+const STATUS_CSS = {
+  Idle:         'idle',
+  Recording:    'recording',
+  Transcribing: 'transcribing',
+};
+
+async function pollStatus() {
+  try {
+    const s = await invoke('get_status');
+    const label = STATUS_LABELS[s] ?? s;
+    const cls   = STATUS_CSS[s] ?? 'idle';
+    if (statusBadge.textContent !== label) {
+      statusBadge.textContent = label;
+      statusBadge.className   = `status-badge ${cls}`;
+    }
+  } catch { /* ignore — window might not be focused */ }
+}
+
+// Poll every 1.5 s; use visibilitychange to avoid polling when hidden.
+let statusInterval = setInterval(pollStatus, 1500);
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    clearInterval(statusInterval);
+  } else {
+    pollStatus();
+    statusInterval = setInterval(pollStatus, 1500);
+  }
+});
+pollStatus();
+
+// ── Model file browse ─────────────────────────────────────────
 modelBrowse.addEventListener('click', async () => {
   try {
     const selected = await invoke('browse_model_file');
     if (selected) {
       modelPath.value = selected;
-      setModelStatus('', '');
+      setModelStatus('✓ Path updated — save to apply', 'ok');
     }
-  } catch (e) {
-    console.error('File dialog error:', e);
+  } catch (e) { console.error('File picker error:', e); }
+});
+
+// ── Audio devices ─────────────────────────────────────────────
+async function refreshDevices() {
+  try {
+    const devices = await invoke('list_audio_devices');
+    inputDeviceSelect.innerHTML = '';
+    devices.forEach((d, i) => {
+      const opt = document.createElement('option');
+      opt.value = d;
+      opt.textContent = d === '' ? 'System default' : d;
+      inputDeviceSelect.appendChild(opt);
+    });
+    // Restore pending value
+    const pending = inputDeviceSelect.dataset.pendingValue ?? '';
+    inputDeviceSelect.value = pending;
+  } catch (e) { console.error('Device list error:', e); }
+}
+
+refreshDevicesBtn.addEventListener('click', refreshDevices);
+
+// ── Hotkey recorder ───────────────────────────────────────────
+let recordingHotkey = false;
+const MODIFIER_KEYS = new Set(['Meta','Control','Alt','Shift']);
+const KEY_MAP = { ' ': 'Space', 'ArrowUp': 'Up', 'ArrowDown': 'Down',
+                  'ArrowLeft': 'Left', 'ArrowRight': 'Right' };
+
+hotkeyRecord.addEventListener('click', () => {
+  if (recordingHotkey) {
+    stopHotkeyRecord();
+  } else {
+    startHotkeyRecord();
   }
 });
 
-// ── Dictionary ───────────────────────────────────────────────
+hotkeyReset.addEventListener('click', () => {
+  hotkeyInput.value = 'CmdOrCtrl+Shift+Space';
+  stopHotkeyRecord();
+});
+
+function startHotkeyRecord() {
+  recordingHotkey = true;
+  hotkeyRecord.textContent = 'Cancel';
+  hotkeyHint.style.display = 'block';
+  hotkeyPreview.textContent = '';
+  window.addEventListener('keydown', captureHotkey, { capture: true });
+}
+
+function stopHotkeyRecord() {
+  recordingHotkey = false;
+  hotkeyRecord.textContent = 'Change';
+  hotkeyHint.style.display = 'none';
+  window.removeEventListener('keydown', captureHotkey, { capture: true });
+}
+
+function captureHotkey(e) {
+  e.preventDefault();
+  e.stopPropagation();
+
+  if (MODIFIER_KEYS.has(e.key)) {
+    // Show partial combo while only modifiers held
+    hotkeyPreview.textContent = buildPartialCombo(e);
+    return;
+  }
+
+  const combo = buildCombo(e);
+  hotkeyInput.value = combo;
+  stopHotkeyRecord();
+}
+
+function buildPartialCombo(e) {
+  const parts = [];
+  if (e.metaKey)    parts.push('CmdOrCtrl');
+  else if (e.ctrlKey) parts.push('CmdOrCtrl');
+  if (e.altKey)     parts.push('Alt');
+  if (e.shiftKey)   parts.push('Shift');
+  return parts.join('+') + (parts.length ? '+…' : '');
+}
+
+function buildCombo(e) {
+  const parts = [];
+  if (e.metaKey || e.ctrlKey) parts.push('CmdOrCtrl');
+  if (e.altKey)   parts.push('Alt');
+  if (e.shiftKey) parts.push('Shift');
+  const key = KEY_MAP[e.key] ?? (e.key.length === 1 ? e.key.toUpperCase() : e.key);
+  parts.push(key);
+  return parts.join('+');
+}
+
+// ── Dictionary ────────────────────────────────────────────────
 function addDictRow(key = '', value = '') {
   const row = document.createElement('div');
   row.className = 'dict-row';
   row.innerHTML = `
     <input type="text" class="dict-key"   value="${esc(key)}"   placeholder="word" spellcheck="false" />
-    <span class="dict-arrow">→</span>
+    <span class="dict-arrow-label">→</span>
     <input type="text" class="dict-val"   value="${esc(value)}" placeholder="replacement" spellcheck="false" />
-    <button class="dict-del secondary" title="Remove">✕</button>
+    <button class="dict-del" title="Remove entry">✕</button>
   `;
-  row.querySelector('.dict-del').addEventListener('click', () => row.remove());
-
-  // Live dict test on any change
-  row.addEventListener('input', debouncedDictTest);
-
+  row.querySelector('.dict-del').addEventListener('click', () => { row.remove(); debounceTest(); });
+  row.addEventListener('input', debounceTest);
   dictEntries.appendChild(row);
-  row.querySelector('.dict-key').focus();
+  return row;
 }
 
-dictAdd.addEventListener('click', () => addDictRow());
+dictAdd.addEventListener('click', () => {
+  const row = addDictRow();
+  row.querySelector('.dict-key').focus();
+});
 
 function collectDict() {
   const dict = {};
@@ -86,64 +281,137 @@ function collectDict() {
   return dict;
 }
 
-// ── Live dictionary test ─────────────────────────────────────
-let dictTestTimer = null;
-function debouncedDictTest() {
-  clearTimeout(dictTestTimer);
-  dictTestTimer = setTimeout(runDictTest, 180);
-}
+// Import / Export
+dictImport.addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = async e => {
+    try {
+      const text = await e.target.files[0].text();
+      const data = JSON.parse(text);
+      if (typeof data !== 'object' || Array.isArray(data)) throw new Error('Expected a JSON object');
+      dictEntries.innerHTML = '';
+      for (const [k, v] of Object.entries(data)) addDictRow(k, String(v));
+      debounceTest();
+    } catch (err) { alert('Import failed: ' + err.message); }
+  };
+  input.click();
+});
+
+dictExport.addEventListener('click', () => {
+  const blob = new Blob([JSON.stringify(collectDict(), null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'flowey-dictionary.json';
+  a.click();
+});
+
+// Live test
+let testTimer = null;
+function debounceTest() { clearTimeout(testTimer); testTimer = setTimeout(runDictTest, 200); }
 
 async function runDictTest() {
   const input = dictTestIn.value;
   if (!input.trim()) { dictTestOut.textContent = '—'; return; }
   try {
-    const result = await invoke('test_dictionary', {
-      input,
-      dict: collectDict(),
-    });
-    dictTestOut.textContent = result;
+    dictTestOut.textContent = await invoke('test_dictionary', { input, dict: collectDict() });
   } catch { dictTestOut.textContent = '—'; }
 }
 
-dictTestIn.addEventListener('input', debouncedDictTest);
+dictTestIn.addEventListener('input', debounceTest);
 
-// ── Save ─────────────────────────────────────────────────────
+// ── History ───────────────────────────────────────────────────
+async function refreshHistory() {
+  try {
+    const items = await invoke('get_history');
+    historyCount.textContent = `${items.length} ${items.length === 1 ? 'entry' : 'entries'}`;
+    if (!items.length) {
+      historyList.innerHTML = '<p class="empty-state">No transcriptions yet. Hold the hotkey and speak!</p>';
+      return;
+    }
+    historyList.innerHTML = '';
+    items.forEach(text => {
+      const div = document.createElement('div');
+      div.className = 'history-item';
+      div.innerHTML = `
+        <span class="history-text">${esc(text)}</span>
+        <button class="history-copy" title="Copy to clipboard">Copy</button>
+      `;
+      div.querySelector('.history-copy').addEventListener('click', async () => {
+        try {
+          // Use the clipboard output mode command to copy via Rust
+          await navigator.clipboard.writeText(text);
+          div.querySelector('.history-copy').textContent = '✓';
+          setTimeout(() => { div.querySelector('.history-copy').textContent = 'Copy'; }, 1500);
+        } catch {
+          div.querySelector('.history-copy').textContent = '✕';
+        }
+      });
+      historyList.appendChild(div);
+    });
+  } catch (e) { console.error('History error:', e); }
+}
+
+historyClear.addEventListener('click', async () => {
+  if (!confirm('Clear all transcription history?')) return;
+  await invoke('clear_history');
+  refreshHistory();
+});
+
+// ── Save ──────────────────────────────────────────────────────
 saveBtn.addEventListener('click', async () => {
   saveBtn.disabled = true;
-  setSaveStatus('Saving…', false);
+  setSaveStatus('Saving…', null);
 
-  const config = {
-    modelPath:  modelPath.value.trim(),
-    hotkey:     hotkeyInput.value.trim() || 'CmdOrCtrl+Shift+Space',
-    language:   langSelect.value,
-    autostart:  autostartCb.checked,
-    dictionary: collectDict(),
+  const outputMode = (() => {
+    const r = document.querySelector('input[name="output-mode"]:checked');
+    return r ? r.value : 'type';
+  })();
+
+  const newConfig = {
+    modelPath:         modelPath.value.trim(),
+    hotkey:            hotkeyInput.value.trim() || 'CmdOrCtrl+Shift+Space',
+    language:          langSelect.value,
+    autostart:         autostartCb.checked,
+    dictionary:        collectDict(),
+    inputDevice:       inputDeviceSelect.value || null,
+    outputMode,
+    maxRecordingSecs:  parseInt(maxSecsInput.value, 10) || 60,
+    historySize:       loadedConfig?.historySize ?? 20,
   };
 
   try {
-    await invoke('save_config', { newConfig: config });
-    setSaveStatus('Saved ✓', false);
-    setModelStatus(
-      config.modelPath ? '✓ Model path saved — will load on next use' : '',
-      config.modelPath ? 'ok' : ''
-    );
-    setTimeout(() => setSaveStatus('', false), 3000);
+    await invoke('save_config', { newConfig });
+    loadedConfig = newConfig;
+    setSaveStatus('Saved ✓', 'ok');
+    setModelStatus(newConfig.modelPath ? '✓ Model path saved' : '', newConfig.modelPath ? 'ok' : '');
+    setTimeout(() => setSaveStatus('', null), 3000);
   } catch (e) {
-    setSaveStatus(`Error: ${e}`, true);
+    setSaveStatus(`Error: ${e}`, 'err');
   } finally {
     saveBtn.disabled = false;
   }
 });
 
-// ── Helpers ──────────────────────────────────────────────────
-function setSaveStatus(msg, isErr) {
+// Discard: reload from cached config
+discardBtn.addEventListener('click', () => {
+  if (loadedConfig) {
+    applyConfig(loadedConfig);
+    setSaveStatus('Changes discarded', null);
+    setTimeout(() => setSaveStatus('', null), 2000);
+  }
+});
+
+// ── Helpers ───────────────────────────────────────────────────
+function setSaveStatus(msg, cls) {
   saveStatus.textContent = msg;
-  saveStatus.className   = 'save-status' + (isErr ? ' err' : '');
+  saveStatus.className   = cls ? `save-status ${cls}` : 'save-status';
 }
 
 function setModelStatus(msg, cls) {
   modelStatus.textContent = msg;
-  modelStatus.className   = 'model-status ' + cls;
+  modelStatus.className   = cls ? `inline-status ${cls}` : 'inline-status';
 }
 
 function esc(str) {

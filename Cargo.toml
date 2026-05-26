@@ -24,6 +24,8 @@ whisper-rs         = "0.11"
 
 # Text injection into the focused window
 enigo              = "0.2"
+# Clipboard access for output-mode = Clipboard
+arboard            = "3"
 
 # Config persistence
 dirs               = "5"
