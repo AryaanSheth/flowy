@@ -135,10 +135,17 @@ impl Config {
         Ok(())
     }
 
-    /// `<config_dir>/flowey/config.json`
+    /// `~/Library/Application Support/flowey/config.json`
+    ///
+    /// Reads `$HOME` directly — no cross-platform `dirs` crate needed on macOS.
     pub fn path() -> anyhow::Result<PathBuf> {
-        let base = dirs::config_dir()
-            .ok_or_else(|| anyhow::anyhow!("Cannot determine config directory"))?;
-        Ok(base.join("flowey").join("config.json"))
+        let home = std::env::var("HOME")
+            .map(PathBuf::from)
+            .map_err(|_| anyhow::anyhow!("$HOME environment variable is not set"))?;
+        Ok(home
+            .join("Library")
+            .join("Application Support")
+            .join("flowey")
+            .join("config.json"))
     }
 }

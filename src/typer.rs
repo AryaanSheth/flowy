@@ -4,11 +4,9 @@ use crate::config::OutputMode;
 
 /// Deliver `text` to the user according to the configured `mode`.
 ///
-/// - `Type`            → simulate keystrokes into the focused window (enigo)
-/// - `Clipboard`       → write to the system clipboard (arboard)
-/// - `TypeAndClipboard`→ both
-///
-/// Platform notes are documented on [`do_type`] and [`do_clipboard`].
+/// - `Type`             → simulate keystrokes into the focused window
+/// - `Clipboard`        → write to the system clipboard via `pbcopy`
+/// - `TypeAndClipboard` → both
 pub fn output_text(text: &str, mode: OutputMode) -> Result<()> {
     if text.is_empty() {
         return Ok(());
@@ -26,31 +24,55 @@ pub fn output_text(text: &str, mode: OutputMode) -> Result<()> {
 
 /// Inject `text` as keystrokes into whatever window has focus.
 ///
-/// **macOS**: requires Accessibility permission (System Settings →
-/// Privacy → Accessibility).  Without it this is a silent no-op.
-/// **Linux/X11**: works; on pure Wayland sessions needs `uinput` or `ydotool`.
-/// **Windows**: blocked for UAC-elevated target windows.
+/// Uses CoreGraphics via `enigo` — requires Accessibility permission
+/// (System Settings → Privacy → Accessibility).
 fn do_type(text: &str) -> Result<()> {
-    use enigo::{Enigo, Keyboard, Settings};
+    #[cfg(not(target_os = "macos"))]
+    {
+        let _ = text;
+        anyhow::bail!("Keystroke injection is only supported on macOS");
+    }
 
-    let mut enigo = Enigo::new(&Settings::default())
-        .context("Failed to initialise keystroke injector (enigo)")?;
+    #[cfg(target_os = "macos")]
+    {
+        use enigo::{Enigo, Keyboard, Settings};
 
-    enigo
-        .text(text)
-        .context("Keystroke injection failed — check platform permissions (see README)")?;
+        let mut enigo = Enigo::new(&Settings::default())
+            .context("Failed to initialise keystroke injector")?;
 
-    log::debug!("Typed {} chars", text.len());
-    Ok(())
+        enigo
+            .text(text)
+            .context("Keystroke injection failed — grant Accessibility permission in System Settings")?;
+
+        log::debug!("Typed {} chars", text.len());
+        Ok(())
+    }
 }
 
-/// Write `text` to the system clipboard using arboard.
+/// Write `text` to the macOS clipboard using the built-in `pbcopy` utility.
+///
+/// `pbcopy` is part of macOS base; no extra crate required.
 fn do_clipboard(text: &str) -> Result<()> {
-    arboard::Clipboard::new()
-        .context("Failed to open clipboard")?
-        .set_text(text.to_string())
-        .context("Failed to write to clipboard")?;
+    use std::io::Write;
+    use std::process::{Command, Stdio};
 
-    log::debug!("Copied {} chars to clipboard", text.len());
+    let mut child = Command::new("pbcopy")
+        .stdin(Stdio::piped())
+        .spawn()
+        .context("Failed to launch pbcopy — is this macOS?")?;
+
+    child
+        .stdin
+        .take()
+        .context("pbcopy stdin unavailable")?
+        .write_all(text.as_bytes())
+        .context("Failed to write to pbcopy stdin")?;
+
+    let status = child.wait().context("pbcopy did not exit cleanly")?;
+    if !status.success() {
+        anyhow::bail!("pbcopy exited with status {status}");
+    }
+
+    log::debug!("Copied {} chars to clipboard via pbcopy", text.len());
     Ok(())
 }

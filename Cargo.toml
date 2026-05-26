@@ -13,7 +13,7 @@ tauri-plugin-global-shortcut = "2"
 tauri-plugin-autostart        = "2"
 tauri-plugin-dialog           = "2"
 
-# Audio capture
+# Audio capture (uses CoreAudio on macOS — no ALSA/Win32 deps)
 cpal               = "0.15"
 
 # Resampling to 16 kHz for Whisper
@@ -22,16 +22,10 @@ rubato             = "0.14"
 # Local speech-to-text (whisper.cpp bindings)
 whisper-rs         = "0.11"
 
-# Text injection into the focused window
-enigo              = "0.2"
-# Clipboard access for output-mode = Clipboard
-arboard            = "3"
-
 # Synchronous HTTP client for the Ollama post-processor
 ureq               = { version = "2", features = ["json"] }
 
-# Config persistence
-dirs               = "5"
+# Config persistence & serialisation
 serde              = { version = "1", features = ["derive"] }
 serde_json         = "1"
 
@@ -40,6 +34,11 @@ anyhow             = "1"
 log                = "0.4"
 env_logger         = "0.11"
 parking_lot        = "0.12"
+
+# ── macOS-only native bindings ────────────────────────────────
+# Keystroke injection via CoreGraphics (no X11 / Win32 code path)
+[target.'cfg(target_os = "macos")'.dependencies]
+enigo              = "0.2"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
