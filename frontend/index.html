@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flowey — Settings</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>🌿 Flowey</h1>
+    <p class="subtitle">Local speech-to-text — push to talk, anywhere</p>
+  </header>
+
+  <main>
+
+    <!-- ── Model ──────────────────────────────────────────── -->
+    <section>
+      <h2>Whisper Model</h2>
+      <div class="row">
+        <input id="model-path" type="text" placeholder="Path to ggml-*.bin …" spellcheck="false" />
+        <button id="model-browse">Browse</button>
+      </div>
+      <p class="hint">
+        Download a model from
+        <a href="#" id="model-link">github.com/ggerganov/whisper.cpp/releases</a>.
+        <code>ggml-base.en.bin</code> (~141 MB) is a good balance of speed and accuracy.
+      </p>
+      <div id="model-status" class="model-status"></div>
+    </section>
+
+    <!-- ── Hotkey ─────────────────────────────────────────── -->
+    <section>
+      <h2>Push-to-Talk Hotkey</h2>
+      <div class="row">
+        <input id="hotkey" type="text" placeholder="e.g. CmdOrCtrl+Shift+Space" spellcheck="false" />
+      </div>
+      <p class="hint">
+        Hold the key to record. Release to transcribe and type.<br />
+        Use Tauri shortcut syntax: <code>CmdOrCtrl</code>, <code>Alt</code>,
+        <code>Shift</code>, <code>Super</code>, key names like <code>Space</code>,
+        <code>F1</code>, etc.
+      </p>
+    </section>
+
+    <!-- ── Language ───────────────────────────────────────── -->
+    <section>
+      <h2>Language</h2>
+      <select id="language">
+        <option value="auto">Auto-detect</option>
+        <option value="en">English</option>
+        <option value="es">Spanish</option>
+        <option value="fr">French</option>
+        <option value="de">German</option>
+        <option value="it">Italian</option>
+        <option value="pt">Portuguese</option>
+        <option value="nl">Dutch</option>
+        <option value="ja">Japanese</option>
+        <option value="zh">Chinese</option>
+        <option value="ko">Korean</option>
+        <option value="ru">Russian</option>
+        <option value="ar">Arabic</option>
+        <option value="hi">Hindi</option>
+        <option value="tr">Turkish</option>
+        <option value="pl">Polish</option>
+      </select>
+    </section>
+
+    <!-- ── Autostart ──────────────────────────────────────── -->
+    <section>
+      <h2>Autostart</h2>
+      <label class="toggle-row">
+        <input id="autostart" type="checkbox" />
+        <span>Launch Flowey at login</span>
+      </label>
+    </section>
+
+    <!-- ── Dictionary ─────────────────────────────────────── -->
+    <section>
+      <h2>Custom Dictionary</h2>
+      <p class="hint">
+        Word substitutions applied after transcription (case-insensitive, whole-word).
+      </p>
+      <div id="dict-entries"></div>
+      <button id="dict-add" class="secondary">+ Add entry</button>
+
+      <div class="dict-test">
+        <input id="dict-test-input"  type="text" placeholder="Test input…" />
+        <span id="dict-test-output" class="dict-test-output">—</span>
+      </div>
+    </section>
+
+  </main>
+
+  <footer>
+    <div id="save-status" class="save-status"></div>
+    <button id="save">Save Settings</button>
+  </footer>
+
+  <script src="settings.js"></script>
+</body>
+</html>
