@@ -27,6 +27,9 @@ enigo              = "0.2"
 # Clipboard access for output-mode = Clipboard
 arboard            = "3"
 
+# Synchronous HTTP client for the Ollama post-processor
+ureq               = { version = "2", features = ["json"] }
+
 # Config persistence
 dirs               = "5"
 serde              = { version = "1", features = ["derive"] }

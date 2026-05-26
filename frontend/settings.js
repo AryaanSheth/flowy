@@ -43,6 +43,14 @@ const historyList   = $('history-list');
 const historyCount  = $('history-count');
 const historyClear  = $('history-clear');
 
+const ollamaEnabled   = $('ollama-enabled');
+const ollamaEndpoint  = $('ollama-endpoint');
+const ollamaModelSel  = $('ollama-model');
+const ollamaModelMan  = $('ollama-model-manual');
+const ollamaPrompt    = $('ollama-prompt');
+const ollamaCheckBtn  = $('ollama-check');
+const ollamaStatus    = $('ollama-status');
+
 const saveBtn       = $('save-btn');
 const discardBtn    = $('discard-btn');
 const saveStatus    = $('save-status');
@@ -57,6 +65,7 @@ const sectionNames = {
   audio:      'Audio',
   output:     'Output',
   dictionary: 'Dictionary',
+  ai:         'AI Enhancement',
   history:    'History',
   system:     'System',
 };
@@ -73,6 +82,7 @@ $$('.nav-item').forEach(btn => {
     // Lazy-load data for specific sections
     if (id === 'history') refreshHistory();
     if (id === 'audio')   refreshDevices();
+    if (id === 'ai' && ollamaEnabled.checked) checkOllama();
   });
 });
 
@@ -101,6 +111,12 @@ function applyConfig(cfg) {
 
   // Input device (populated after device list loads)
   inputDeviceSelect.dataset.pendingValue = cfg.inputDevice ?? '';
+
+  // Ollama
+  ollamaEnabled.checked  = cfg.ollamaEnabled ?? false;
+  ollamaEndpoint.value   = cfg.ollamaEndpoint ?? 'http://localhost:11434';
+  ollamaModelMan.value   = cfg.ollamaModel ?? '';
+  ollamaPrompt.value     = cfg.ollamaPrompt ?? '';
 
   // Dictionary
   dictEntries.innerHTML = '';
@@ -181,6 +197,55 @@ async function refreshDevices() {
 }
 
 refreshDevicesBtn.addEventListener('click', refreshDevices);
+
+// ── Ollama ────────────────────────────────────────────────────
+async function checkOllama() {
+  const endpoint = ollamaEndpoint.value.trim() || 'http://localhost:11434';
+  setOllamaStatus('Checking…', null);
+  try {
+    const result = await invoke('check_ollama', { endpoint });
+    if (!result.reachable) {
+      setOllamaStatus(result.error || 'Cannot reach Ollama', 'err');
+      ollamaModelSel.innerHTML = '<option value="">—</option>';
+      return;
+    }
+    if (result.error) {
+      setOllamaStatus(`Connected, but: ${result.error}`, 'warn');
+    } else {
+      setOllamaStatus(`✓ Connected · ${result.models.length} model${result.models.length === 1 ? '' : 's'} installed`, 'ok');
+    }
+    // Populate dropdown
+    ollamaModelSel.innerHTML = '';
+    const placeholder = document.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = '— Select model —';
+    ollamaModelSel.appendChild(placeholder);
+    result.models.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m;
+      o.textContent = m;
+      ollamaModelSel.appendChild(o);
+    });
+    // If current manual value matches an installed model, pre-select it
+    if (ollamaModelMan.value && result.models.includes(ollamaModelMan.value)) {
+      ollamaModelSel.value = ollamaModelMan.value;
+    }
+  } catch (e) {
+    setOllamaStatus(`Error: ${e}`, 'err');
+  }
+}
+
+ollamaCheckBtn.addEventListener('click', checkOllama);
+
+// Selecting from dropdown updates the manual field.
+ollamaModelSel.addEventListener('change', () => {
+  if (ollamaModelSel.value) ollamaModelMan.value = ollamaModelSel.value;
+});
+
+function setOllamaStatus(msg, cls) {
+  ollamaStatus.textContent = msg;
+  ollamaStatus.className   = cls ? `inline-status ${cls}` : 'inline-status';
+}
 
 // ── Hotkey recorder ───────────────────────────────────────────
 let recordingHotkey = false;
@@ -379,6 +444,10 @@ saveBtn.addEventListener('click', async () => {
     outputMode,
     maxRecordingSecs:  parseInt(maxSecsInput.value, 10) || 60,
     historySize:       loadedConfig?.historySize ?? 20,
+    ollamaEnabled:     ollamaEnabled.checked,
+    ollamaEndpoint:    ollamaEndpoint.value.trim() || 'http://localhost:11434',
+    ollamaModel:       (ollamaModelMan.value || ollamaModelSel.value || 'llama3.2:3b').trim(),
+    ollamaPrompt:      ollamaPrompt.value.trim() || loadedConfig?.ollamaPrompt || '',
   };
 
   try {

@@ -115,6 +115,37 @@ pub async fn browse_model_file(app: AppHandle) -> Option<String> {
         .map(|p| p.to_string())
 }
 
+// ── Ollama post-processor ─────────────────────────────────────
+
+/// Status of an Ollama probe — returned to the settings UI.
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OllamaStatus {
+    pub reachable: bool,
+    pub models:    Vec<String>,
+    pub error:     Option<String>,
+}
+
+/// Ping Ollama at `endpoint`, returning the list of installed models on success.
+#[command]
+pub fn check_ollama(endpoint: String) -> OllamaStatus {
+    if !crate::ollama::ping(&endpoint) {
+        return OllamaStatus {
+            reachable: false,
+            models:    vec![],
+            error:     Some(format!("Cannot reach Ollama at {endpoint}. Is it running?")),
+        };
+    }
+    match crate::ollama::list_models(&endpoint) {
+        Ok(models) => OllamaStatus { reachable: true, models, error: None },
+        Err(e)     => OllamaStatus {
+            reachable: true,
+            models:    vec![],
+            error:     Some(e.to_string()),
+        },
+    }
+}
+
 // ── Dictionary preview ────────────────────────────────────────
 
 /// Live-preview a dictionary substitution without saving.

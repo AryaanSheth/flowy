@@ -35,6 +35,10 @@
       <span class="nav-icon">📚</span>
       <span class="nav-label">Dictionary</span>
     </button>
+    <button class="nav-item" data-section="ai">
+      <span class="nav-icon">✨</span>
+      <span class="nav-label">AI</span>
+    </button>
     <button class="nav-item" data-section="history">
       <span class="nav-icon">🕒</span>
       <span class="nav-label">History</span>
@@ -203,6 +207,56 @@
           <input id="dict-test-input"  type="text" placeholder="Type something…" />
           <span class="dict-arrow">→</span>
           <span id="dict-test-output" class="dict-test-output">—</span>
+        </div>
+      </section>
+
+      <!-- ── AI / Ollama ────────────────────────────────── -->
+      <section id="section-ai" class="panel">
+        <div class="callout callout-info">
+          <strong>Optional cleanup pass.</strong> Send transcribed text through a
+          local Ollama model to fix punctuation, capitalization and grammar.
+          Requires <a href="https://ollama.com" target="_blank">Ollama</a> running locally.
+        </div>
+
+        <div class="field-group">
+          <label class="toggle-row">
+            <input id="ollama-enabled" type="checkbox" />
+            <span class="toggle-label"><strong>Enable Ollama enhancement</strong></span>
+          </label>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Endpoint</label>
+          <div class="row">
+            <input id="ollama-endpoint" type="text"
+                   placeholder="http://localhost:11434" spellcheck="false" />
+            <button id="ollama-check" class="btn-sm">Test</button>
+          </div>
+          <div id="ollama-status" class="inline-status"></div>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">Model</label>
+          <div class="row">
+            <select id="ollama-model" style="flex:1"></select>
+            <input id="ollama-model-manual" type="text"
+                   placeholder="or type a model name" spellcheck="false"
+                   style="flex:1" />
+          </div>
+          <p class="hint">
+            Recommended: <code>llama3.2:3b</code> (fast, ~2 GB) or
+            <code>qwen2.5:3b</code>. Pull with
+            <code>ollama pull llama3.2:3b</code>.
+          </p>
+        </div>
+
+        <div class="field-group">
+          <label class="field-label">System prompt</label>
+          <textarea id="ollama-prompt" rows="5" spellcheck="false"></textarea>
+          <p class="hint">
+            The instruction sent to the model before each transcription.
+            Keep it short and explicit.
+          </p>
         </div>
       </section>
 

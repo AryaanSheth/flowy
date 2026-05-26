@@ -21,6 +21,7 @@ mod commands;
 mod config;
 mod dictionary;
 mod hotkey;
+mod ollama;
 mod resample;
 mod state;
 mod transcribe;
@@ -94,6 +95,7 @@ fn main() {
             commands::list_audio_devices,
             commands::browse_model_file,
             commands::test_dictionary,
+            commands::check_ollama,
         ])
         .on_window_event(|win, event| {
             // Hide the settings window instead of destroying it — re-opening
@@ -169,6 +171,30 @@ fn pipeline_loop(rx: mpsc::Receiver<AudioData>, state: Arc<AppState>) {
         // ── 3. Dictionary ────────────────────────────────────
         let text = dictionary::apply(&text, &dict);
         log::info!("Transcribed: {:?}", text);
+
+        // ── 3b. Ollama enhancement (optional) ───────────────
+        let text = {
+            let cfg = state.config.read();
+            if cfg.ollama_enabled && !text.is_empty() {
+                let endpoint = cfg.ollama_endpoint.clone();
+                let model    = cfg.ollama_model.clone();
+                let prompt   = cfg.ollama_prompt.clone();
+                drop(cfg);
+                match ollama::enhance(&endpoint, &model, &prompt, &text) {
+                    Ok(enhanced) if !enhanced.is_empty() => {
+                        log::info!("Enhanced: {:?}", enhanced);
+                        enhanced
+                    }
+                    Ok(_) => text,
+                    Err(e) => {
+                        log::warn!("Ollama enhancement failed, using raw text: {e}");
+                        text
+                    }
+                }
+            } else {
+                text
+            }
+        };
 
         // ── 4. Store in history ──────────────────────────────
         {

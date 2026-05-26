@@ -53,10 +53,36 @@ pub struct Config {
     /// How many past transcriptions to keep in memory.
     #[serde(default = "default_history_size")]
     pub history_size: usize,
+
+    // ── Ollama post-processor ────────────────────────────────
+
+    /// Whether to clean up transcribed text through a local Ollama model.
+    #[serde(default)]
+    pub ollama_enabled: bool,
+
+    /// Ollama HTTP endpoint, default `http://localhost:11434`.
+    #[serde(default = "default_ollama_endpoint")]
+    pub ollama_endpoint: String,
+
+    /// Model tag to use, e.g. `llama3.2:3b`.
+    #[serde(default = "default_ollama_model")]
+    pub ollama_model: String,
+
+    /// System prompt that tells the model what to do with the dictated text.
+    #[serde(default = "default_ollama_prompt")]
+    pub ollama_prompt: String,
 }
 
 fn default_max_recording_secs() -> u32 { 60 }
 fn default_history_size()       -> usize { 20 }
+fn default_ollama_endpoint()    -> String { "http://localhost:11434".into() }
+fn default_ollama_model()       -> String { "llama3.2:3b".into() }
+fn default_ollama_prompt()      -> String {
+    "You are a transcription cleaner. Fix punctuation, capitalization and \
+     grammar in the dictated text. Preserve the speaker's exact words and \
+     meaning — do not add new content, summaries, or commentary. Return only \
+     the cleaned text.".into()
+}
 
 impl Default for Config {
     fn default() -> Self {
@@ -70,6 +96,10 @@ impl Default for Config {
             output_mode:         OutputMode::Type,
             max_recording_secs:  default_max_recording_secs(),
             history_size:        default_history_size(),
+            ollama_enabled:      false,
+            ollama_endpoint:     default_ollama_endpoint(),
+            ollama_model:        default_ollama_model(),
+            ollama_prompt:       default_ollama_prompt(),
         }
     }
 }
