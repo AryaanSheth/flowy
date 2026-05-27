@@ -74,13 +74,16 @@ fn main() {
             let hotkey = state.config.read().hotkey.clone();
             hotkey::register_shortcut(app.handle(), &state, &hotkey);
 
-            // Request Accessibility so CGEventTap (used by global-shortcut)
-            // can receive events.  This opens System Settings → Accessibility
-            // and highlights this process if not already trusted.
+            // Check Accessibility trust (needed for CGEventTap / keystroke injection).
+            // We do NOT trigger the OS permission dialog here — that caused it to fire
+            // on every launch for debug builds whose binary signature changes each build.
+            // Instead the settings UI shows a callout banner, and the first paste attempt
+            // shows a one-time in-app NSAlert with removal/re-add instructions.
             if !transcribe::request_accessibility() {
                 log::warn!(
-                    "Accessibility not granted — global hotkey will not fire. \
-                     Grant access in System Settings → Privacy & Security → Accessibility."
+                    "Accessibility not yet granted — keystroke injection will fall back to \
+                     clipboard. Grant access via System Settings → Privacy & Security → \
+                     Accessibility (remove + re-add if the entry already exists)."
                 );
             }
 

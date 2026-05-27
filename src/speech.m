@@ -14,17 +14,21 @@
 
 // ── Accessibility (needed for CGEventTap / global hotkeys) ────
 
-/// Check Accessibility trust.  If not yet granted, show the system prompt
-/// (which opens System Settings → Accessibility) exactly once.
-/// Returns 1 if already trusted (no dialog), 0 if the dialog was shown.
+/// Check Accessibility trust and return the result WITHOUT showing the OS prompt.
+/// Returns 1 if trusted, 0 otherwise.
+///
+/// We deliberately never call AXIsProcessTrustedWithOptions(kAXTrustedCheckOptionPrompt:YES)
+/// here.  Showing the OS prompt at startup is the wrong UX because:
+///   • macOS re-evaluates trust against the code signature on every launch.
+///   • Debug/development builds are re-signed on every `cargo build`, so the
+///     prompt fires every launch even when the user has already granted access
+///     to a previous binary.
+///   • The settings UI already shows a callout banner when trust is absent.
+///
+/// Users grant access through the in-app banner or through the NSAlert that
+/// appears the first time keystroke injection is attempted (flowey_type_text).
 int flowey_request_accessibility(void) {
-    // Fast path: already trusted — never show a dialog.
-    if (AXIsProcessTrusted()) return 1;
-
-    // Not trusted yet: show the OS prompt once so the user can grant access.
-    NSDictionary* opts = @{(__bridge id)kAXTrustedCheckOptionPrompt: @YES};
-    AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)opts);
-    return 0;
+    return AXIsProcessTrusted() ? 1 : 0;
 }
 
 /// Returns 1 if Accessibility is currently granted, 0 otherwise.
@@ -168,11 +172,14 @@ int flowey_type_text(const char* utf8_text) {
                         NSAlert* alert = [[NSAlert alloc] init];
                         alert.messageText     = @"Accessibility Permission Required";
                         alert.informativeText =
-                            @"Flowey needs Accessibility access to paste transcribed text "
-                            @"into other apps.\n\n"
-                            @"1. Open System Settings → Privacy & Security → Accessibility\n"
-                            @"2. Enable the toggle next to Flowey\n"
-                            @"3. Restart Flowey\n\n"
+                            @"Flowey needs Accessibility access to paste transcribed text into other apps.\n\n"
+                            @"Open System Settings → Privacy & Security → Accessibility, then:\n\n"
+                            @"• If Flowey is NOT listed → click + and add it.\n"
+                            @"• If Flowey IS listed with the toggle ON but this alert still appears → "
+                            @"click − to remove it, then + to re-add it. "
+                            @"macOS clears Accessibility trust whenever the app binary changes "
+                            @"(e.g. after a rebuild), so the existing entry becomes stale.\n\n"
+                            @"Restart Flowey after making changes.\n\n"
                             @"Until then, transcriptions are copied to your clipboard — "
                             @"paste manually with ⌘V.";
                         alert.alertStyle = NSAlertStyleWarning;
