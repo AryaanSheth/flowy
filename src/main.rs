@@ -23,6 +23,7 @@ mod config;
 mod dictionary;
 mod hotkey;
 mod ollama;
+mod overlay;
 mod state;
 mod transcribe;
 mod tray;
@@ -206,7 +207,8 @@ fn reset_status(state: &AppState) {
     broadcast_status(state);
 }
 
-/// Update the tray icon AND push an instant `status` event to the frontend.
+/// Update the tray icon, push a `status` event to all windows, and
+/// show / hide the floating overlay pill.
 fn broadcast_status(state: &AppState) {
     let status = *state.status.lock();
     if let Some(handle) = state.app_handle.lock().as_ref() {
@@ -215,5 +217,7 @@ fn broadcast_status(state: &AppState) {
         }
         // Push directly to the settings window — no 1.5 s polling lag.
         let _ = handle.emit("flowey:status", status);
+        // Show / hide the floating overlay pill.
+        overlay::update(handle, status);
     }
 }

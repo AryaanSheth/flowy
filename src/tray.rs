@@ -24,6 +24,7 @@ pub fn build<R: Runtime>(app: &AppHandle<R>) -> tauri::Result<TrayIcon<R>> {
 
     TrayIconBuilder::with_id("main")
         .icon(icon)
+        .icon_as_template(true)   // macOS: render as template so it inverts on dark menu bar
         .menu(&menu)
         .tooltip("Flowey — Idle\nHold hotkey to record")
         .show_menu_on_left_click(false)

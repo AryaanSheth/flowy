@@ -8,16 +8,23 @@
 
 #import <Speech/Speech.h>
 #import <Foundation/Foundation.h>
+#import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
 #include <stdlib.h>
 
 // ── Accessibility (needed for CGEventTap / global hotkeys) ────
 
-/// Opens System Settings → Accessibility for this process and prompts
-/// the user to grant access.  Returns 1 if already trusted, 0 if not.
+/// Check Accessibility trust.  If not yet granted, show the system prompt
+/// (which opens System Settings → Accessibility) exactly once.
+/// Returns 1 if already trusted (no dialog), 0 if the dialog was shown.
 int flowey_request_accessibility(void) {
+    // Fast path: already trusted — never show a dialog.
+    if (AXIsProcessTrusted()) return 1;
+
+    // Not trusted yet: show the OS prompt once so the user can grant access.
     NSDictionary* opts = @{(__bridge id)kAXTrustedCheckOptionPrompt: @YES};
-    return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)opts) ? 1 : 0;
+    AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)opts);
+    return 0;
 }
 
 /// Returns 1 if Accessibility is currently granted, 0 otherwise.
@@ -105,4 +112,130 @@ char* flowey_transcribe(const char* wav_path) {
 /// Free a string returned by flowey_transcribe.
 void flowey_free_str(char* s) {
     free(s);
+}
+
+// ── Focus tracking ────────────────────────────────────────────
+
+/// The app that was frontmost when recording started.
+/// We re-activate it before pasting so the text lands in the right window
+/// even if the overlay briefly stole keyboard focus.
+static NSRunningApplication* sCapturedApp = nil;
+
+/// Call this just before recording starts.  Saves whatever app currently has
+/// focus so we can restore it after transcription.
+void flowey_capture_focus(void) {
+    @autoreleasepool {
+        sCapturedApp = [[NSWorkspace sharedWorkspace] frontmostApplication];
+    }
+}
+
+// ── Keystroke injection ───────────────────────────────────────
+
+// Guard so we only nag the user once per session, not on every dictation.
+static volatile BOOL sAccessibilityAlertShown = NO;
+
+/**
+ * Deliver `utf8_text` into the currently-focused window by:
+ *   1. Checking Accessibility permission; prompt + alert if missing.
+ *   2. Writing the text to NSPasteboard.
+ *   3. Posting a Cmd+V key-down/up pair via CGEventPost.
+ *
+ * This is the same technique used by WhisperFlow and similar dictation apps.
+ * It handles arbitrary Unicode text reliably and only requires two synthetic
+ * key events instead of one per character.
+ *
+ * Requires Accessibility permission (System Settings → Privacy → Accessibility).
+ * Returns 1 on success, 0 on failure (including permission denied).
+ *
+ * Virtual key code for V: 0x09 (stable ABI, part of IOKit HID usage tables).
+ */
+int flowey_type_text(const char* utf8_text) {
+    @autoreleasepool {
+        if (!utf8_text) return 0;
+
+        // ── 0. Accessibility check ────────────────────────────
+        // NOTE: We do NOT call AXIsProcessTrustedWithOptions(prompt=YES) here.
+        // The system permission dialog is shown exactly once at app startup
+        // (flowey_request_accessibility).  Calling it here would re-prompt on
+        // every recording when running unsigned debug builds, because macOS
+        // re-evaluates trust after each recompile.
+        if (!AXIsProcessTrusted()) {
+            // Show our own in-app alert once per session — no system dialog.
+            if (!sAccessibilityAlertShown) {
+                sAccessibilityAlertShown = YES;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    @autoreleasepool {
+                        NSAlert* alert = [[NSAlert alloc] init];
+                        alert.messageText     = @"Accessibility Permission Required";
+                        alert.informativeText =
+                            @"Flowey needs Accessibility access to paste transcribed text "
+                            @"into other apps.\n\n"
+                            @"1. Open System Settings → Privacy & Security → Accessibility\n"
+                            @"2. Enable the toggle next to Flowey\n"
+                            @"3. Restart Flowey\n\n"
+                            @"Until then, transcriptions are copied to your clipboard — "
+                            @"paste manually with ⌘V.";
+                        alert.alertStyle = NSAlertStyleWarning;
+                        [alert addButtonWithTitle:@"Open Accessibility Settings"];
+                        [alert addButtonWithTitle:@"Later"];
+                        NSModalResponse r = [alert runModal];
+                        if (r == NSAlertFirstButtonReturn) {
+                            [[NSWorkspace sharedWorkspace] openURL:
+                                [NSURL URLWithString:
+                                    @"x-apple.systempreferences:"
+                                    @"com.apple.preference.security?Privacy_Accessibility"]];
+                        }
+                    }
+                });
+            }
+            return 0;
+        }
+
+        // ── 1. Re-activate the app that had focus before recording ──
+        // This ensures the Cmd+V goes to the right window even if the
+        // floating overlay stole keyboard focus while recording.
+        if (sCapturedApp && ![sCapturedApp isTerminated]) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+            // activateWithOptions: is deprecated on macOS 14+ but still works.
+            // Passing 0 activates the app without side effects.
+            [sCapturedApp activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+#pragma clang diagnostic pop
+            usleep(80000); // 80 ms — let activation settle
+            sCapturedApp = nil;
+        }
+
+        // ── 2. Put text on the pasteboard ────────────────────
+        NSString* str = [NSString stringWithUTF8String:utf8_text];
+        if (!str || str.length == 0) return 0;
+
+        NSPasteboard* pb = [NSPasteboard generalPasteboard];
+        [pb clearContents];
+        BOOL ok = [pb setString:str forType:NSPasteboardTypeString];
+        if (!ok) return 0;
+
+        // Brief pause so the pasteboard write propagates before the paste event.
+        usleep(30000); // 30 ms
+
+        // ── 3. Simulate Cmd+V ────────────────────────────────
+        // Use kCGEventSourceStateHIDSystemState so the events look like real
+        // hardware input and are accepted by sandboxed apps.
+        CGEventSourceRef src =
+            CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
+
+        // kVK_ANSI_V = 0x09
+        CGEventRef keyDown = CGEventCreateKeyboardEvent(src, (CGKeyCode)0x09, true);
+        CGEventSetFlags(keyDown, kCGEventFlagMaskCommand);
+        CGEventPost(kCGAnnotatedSessionEventTap, keyDown);
+        CFRelease(keyDown);
+
+        CGEventRef keyUp = CGEventCreateKeyboardEvent(src, (CGKeyCode)0x09, false);
+        CGEventSetFlags(keyUp, kCGEventFlagMaskCommand);
+        CGEventPost(kCGAnnotatedSessionEventTap, keyUp);
+        CFRelease(keyUp);
+
+        if (src) CFRelease(src);
+
+        return 1;
+    }
 }

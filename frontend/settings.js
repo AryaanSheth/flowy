@@ -10,7 +10,7 @@ const $ = id => document.getElementById(id);
 const $$ = sel => document.querySelectorAll(sel);
 
 // ── Elements ───────────────────────────────────────────────────
-const sectionTitle      = $('section-title');
+const sectionTitle      = $('section-title'); // hidden span, kept for compat
 const statusBadge       = $('status-badge');
 
 const hotkeyInput       = $('hotkey');
@@ -62,13 +62,13 @@ let loadedConfig = null;
 
 // ── Navigation ─────────────────────────────────────────────────
 const sectionNames = {
-  shortcut:   'Shortcut',
-  audio:      'Audio',
-  output:     'Output',
-  dictionary: 'Dictionary',
-  ai:         'AI Enhancement',
-  history:    'History',
-  system:     'System',
+  shortcut:   'shortcut',
+  audio:      'audio',
+  output:     'output',
+  dictionary: 'dictionary',
+  ai:         'ai',
+  history:    'history',
+  system:     'system',
 };
 
 $$('.nav-item').forEach(btn => {
@@ -143,11 +143,9 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) checkPermissions();
 });
 
-// "Open Accessibility settings" link
+// "Open Accessibility settings" link — open the correct System Settings pane
 $('perm-open-accessibility')?.addEventListener('click', e => {
   e.preventDefault();
-  // shell open the pane directly
-  invoke('start_recording').catch(() => {}); // no-op, just to show intent
   window.open(
     'x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility',
     '_blank'
@@ -156,9 +154,9 @@ $('perm-open-accessibility')?.addEventListener('click', e => {
 
 // ── Status (badge + overlay) ───────────────────────────────────
 const STATUS_LABELS = {
-  Idle:         '● Idle',
-  Recording:    '⏺ Recording',
-  Transcribing: '⟳ Transcribing',
+  Idle:         'idle',
+  Recording:    'recording',
+  Transcribing: 'transcribing',
 };
 const STATUS_CSS = {
   Idle:         'idle',

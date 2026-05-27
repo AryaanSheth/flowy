@@ -8,6 +8,7 @@
   },
   "app": {
     "withGlobalTauri": true,
+    "macOSPrivateApi": true,
     "windows": [
       {
         "label": "settings",
@@ -24,6 +25,23 @@
         "center": true,
         "skipTaskbar": true,
         "devtools": true
+      },
+      {
+        "label": "overlay",
+        "url": "overlay.html",
+        "width": 220,
+        "height": 64,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "resizable": false,
+        "closable": false,
+        "maximizable": false,
+        "minimizable": false,
+        "x": 610,
+        "y": 28
       }
     ],
 "security": {

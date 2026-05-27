@@ -69,6 +69,10 @@ fn on_toggle(app: &AppHandle, state: &Arc<AppState>) {
             (cfg.input_device.clone(), cfg.max_recording_secs)
         };
 
+        // Remember which app had focus so the paste goes to the right window.
+        #[cfg(target_os = "macos")]
+        unsafe { crate::transcribe::ffi::flowey_capture_focus(); }
+
         *state.status.lock() = AppStatus::Recording;
         update_tray(app, state);
 
@@ -99,4 +103,6 @@ fn update_tray(app: &AppHandle, state: &Arc<AppState>) {
         crate::tray::update_status(&tray, status);
     }
     let _ = app.emit("flowey:status", status);
+    // Show / hide the floating overlay pill.
+    crate::overlay::update(app, status);
 }

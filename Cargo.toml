@@ -8,7 +8,7 @@ license = "MIT"
 
 [dependencies]
 # Tauri
-tauri              = { version = "2",  features = ["tray-icon", "image-png"] }
+tauri              = { version = "2",  features = ["tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-autostart        = "2"
 tauri-plugin-dialog           = "2"
@@ -31,11 +31,6 @@ anyhow             = "1"
 log                = "0.4"
 env_logger         = "0.11"
 parking_lot        = "0.12"
-
-# ── macOS-only native bindings ────────────────────────────────
-# Keystroke injection via CoreGraphics (no X11 / Win32 code path)
-[target.'cfg(target_os = "macos")'.dependencies]
-enigo              = "0.2"
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }

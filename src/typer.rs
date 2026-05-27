@@ -4,9 +4,9 @@ use crate::config::OutputMode;
 
 /// Deliver `text` to the user according to the configured `mode`.
 ///
-/// - `Type`             → simulate keystrokes into the focused window
-/// - `Clipboard`        → write to the system clipboard via `pbcopy`
-/// - `TypeAndClipboard` → both
+/// - `Type`             → clipboard + Cmd+V into the focused window
+/// - `Clipboard`        → write to the system clipboard only (no paste)
+/// - `TypeAndClipboard` → clipboard + Cmd+V (clipboard stays populated)
 pub fn output_text(text: &str, mode: OutputMode) -> Result<()> {
     if text.is_empty() {
         return Ok(());
@@ -14,18 +14,23 @@ pub fn output_text(text: &str, mode: OutputMode) -> Result<()> {
     match mode {
         OutputMode::Type             => do_type(text),
         OutputMode::Clipboard        => do_clipboard(text),
+        // TypeAndClipboard: do_type already leaves the text on the clipboard,
+        // so a separate do_clipboard call isn't strictly needed, but we call it
+        // first so the clipboard is populated even if the paste step fails.
         OutputMode::TypeAndClipboard => {
-            // Copy first so the text is on the clipboard even if typing fails.
             do_clipboard(text)?;
             do_type(text)
         }
     }
 }
 
-/// Inject `text` as keystrokes into whatever window has focus.
+/// Inject `text` into whatever window currently has focus.
 ///
-/// Uses CoreGraphics via `enigo` — requires Accessibility permission
-/// (System Settings → Privacy → Accessibility).
+/// Uses the `flowey_type_text` ObjC shim which:
+///   1. Writes the text to NSPasteboard.
+///   2. Posts a Cmd+V key pair via CGEventPost.
+///
+/// Requires Accessibility permission (System Settings → Privacy → Accessibility).
 fn do_type(text: &str) -> Result<()> {
     #[cfg(not(target_os = "macos"))]
     {
@@ -35,16 +40,20 @@ fn do_type(text: &str) -> Result<()> {
 
     #[cfg(target_os = "macos")]
     {
-        use enigo::{Enigo, Keyboard, Settings};
+        use std::ffi::CString;
 
-        let mut enigo = Enigo::new(&Settings::default())
-            .context("Failed to initialise keystroke injector")?;
+        let c_text = CString::new(text).context("Text contains interior null bytes")?;
 
-        enigo
-            .text(text)
-            .context("Keystroke injection failed — grant Accessibility permission in System Settings")?;
+        let result = unsafe { crate::transcribe::ffi::flowey_type_text(c_text.as_ptr()) };
 
-        log::debug!("Typed {} chars", text.len());
+        if result == 0 {
+            anyhow::bail!(
+                "Keystroke injection failed — ensure Flowey has \
+                 Accessibility permission in System Settings → Privacy & Security → Accessibility"
+            );
+        }
+
+        log::debug!("Injected {} chars via clipboard+Cmd+V", text.len());
         Ok(())
     }
 }
