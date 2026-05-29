@@ -35,6 +35,9 @@ jobs:
             echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Warm Swift module cache
+        run: xcrun swift -e 'import Foundation; print("ok")'
+
       - name: Build app
         run: scripts/build-macos.sh --check-only
         # --check-only builds the bundle and skips the launch hint
