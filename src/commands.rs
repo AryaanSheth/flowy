@@ -1,9 +1,6 @@
-use std::{
-    collections::HashMap,
-    sync::{atomic::{AtomicBool, Ordering}, Arc},
-};
+use std::{collections::HashMap, sync::Arc};
 
-use tauri::{command, AppHandle, Emitter, State};
+use tauri::{command, AppHandle, State};
 use tauri_plugin_autostart::ManagerExt;
 use tauri_plugin_global_shortcut::GlobalShortcutExt;
 
@@ -29,6 +26,7 @@ pub async fn save_config(
     app: AppHandle,
     state: State<'_, Arc<AppState>>,
 ) -> Result<(), String> {
+    let new_config = new_config.sanitized();
     let old_config = state.config.read().clone();
 
     new_config.save().map_err(|e| e.to_string())?;
@@ -77,42 +75,13 @@ pub fn clear_history(state: State<Arc<AppState>>) {
 /// Start recording from the settings UI (bypasses the global hotkey).
 #[command]
 pub fn start_recording(app: AppHandle, state: State<Arc<AppState>>) {
-    let mut sig_guard = state.stop_signal.lock();
-    if sig_guard.is_some() { return; } // already recording
-
-    let stop = Arc::new(AtomicBool::new(false));
-    *sig_guard = Some(Arc::clone(&stop));
-    drop(sig_guard);
-
-    let (device_name, max_secs) = {
-        let cfg = state.config.read();
-        (cfg.input_device.clone(), cfg.max_recording_secs)
-    };
-
-    *state.status.lock() = AppStatus::Recording;
-    let _ = app.emit("flowey:status", AppStatus::Recording);
-    if let Some(tray) = app.tray_by_id("main") {
-        crate::tray::update_status(&tray, AppStatus::Recording);
-    }
-
-    let tx = state.audio_tx.clone();
-    std::thread::Builder::new()
-        .name("flowey-record-ui".into())
-        .spawn(move || {
-            match crate::audio::record_until_stopped(stop, device_name.as_deref(), max_secs) {
-                Ok(data) => { let _ = tx.try_send(data); }
-                Err(e)   => log::error!("Recording error: {e}"),
-            }
-        })
-        .expect("spawn record thread");
+    crate::hotkey::start_recording(&app, &state, "flowey-record-ui");
 }
 
 /// Stop an in-progress recording (triggered by releasing the UI button).
 #[command]
 pub fn stop_recording(state: State<Arc<AppState>>) {
-    if let Some(sig) = state.stop_signal.lock().take() {
-        sig.store(true, Ordering::Relaxed);
-    }
+    crate::hotkey::stop_recording(&state);
 }
 
 // ── Permissions ───────────────────────────────────────────────

@@ -12,7 +12,7 @@ Fully offline. No telemetry. Optional LLM cleanup via local Ollama.
 
 | Feature | Detail |
 |---|---|
-| **Local only** | Whisper runs on your Mac via whisper.cpp — no API keys, no network |
+| **Local only** | Transcription uses macOS Speech Recognition on your Mac — no API keys, no app server |
 | **Push-to-talk** | Hold a configurable global hotkey while speaking; text is injected on release |
 | **Custom dictionary** | Word-substitution map applied after transcription |
 | **Ollama enhancement** | Optional cleanup pass through a local LLM (e.g. `llama3.2:3b`) for punctuation & grammar |
@@ -36,33 +36,11 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 # Tauri CLI
 cargo install tauri-cli --version "^2"
 
-# CMake (for whisper.cpp)
-brew install cmake
-
 # Optional: Ollama for AI enhancement
 brew install ollama
 ollama pull llama3.2:3b
 ollama serve   # runs in the background
 ```
-
----
-
-## Download a Whisper model
-
-Flowey uses GGML format models from [whisper.cpp](https://github.com/ggerganov/whisper.cpp/releases):
-
-| Model | Size | Speed | Quality |
-|---|---|---|---|
-| `ggml-tiny.en.bin`  | 75 MB   | fastest | good |
-| `ggml-base.en.bin`  | 141 MB  | fast    | **recommended** |
-| `ggml-small.en.bin` | 461 MB  | medium  | better |
-| `ggml-medium.en.bin`| 1.5 GB  | slow    | near human-level |
-
-```bash
-curl -LO https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.en.bin
-```
-
-Then set its path in **Settings → Model**.
 
 ---
 
@@ -92,8 +70,8 @@ The signed `.dmg` is placed in `target/release/bundle/dmg/`.
 
 ## Ollama post-processing (optional)
 
-Whisper is great at the audio→text part but tends to drop punctuation and
-filler words. The optional Ollama pass cleans this up locally in ~200 ms on
+macOS Speech Recognition handles the audio→text part locally. The optional
+Ollama pass can clean up punctuation and capitalization locally in ~200 ms on
 Apple Silicon.
 
 1. **Install Ollama**: `brew install ollama && ollama serve`
@@ -120,10 +98,8 @@ Example `config.json`:
 
 ```json
 {
-  "modelPath": "/Users/you/models/ggml-base.en.bin",
   "hotkey": "CmdOrCtrl+Shift+Space",
   "autostart": false,
-  "language": "en",
   "dictionary": { "gonna": "going to", "wanna": "want to" },
   "inputDevice": null,
   "outputMode": "type",
@@ -140,14 +116,15 @@ Example `config.json`:
 
 ## macOS permissions
 
-On first run the OS will prompt for two permissions:
+On first use the OS may prompt for three permissions:
 
-1. **Microphone** — required for recording. Granted automatically on first record attempt.
-2. **Accessibility** — required for keystroke injection.
+1. **Speech Recognition** — required for transcription.
+2. **Microphone** — required for recording. Granted automatically on first record attempt.
+3. **Accessibility** — required for keystroke injection.
    System Settings → Privacy & Security → Accessibility → enable `flowey`.
 
-If you skip Accessibility, set **Output → Clipboard only** in Settings.
-Flowey then copies transcribed text to your clipboard instead of typing it.
+If Accessibility is unavailable, Flowey falls back to copying transcribed text
+to your clipboard so you can paste manually.
 
 ---
 
@@ -160,12 +137,12 @@ Global hotkey ─── key down ──► recording thread (cpal)
                              std::sync::mpsc
                                     │
                         pipeline thread (std::thread)
-                          ├─ resample to 16 kHz mono (rubato)
-                          ├─ transcribe              (whisper.cpp)
+                          ├─ downmix + write temp WAV
+                          ├─ transcribe              (macOS SFSpeechRecognizer)
                           ├─ apply custom dictionary
                           ├─ optional Ollama cleanup (ureq HTTP)
                           ├─ store in history
-                          └─ inject text             (enigo / arboard)
+                          └─ inject text             (NSPasteboard + CGEvent)
 ```
 
 Frontend is plain HTML/CSS/JS (no framework, no build step) served via Tauri's

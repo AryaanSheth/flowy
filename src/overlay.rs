@@ -1,12 +1,12 @@
-/// Floating recording-indicator overlay.
-///
-/// A small transparent pill window that appears at the top-centre of the
-/// primary monitor while recording or transcribing, then fades out and hides
-/// when the pipeline returns to Idle.
-///
-/// The visual animations (slide-in, waveform bars, colour transitions) are
-/// handled entirely in `frontend/overlay.html` via CSS + `flowey:status`
-/// events.  This module only manages OS-level window visibility and position.
+//! Floating recording-indicator overlay.
+//!
+//! A small transparent pill window that appears at the top-centre of the
+//! primary monitor while recording or transcribing, then fades out and hides
+//! when the pipeline returns to Idle.
+//!
+//! The visual animations (slide-in, waveform bars, colour transitions) are
+//! handled entirely in `frontend/overlay.html` via CSS + `flowey:status`
+//! events.  This module only manages OS-level window visibility and position.
 
 use tauri::{AppHandle, Manager, Runtime};
 

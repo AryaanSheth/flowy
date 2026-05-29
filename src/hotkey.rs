@@ -2,25 +2,30 @@ use std::sync::{
     atomic::{AtomicBool, Ordering},
     Arc,
 };
+use std::time::Instant;
 
 use tauri::{AppHandle, Emitter};
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 use crate::state::{AppState, AppStatus};
 
-/// Register (or re-register) the toggle-to-talk shortcut.
+const TAP_LATCH_THRESHOLD_MS: u128 = 350;
+
+/// Register (or re-register) the push-to-talk shortcut.
 ///
-/// First press starts recording; a second press stops it.
-/// Key-repeat events are ignored so holding the key down does nothing.
+/// Holding the shortcut behaves like push-to-talk. A very short press behaves
+/// like a macro tap: it latches recording on, then the next tap stops it.
 ///
 /// Call `app.global_shortcut().unregister(old_hotkey)` before calling this
 /// when the hotkey changes — do **not** use `unregister_all()`.
 pub fn register_shortcut(app: &AppHandle, state: &Arc<AppState>, hotkey: &str) {
-    let state     = Arc::clone(state);
-    let app_clone = app.clone();
+    let state            = Arc::clone(state);
+    let app_clone        = app.clone();
     // Tracks whether the physical key is currently held down so OS key-repeat
-    // events don't fire multiple toggles.
-    let key_held  = Arc::new(AtomicBool::new(false));
+    // events do not start multiple recording threads.
+    let key_held         = Arc::new(AtomicBool::new(false));
+    let tap_latched      = Arc::new(AtomicBool::new(false));
+    let press_started_at = Arc::new(parking_lot::Mutex::new(None::<Instant>));
 
     let result = app.global_shortcut().on_shortcut(hotkey, move |_app, _shortcut, event| {
         match event.state {
@@ -30,16 +35,36 @@ pub fn register_shortcut(app: &AppHandle, state: &Arc<AppState>, hotkey: &str) {
                 if key_held.swap(true, Ordering::Relaxed) {
                     return;
                 }
-                on_toggle(&app_clone, &state);
+
+                if tap_latched.swap(false, Ordering::Relaxed) {
+                    *press_started_at.lock() = None;
+                    if stop_recording(&state) {
+                        return;
+                    }
+                }
+
+                if start_recording(&app_clone, &state, "flowey-record") {
+                    *press_started_at.lock() = Some(Instant::now());
+                }
             }
             ShortcutState::Released => {
                 key_held.store(false, Ordering::Relaxed);
+
+                let started_at = press_started_at.lock().take();
+                if let Some(started_at) = started_at {
+                    if started_at.elapsed().as_millis() < TAP_LATCH_THRESHOLD_MS {
+                        tap_latched.store(true, Ordering::Relaxed);
+                        log::info!("Recording latched from quick hotkey tap");
+                    } else {
+                        stop_recording(&state);
+                    }
+                }
             }
         }
     });
 
     match result {
-        Ok(()) => log::info!("Hotkey registered (toggle mode): {hotkey}"),
+        Ok(()) => log::info!("Hotkey registered: {hotkey}"),
         Err(e) => log::error!(
             "Failed to register hotkey '{hotkey}': {e} \
              — check it is not already taken by another app"
@@ -47,51 +72,87 @@ pub fn register_shortcut(app: &AppHandle, state: &Arc<AppState>, hotkey: &str) {
     }
 }
 
-// ── Toggle handler ────────────────────────────────────────────
+// ── Recording handlers ────────────────────────────────────────
 
-fn on_toggle(app: &AppHandle, state: &Arc<AppState>) {
+pub fn start_recording(app: &AppHandle, state: &Arc<AppState>, thread_name: &'static str) -> bool {
     let mut sig_guard = state.stop_signal.lock();
 
-    if let Some(sig) = sig_guard.take() {
-        // ── Already recording → stop ─────────────────────────
-        sig.store(true, Ordering::Relaxed);
-        log::info!("Recording toggled off");
-        // Status will flip: Recording → Transcribing → Idle
-        // as the pipeline processes and delivers the audio.
-    } else {
-        // ── Not recording → start ────────────────────────────
-        let stop = Arc::new(AtomicBool::new(false));
-        *sig_guard = Some(Arc::clone(&stop));
-        drop(sig_guard); // release before spawning thread
+    if sig_guard.is_some() {
+        return false;
+    }
 
-        let (device_name, max_secs) = {
-            let cfg = state.config.read();
-            (cfg.input_device.clone(), cfg.max_recording_secs)
-        };
+    let stop = Arc::new(AtomicBool::new(false));
+    *sig_guard = Some(Arc::clone(&stop));
+    drop(sig_guard); // release before spawning thread
 
-        // Remember which app had focus so the paste goes to the right window.
-        #[cfg(target_os = "macos")]
-        unsafe { crate::transcribe::ffi::flowey_capture_focus(); }
+    let (device_name, max_secs) = {
+        let cfg = state.config.read();
+        (cfg.input_device.clone(), cfg.max_recording_secs)
+    };
 
-        *state.status.lock() = AppStatus::Recording;
-        update_tray(app, state);
+    // Remember which app had focus so the paste goes to the right window.
+    #[cfg(target_os = "macos")]
+    unsafe { crate::transcribe::ffi::flowey_capture_focus(); }
 
-        let tx = state.audio_tx.clone();
-        std::thread::Builder::new()
-            .name("flowey-record".into())
-            .spawn(move || {
-                match crate::audio::record_until_stopped(stop, device_name.as_deref(), max_secs) {
-                    Ok(data) => {
-                        if let Err(e) = tx.try_send(data) {
-                            log::warn!("Pipeline busy, audio dropped: {e}");
-                        }
+    *state.status.lock() = AppStatus::Recording;
+    update_tray(app, state);
+
+    let tx = state.audio_tx.clone();
+    let app = app.clone();
+    let state = Arc::clone(state);
+    std::thread::Builder::new()
+        .name(thread_name.into())
+        .spawn(move || {
+            let sent = match crate::audio::record_until_stopped(
+                Arc::clone(&stop),
+                device_name.as_deref(),
+                max_secs,
+            ) {
+                Ok(data) => {
+                    if let Err(e) = tx.try_send(data) {
+                        log::warn!("Pipeline busy, audio dropped: {e}");
+                        false
+                    } else {
+                        true
                     }
-                    Err(e) => log::error!("Recording error: {e}"),
                 }
-            })
-            .expect("Failed to spawn recording thread");
+                Err(e) => {
+                    log::error!("Recording error: {e}");
+                    false
+                }
+            };
 
-        log::info!("Recording toggled on");
+            clear_stop_signal_if_current(&state, &stop);
+
+            if !sent {
+                *state.status.lock() = AppStatus::Idle;
+                update_tray(&app, &state);
+            }
+        })
+        .expect("Failed to spawn recording thread");
+
+    log::info!("Recording started");
+    true
+}
+
+pub fn stop_recording(state: &Arc<AppState>) -> bool {
+    if let Some(sig) = state.stop_signal.lock().take() {
+        sig.store(true, Ordering::Relaxed);
+        log::info!("Recording stopped");
+        true
+    } else {
+        false
+    }
+}
+
+fn clear_stop_signal_if_current(state: &Arc<AppState>, stop: &Arc<AtomicBool>) {
+    let mut sig_guard = state.stop_signal.lock();
+    if sig_guard
+        .as_ref()
+        .map(|current| Arc::ptr_eq(current, stop))
+        .unwrap_or(false)
+    {
+        sig_guard.take();
     }
 }
 

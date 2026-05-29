@@ -19,7 +19,7 @@ pub fn apply(text: &str, dict: &HashMap<String, String>) -> String {
         .join(" ")
 }
 
-fn substitute<'a>(token: &'a str, dict: &HashMap<String, &String>) -> String {
+fn substitute(token: &str, dict: &HashMap<String, &String>) -> String {
     // Find the span of alphanumeric "core" characters.
     let start = token.find(|c: char| c.is_alphanumeric()).unwrap_or(token.len());
     if start >= token.len() {

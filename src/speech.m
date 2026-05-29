@@ -11,6 +11,7 @@
 #import <AppKit/AppKit.h>
 #import <ApplicationServices/ApplicationServices.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 // ── Accessibility (needed for CGEventTap / global hotkeys) ────
 
@@ -125,9 +126,25 @@ void flowey_free_str(char* s) {
 /// even if the overlay briefly stole keyboard focus.
 static NSRunningApplication* sCapturedApp = nil;
 
+static void flowey_capture_focus_on_main(void);
+static int flowey_type_text_on_main(const char* utf8_text);
+static int flowey_insert_with_accessibility(NSString* str);
+static int flowey_type_string(NSString* str);
+
 /// Call this just before recording starts.  Saves whatever app currently has
 /// focus so we can restore it after transcription.
 void flowey_capture_focus(void) {
+    if ([NSThread isMainThread]) {
+        flowey_capture_focus_on_main();
+        return;
+    }
+
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        flowey_capture_focus_on_main();
+    });
+}
+
+static void flowey_capture_focus_on_main(void) {
     @autoreleasepool {
         sCapturedApp = [[NSWorkspace sharedWorkspace] frontmostApplication];
     }
@@ -154,6 +171,20 @@ static volatile BOOL sAccessibilityAlertShown = NO;
  * Virtual key code for V: 0x09 (stable ABI, part of IOKit HID usage tables).
  */
 int flowey_type_text(const char* utf8_text) {
+    if (!utf8_text) return 0;
+
+    if ([NSThread isMainThread]) {
+        return flowey_type_text_on_main(utf8_text);
+    }
+
+    __block int result = 0;
+    dispatch_sync(dispatch_get_main_queue(), ^{
+        result = flowey_type_text_on_main(utf8_text);
+    });
+    return result;
+}
+
+static int flowey_type_text_on_main(const char* utf8_text) {
     @autoreleasepool {
         if (!utf8_text) return 0;
 
@@ -208,7 +239,7 @@ int flowey_type_text(const char* utf8_text) {
             // Passing 0 activates the app without side effects.
             [sCapturedApp activateWithOptions:NSApplicationActivateIgnoringOtherApps];
 #pragma clang diagnostic pop
-            usleep(80000); // 80 ms — let activation settle
+            usleep(150000); // let activation settle before posting Cmd+V
             sCapturedApp = nil;
         }
 
@@ -221,28 +252,153 @@ int flowey_type_text(const char* utf8_text) {
         BOOL ok = [pb setString:str forType:NSPasteboardTypeString];
         if (!ok) return 0;
 
-        // Brief pause so the pasteboard write propagates before the paste event.
-        usleep(30000); // 30 ms
+        // ── 3. Insert through Accessibility when possible ────
+        // This avoids depending on target apps accepting synthetic keyboard
+        // events. It works for standard text fields/editors that expose a
+        // writable focused AX element.
+        if (flowey_insert_with_accessibility(str)) return 1;
 
-        // ── 3. Simulate Cmd+V ────────────────────────────────
-        // Use kCGEventSourceStateHIDSystemState so the events look like real
-        // hardware input and are accepted by sandboxed apps.
-        CGEventSourceRef src =
-            CGEventSourceCreate(kCGEventSourceStateHIDSystemState);
+        // ── 4. Type the text directly ────────────────────────
+        // A synthetic Cmd+V is ignored by some apps and some macro setups.
+        // Unicode keyboard events are the last active fallback before the
+        // user-visible clipboard fallback in Rust.
+        return flowey_type_string(str);
+    }
+}
 
-        // kVK_ANSI_V = 0x09
-        CGEventRef keyDown = CGEventCreateKeyboardEvent(src, (CGKeyCode)0x09, true);
-        CGEventSetFlags(keyDown, kCGEventFlagMaskCommand);
-        CGEventPost(kCGAnnotatedSessionEventTap, keyDown);
-        CFRelease(keyDown);
+static int flowey_insert_with_accessibility(NSString* str) {
+    if (!str || str.length == 0) return 0;
 
-        CGEventRef keyUp = CGEventCreateKeyboardEvent(src, (CGKeyCode)0x09, false);
-        CGEventSetFlags(keyUp, kCGEventFlagMaskCommand);
-        CGEventPost(kCGAnnotatedSessionEventTap, keyUp);
-        CFRelease(keyUp);
+    AXUIElementRef system = AXUIElementCreateSystemWide();
+    if (!system) return 0;
 
-        if (src) CFRelease(src);
+    AXUIElementRef focused = NULL;
+    AXError err = AXUIElementCopyAttributeValue(
+        system,
+        kAXFocusedUIElementAttribute,
+        (CFTypeRef*)&focused
+    );
+    CFRelease(system);
 
+    if (err != kAXErrorSuccess || !focused) return 0;
+
+    err = AXUIElementSetAttributeValue(
+        focused,
+        kAXSelectedTextAttribute,
+        (__bridge CFTypeRef)str
+    );
+    if (err == kAXErrorSuccess) {
+        CFRelease(focused);
         return 1;
     }
+
+    CFTypeRef value_ref = NULL;
+    CFTypeRef range_ref = NULL;
+
+    err = AXUIElementCopyAttributeValue(focused, kAXValueAttribute, &value_ref);
+    if (err != kAXErrorSuccess || !value_ref || CFGetTypeID(value_ref) != CFStringGetTypeID()) {
+        if (value_ref) CFRelease(value_ref);
+        CFRelease(focused);
+        return 0;
+    }
+
+    err = AXUIElementCopyAttributeValue(focused, kAXSelectedTextRangeAttribute, &range_ref);
+    if (err != kAXErrorSuccess || !range_ref || CFGetTypeID(range_ref) != AXValueGetTypeID()) {
+        if (range_ref) CFRelease(range_ref);
+        CFRelease(value_ref);
+        CFRelease(focused);
+        return 0;
+    }
+
+    CFRange selected_range;
+    if (!AXValueGetValue((AXValueRef)range_ref, kAXValueCFRangeType, &selected_range)) {
+        CFRelease(range_ref);
+        CFRelease(value_ref);
+        CFRelease(focused);
+        return 0;
+    }
+
+    NSString* value = (__bridge NSString*)value_ref;
+    NSUInteger value_len = value.length;
+    if (selected_range.location < 0 || (NSUInteger)selected_range.location > value_len) {
+        CFRelease(range_ref);
+        CFRelease(value_ref);
+        CFRelease(focused);
+        return 0;
+    }
+
+    NSUInteger location = (NSUInteger)selected_range.location;
+    NSUInteger length = MAX((CFIndex)0, selected_range.length);
+    if (location + length > value_len) {
+        length = value_len - location;
+    }
+
+    NSMutableString* next_value = [value mutableCopy];
+    [next_value replaceCharactersInRange:NSMakeRange(location, length) withString:str];
+
+    err = AXUIElementSetAttributeValue(
+        focused,
+        kAXValueAttribute,
+        (__bridge CFTypeRef)next_value
+    );
+
+    if (err == kAXErrorSuccess) {
+        CFRange next_range = CFRangeMake((CFIndex)(location + str.length), 0);
+        AXValueRef next_range_ref = AXValueCreate(kAXValueCFRangeType, &next_range);
+        if (next_range_ref) {
+            AXUIElementSetAttributeValue(
+                focused,
+                kAXSelectedTextRangeAttribute,
+                next_range_ref
+            );
+            CFRelease(next_range_ref);
+        }
+    }
+
+    CFRelease(range_ref);
+    CFRelease(value_ref);
+    CFRelease(focused);
+
+    return err == kAXErrorSuccess ? 1 : 0;
+}
+
+static int flowey_type_string(NSString* str) {
+    if (!str || str.length == 0) return 0;
+
+    CGEventSourceRef src =
+        CGEventSourceCreate(kCGEventSourceStateCombinedSessionState);
+    if (!src) return 0;
+
+    NSUInteger len = str.length;
+    NSUInteger offset = 0;
+    int ok = 1;
+
+    while (offset < len) {
+        NSUInteger chunk_len = MIN((NSUInteger)20, len - offset);
+        unichar chars[20];
+        [str getCharacters:chars range:NSMakeRange(offset, chunk_len)];
+
+        CGEventRef keyDown = CGEventCreateKeyboardEvent(src, 0, true);
+        CGEventRef keyUp = CGEventCreateKeyboardEvent(src, 0, false);
+        if (!keyDown || !keyUp) {
+            ok = 0;
+            if (keyDown) CFRelease(keyDown);
+            if (keyUp) CFRelease(keyUp);
+            break;
+        }
+
+        CGEventKeyboardSetUnicodeString(keyDown, chunk_len, chars);
+        CGEventKeyboardSetUnicodeString(keyUp, 0, NULL);
+        CGEventPost(kCGSessionEventTap, keyDown);
+        CGEventPost(kCGSessionEventTap, keyUp);
+
+        CFRelease(keyDown);
+        CFRelease(keyUp);
+
+        offset += chunk_len;
+        usleep(5000);
+    }
+
+    CFRelease(src);
+    return ok;
 }

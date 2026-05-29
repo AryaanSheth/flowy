@@ -12,14 +12,23 @@ pub fn output_text(text: &str, mode: OutputMode) -> Result<()> {
         return Ok(());
     }
     match mode {
-        OutputMode::Type             => do_type(text),
+        OutputMode::Type             => match do_type(text) {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                log::warn!("Keystroke injection failed, copying to clipboard instead: {e}");
+                do_clipboard(text)
+            }
+        },
         OutputMode::Clipboard        => do_clipboard(text),
         // TypeAndClipboard: do_type already leaves the text on the clipboard,
         // so a separate do_clipboard call isn't strictly needed, but we call it
         // first so the clipboard is populated even if the paste step fails.
         OutputMode::TypeAndClipboard => {
             do_clipboard(text)?;
-            do_type(text)
+            if let Err(e) = do_type(text) {
+                log::warn!("Keystroke injection failed after clipboard copy: {e}");
+            }
+            Ok(())
         }
     }
 }
@@ -56,6 +65,20 @@ fn do_type(text: &str) -> Result<()> {
         log::debug!("Injected {} chars via clipboard+Cmd+V", text.len());
         Ok(())
     }
+}
+
+#[cfg(target_os = "macos")]
+pub fn diagnose_type(text: &str) -> Result<i32> {
+    use std::ffi::CString;
+
+    let c_text = CString::new(text).context("Text contains interior null bytes")?;
+    let result = unsafe { crate::transcribe::ffi::flowey_type_text(c_text.as_ptr()) };
+    Ok(result)
+}
+
+#[cfg(not(target_os = "macos"))]
+pub fn diagnose_type(_text: &str) -> Result<i32> {
+    anyhow::bail!("Keystroke injection is only supported on macOS");
 }
 
 /// Write `text` to the macOS clipboard using the built-in `pbcopy` utility.

@@ -26,7 +26,7 @@ pub mod ffi {
         /// Returns 1 if Accessibility is currently granted.
         pub fn flowey_is_accessibility_trusted() -> std::ffi::c_int;
         /// Deliver text to the focused window via clipboard + Cmd+V.
-        /// Returns 1 on success, 0 on failure.
+        /// Returns a positive delivery code on success, 0 on failure.
         pub fn flowey_type_text(text: *const c_char) -> std::ffi::c_int;
         /// Save the currently-frontmost application so we can re-focus it
         /// after transcription (call just before recording starts).

@@ -1,0 +1,161 @@
+import Foundation
+
+struct AppConfig: Codable, Equatable {
+    var hotkey: String
+    var autostart: Bool
+    var dictionary: [String: String]
+    var inputDevice: String?
+    var outputMode: OutputMode
+    var maxRecordingSecs: Int
+    var historySize: Int
+    var ollamaEnabled: Bool
+    var ollamaEndpoint: String
+    var ollamaModel: String
+    var ollamaPrompt: String
+
+    init(
+        hotkey: String = "CmdOrCtrl+Shift+Space",
+        autostart: Bool = false,
+        dictionary: [String: String] = [:],
+        inputDevice: String? = nil,
+        outputMode: OutputMode = .type,
+        maxRecordingSecs: Int = 60,
+        historySize: Int = 20,
+        ollamaEnabled: Bool = false,
+        ollamaEndpoint: String = "http://localhost:11434",
+        ollamaModel: String = "llama3.2:3b",
+        ollamaPrompt: String = AppConfig.defaultOllamaPrompt
+    ) {
+        self.hotkey = hotkey
+        self.autostart = autostart
+        self.dictionary = dictionary
+        self.inputDevice = inputDevice
+        self.outputMode = outputMode
+        self.maxRecordingSecs = maxRecordingSecs
+        self.historySize = historySize
+        self.ollamaEnabled = ollamaEnabled
+        self.ollamaEndpoint = ollamaEndpoint
+        self.ollamaModel = ollamaModel
+        self.ollamaPrompt = ollamaPrompt
+    }
+
+    enum CodingKeys: String, CodingKey {
+        case hotkey
+        case autostart
+        case dictionary
+        case inputDevice
+        case outputMode
+        case maxRecordingSecs
+        case historySize
+        case ollamaEnabled
+        case ollamaEndpoint
+        case ollamaModel
+        case ollamaPrompt
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey) ?? "CmdOrCtrl+Shift+Space"
+        autostart = try c.decodeIfPresent(Bool.self, forKey: .autostart) ?? false
+        dictionary = try c.decodeIfPresent([String: String].self, forKey: .dictionary) ?? [:]
+        inputDevice = try c.decodeIfPresent(String.self, forKey: .inputDevice)
+        outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .type
+        maxRecordingSecs = try c.decodeIfPresent(Int.self, forKey: .maxRecordingSecs) ?? 60
+        historySize = try c.decodeIfPresent(Int.self, forKey: .historySize) ?? 20
+        ollamaEnabled = try c.decodeIfPresent(Bool.self, forKey: .ollamaEnabled) ?? false
+        ollamaEndpoint = try c.decodeIfPresent(String.self, forKey: .ollamaEndpoint) ?? "http://localhost:11434"
+        ollamaModel = try c.decodeIfPresent(String.self, forKey: .ollamaModel) ?? "llama3.2:3b"
+        ollamaPrompt = try c.decodeIfPresent(String.self, forKey: .ollamaPrompt) ?? AppConfig.defaultOllamaPrompt
+    }
+
+    static let defaultOllamaPrompt = """
+    You are a transcription cleaner. Fix punctuation, capitalization and grammar in the dictated text. Preserve the speaker's exact words and meaning. Do not add new content, summaries, or commentary. Return only the cleaned text.
+    """
+
+    static var configURL: URL {
+        FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("Library", isDirectory: true)
+            .appendingPathComponent("Application Support", isDirectory: true)
+            .appendingPathComponent("flowey", isDirectory: true)
+            .appendingPathComponent("config.json")
+    }
+
+    static func load() -> AppConfig {
+        let url = configURL
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            return AppConfig()
+        }
+
+        do {
+            let data = try Data(contentsOf: url)
+            return try JSONDecoder().decode(AppConfig.self, from: data).sanitized()
+        } catch {
+            NSLog("Could not load config, using defaults: \(error.localizedDescription)")
+            return AppConfig()
+        }
+    }
+
+    func save() throws {
+        let url = Self.configURL
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        let data = try JSONEncoder.flowey.encode(sanitized())
+        try data.write(to: url, options: [.atomic])
+    }
+
+    func sanitized() -> AppConfig {
+        var next = self
+        let defaults = AppConfig()
+
+        next.hotkey = next.hotkey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if next.hotkey.isEmpty {
+            next.hotkey = defaults.hotkey
+        }
+
+        if let device = next.inputDevice?.trimmingCharacters(in: .whitespacesAndNewlines), !device.isEmpty {
+            next.inputDevice = device
+        } else {
+            next.inputDevice = nil
+        }
+
+        next.maxRecordingSecs = min(300, max(5, next.maxRecordingSecs))
+        next.historySize = min(200, max(1, next.historySize))
+
+        next.ollamaEndpoint = next.ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        if next.ollamaEndpoint.isEmpty {
+            next.ollamaEndpoint = defaults.ollamaEndpoint
+        }
+
+        next.ollamaModel = next.ollamaModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if next.ollamaModel.isEmpty {
+            next.ollamaModel = defaults.ollamaModel
+        }
+
+        next.ollamaPrompt = next.ollamaPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if next.ollamaPrompt.isEmpty {
+            next.ollamaPrompt = defaults.ollamaPrompt
+        }
+
+        var cleanDictionary: [String: String] = [:]
+        for (key, value) in next.dictionary {
+            let cleanKey = key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let cleanValue = value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleanKey.isEmpty {
+                cleanDictionary[cleanKey] = cleanValue
+            }
+        }
+        next.dictionary = cleanDictionary
+
+        return next
+    }
+}
+
+extension JSONEncoder {
+    static var flowey: JSONEncoder {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return encoder
+    }
+}

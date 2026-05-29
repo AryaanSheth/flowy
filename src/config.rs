@@ -100,7 +100,7 @@ impl Config {
     /// Load from disk, falling back to defaults if absent or malformed.
     pub fn load() -> Self {
         match Self::try_load() {
-            Ok(c)  => c,
+            Ok(c)  => c.sanitized(),
             Err(e) => {
                 log::warn!("Could not load config, using defaults: {e}");
                 Self::default()
@@ -124,7 +124,7 @@ impl Config {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        std::fs::write(&path, serde_json::to_string_pretty(self)?)?;
+        std::fs::write(&path, serde_json::to_string_pretty(&self.clone().sanitized())?)?;
         Ok(())
     }
 
@@ -138,5 +138,43 @@ impl Config {
             .join("Application Support")
             .join("flowey")
             .join("config.json"))
+    }
+
+    pub(crate) fn sanitized(mut self) -> Self {
+        if self.hotkey.trim().is_empty() {
+            self.hotkey = Self::default().hotkey;
+        } else {
+            self.hotkey = self.hotkey.trim().to_string();
+        }
+
+        self.input_device = self
+            .input_device
+            .and_then(|d| {
+                let d = d.trim().to_string();
+                if d.is_empty() { None } else { Some(d) }
+            });
+
+        self.max_recording_secs = self.max_recording_secs.clamp(5, 300);
+        self.history_size = self.history_size.clamp(1, 200);
+
+        if self.ollama_endpoint.trim().is_empty() {
+            self.ollama_endpoint = default_ollama_endpoint();
+        } else {
+            self.ollama_endpoint = self.ollama_endpoint.trim().to_string();
+        }
+
+        if self.ollama_model.trim().is_empty() {
+            self.ollama_model = default_ollama_model();
+        } else {
+            self.ollama_model = self.ollama_model.trim().to_string();
+        }
+
+        if self.ollama_prompt.trim().is_empty() {
+            self.ollama_prompt = default_ollama_prompt();
+        } else {
+            self.ollama_prompt = self.ollama_prompt.trim().to_string();
+        }
+
+        self
     }
 }

@@ -492,13 +492,15 @@ saveBtn.addEventListener('click', async () => {
     return r ? r.value : 'type';
   })();
 
+  const maxRecordingSecs = clampInt(parseInt(maxSecsInput.value, 10), 5, 300, 60);
+
   const newConfig = {
     hotkey:           hotkeyInput.value.trim() || 'CmdOrCtrl+Shift+Space',
     autostart:        autostartCb.checked,
     dictionary:       collectDict(),
     inputDevice:      inputDeviceSelect.value || null,
     outputMode,
-    maxRecordingSecs: parseInt(maxSecsInput.value, 10) || 60,
+    maxRecordingSecs,
     historySize:      loadedConfig?.historySize ?? 20,
     ollamaEnabled:    ollamaEnabled.checked,
     ollamaEndpoint:   ollamaEndpoint.value.trim() || 'http://localhost:11434',
@@ -536,4 +538,9 @@ function esc(str) {
   return String(str)
     .replace(/&/g, '&amp;').replace(/"/g, '&quot;')
     .replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function clampInt(value, min, max, fallback) {
+  if (!Number.isFinite(value)) return fallback;
+  return Math.min(max, Math.max(min, value));
 }
