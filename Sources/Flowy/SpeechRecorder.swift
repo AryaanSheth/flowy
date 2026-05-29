@@ -22,13 +22,13 @@ final class SpeechRecorder {
         completion: @escaping (Result<String, Error>) -> Void
     ) throws {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
-            throw FloweyError.message("Speech Recognition is not authorized")
+            throw FlowyError.message("Speech Recognition is not authorized")
         }
         guard recognizer != nil else {
-            throw FloweyError.message("Speech Recognition is unavailable for the current locale")
+            throw FlowyError.message("Speech Recognition is unavailable for the current locale")
         }
         guard recognizer?.isAvailable == true else {
-            throw FloweyError.message("macOS Speech Recognition is unavailable. Enable Siri and Dictation in System Settings, then try again.")
+            throw FlowyError.message("macOS Speech Recognition is unavailable. Enable Siri and Dictation in System Settings, then try again.")
         }
 
         self.completion = completion
@@ -71,7 +71,7 @@ final class SpeechRecorder {
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.sampleRate > 0 else {
-            throw FloweyError.message("No microphone input format is available")
+            throw FlowyError.message("No microphone input format is available")
         }
 
         input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak request] buffer, _ in
@@ -105,10 +105,10 @@ final class SpeechRecorder {
     private func configureInputDevice(uid: String?) throws {
         guard let uid, !uid.isEmpty else { return }
         guard var deviceID = AudioDeviceManager.audioDeviceID(forUID: uid) else {
-            throw FloweyError.message("Selected input device was not found")
+            throw FlowyError.message("Selected input device was not found")
         }
         guard let audioUnit = engine.inputNode.audioUnit else {
-            throw FloweyError.message("No microphone audio unit is available")
+            throw FlowyError.message("No microphone audio unit is available")
         }
 
         let status = AudioUnitSetProperty(
@@ -121,7 +121,7 @@ final class SpeechRecorder {
         )
 
         guard status == noErr else {
-            throw FloweyError.message("Could not switch to the selected microphone")
+            throw FlowyError.message("Could not switch to the selected microphone")
         }
     }
 
@@ -149,7 +149,7 @@ final class SpeechRecorder {
         let message = error.localizedDescription
         let lower = message.lowercased()
         if lower.contains("siri") || lower.contains("dictation") {
-            return FloweyError.message("macOS says Siri and Dictation are disabled. Enable Dictation in System Settings > Keyboard > Dictation, then try again.")
+            return FlowyError.message("macOS says Siri and Dictation are disabled. Enable Dictation in System Settings > Keyboard > Dictation, then try again.")
         }
         return error
     }

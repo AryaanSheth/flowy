@@ -64,9 +64,11 @@ final class AppModel: ObservableObject {
         guard status == .idle else { return }
 
         lastError = nil
+        FlowyLog.info("Recording start requested")
         refreshPermissions()
         guard permissions.speechAuthorized else {
             lastError = "Speech Recognition is not authorized."
+            FlowyLog.warn("Recording blocked: speech recognition is not authorized")
             requestInitialPermissions()
             return
         }
@@ -77,6 +79,7 @@ final class AppModel: ObservableObject {
 
         do {
             setStatus(.recording)
+            FlowyLog.info("Recording started inputDevice=\(config.inputDevice ?? "default")")
             try recorder.start(
                 deviceUID: config.inputDevice,
                 maxSeconds: config.maxRecordingSecs
@@ -90,11 +93,13 @@ final class AppModel: ObservableObject {
             recordingTimeout?.cancel()
             setStatus(.idle)
             lastError = error.localizedDescription
+            FlowyLog.error("Recording start failed: \(error.localizedDescription)")
         }
     }
 
     func stopRecording() {
         guard status == .recording else { return }
+        FlowyLog.info("Recording stop requested")
         recordingTimeout?.cancel()
         recordingTimeout = nil
         setStatus(.transcribing)
@@ -137,13 +142,16 @@ final class AppModel: ObservableObject {
         switch result {
         case .success(let text):
             rawText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            FlowyLog.info("Speech result chars=\(rawText.count)")
         case .failure(let error):
             lastError = normalizedSpeechError(error)
+            FlowyLog.error("Speech failed: \(lastError ?? error.localizedDescription)")
             return
         }
 
         guard !rawText.isEmpty else {
             lastError = "No speech was recognized. Check that Dictation is enabled and the selected microphone is receiving audio."
+            FlowyLog.warn("Speech returned empty text")
             return
         }
 
@@ -152,6 +160,7 @@ final class AppModel: ObservableObject {
 
         if snapshot.ollamaEnabled {
             let started = Date()
+            FlowyLog.info("Ollama enhancement started model=\(snapshot.ollamaModel) endpoint=\(snapshot.ollamaEndpoint)")
             do {
                 let enhanced = try await OllamaClient.enhance(
                     endpoint: snapshot.ollamaEndpoint,
@@ -163,9 +172,12 @@ final class AppModel: ObservableObject {
                     text = enhanced
                 }
             } catch {
+                FlowyLog.warn("Ollama enhancement failed: \(error.localizedDescription)")
                 NSLog("Ollama enhancement failed: \(error.localizedDescription)")
             }
-            NSLog("Ollama enhancement latency: %.2fs", Date().timeIntervalSince(started))
+            let latency = Date().timeIntervalSince(started)
+            FlowyLog.info(String(format: "Ollama enhancement latency %.2fs", latency))
+            NSLog("Ollama enhancement latency: %.2fs", latency)
         }
 
         history.insert(text, at: 0)
@@ -174,8 +186,10 @@ final class AppModel: ObservableObject {
         }
 
         let delivered = await TextOutput.deliver(text, mode: snapshot.outputMode, capturedApp: capturedApp)
+        FlowyLog.info("Delivery finished ok=\(delivered) mode=\(snapshot.outputMode.rawValue)")
         if !delivered, snapshot.outputMode != .clipboard {
-            lastError = "Copied to clipboard, but automatic paste failed. Check Flowey in System Settings > Privacy & Security > Accessibility."
+            lastError = "Auto-paste failed — text is in your clipboard. Open Settings › System › Permissions and re-grant Accessibility access. If Flowy is already listed, remove it and re-add it (each rebuild resets the trust)."
+            FlowyLog.error(lastError ?? "Delivery failed")
         }
     }
 

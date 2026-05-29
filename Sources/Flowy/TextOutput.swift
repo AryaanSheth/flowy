@@ -10,11 +10,13 @@ enum TextOutput {
     @discardableResult
     static func deliver(_ text: String, mode: OutputMode, capturedApp: NSRunningApplication?) async -> Bool {
         guard !text.isEmpty else { return true }
+        FlowyLog.info("Delivery start mode=\(mode.rawValue) chars=\(text.count) capturedApp=\(capturedApp?.localizedName ?? "none") trusted=\(AXIsProcessTrusted())")
 
         switch mode {
         case .clipboard:
-            copyToClipboard(text)
-            return true
+            let ok = copyToClipboard(text)
+            FlowyLog.info("Delivery clipboard-only copy ok=\(ok)")
+            return ok
 
         case .type:
             let ok = await typeText(text, capturedApp: capturedApp)
@@ -29,29 +31,41 @@ enum TextOutput {
         }
     }
 
-    static func copyToClipboard(_ text: String) {
+    @discardableResult
+    static func copyToClipboard(_ text: String) -> Bool {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString(text, forType: .string)
+        let ok = pasteboard.setString(text, forType: .string)
+        FlowyLog.info("Clipboard write ok=\(ok) chars=\(text.count)")
+        return ok
     }
 
     private static func typeText(_ text: String, capturedApp: NSRunningApplication?) async -> Bool {
         if let capturedApp, !capturedApp.isTerminated {
+            FlowyLog.info("Reactivating captured app name=\(capturedApp.localizedName ?? "unknown") pid=\(capturedApp.processIdentifier)")
             capturedApp.activate(options: [.activateIgnoringOtherApps])
-            try? await Task.sleep(nanoseconds: 150_000_000)
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        } else {
+            FlowyLog.warn("No captured app available for delivery")
         }
 
-        copyToClipboard(text)
-
-        if insertWithAccessibility(text) {
-            return true
+        guard copyToClipboard(text) else {
+            FlowyLog.error("Delivery failed: clipboard write failed")
+            return false
         }
 
         if await pasteClipboard() {
+            FlowyLog.info("Delivery attempted via Cmd+V")
+            return true
+        }
+
+        if insertWithAccessibility(text) {
+            FlowyLog.info("Delivery succeeded via AX insertion")
             return true
         }
 
         if typeUnicode(text) {
+            FlowyLog.info("Delivery succeeded via Unicode typing")
             return true
         }
 
@@ -63,7 +77,13 @@ enum TextOutput {
     }
 
     private static func pasteClipboard() async -> Bool {
+        guard AXIsProcessTrusted() else {
+            FlowyLog.warn("Cmd+V skipped: AXIsProcessTrusted=false, macOS will ignore synthetic paste events")
+            return false
+        }
+
         guard let source = CGEventSource(stateID: .combinedSessionState) else {
+            FlowyLog.error("Cmd+V failed: could not create CGEventSource")
             return false
         }
 
@@ -71,6 +91,7 @@ enum TextOutput {
             let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
             let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
         else {
+            FlowyLog.error("Cmd+V failed: could not create keyboard events")
             return false
         }
 
@@ -89,9 +110,12 @@ enum TextOutput {
         let alert = NSAlert()
         alert.messageText = "Accessibility Permission Required"
         alert.informativeText = """
-        Flowey needs Accessibility access to paste transcribed text into other apps.
+        Flowy needs Accessibility access to paste transcribed text into other apps.
 
-        Open System Settings > Privacy & Security > Accessibility, then add or re-add Flowey. Until then, transcriptions are copied to the clipboard.
+        Open System Settings > Privacy & Security > Accessibility and add Flowy. \
+        If Flowy is already listed with the switch ON, remove it and re-add it — \
+        macOS invalidates the trust each time the app is rebuilt. \
+        Until then, transcriptions are copied to the clipboard only.
         """
         alert.alertStyle = .warning
         alert.addButton(withTitle: "Open Accessibility Settings")
@@ -127,7 +151,10 @@ enum TextOutput {
             kAXFocusedUIElementAttribute as CFString,
             &focusedRef
         )
-        guard focusedErr == .success, let focusedRef else { return false }
+        guard focusedErr == .success, let focusedRef else {
+            FlowyLog.warn("AX insert failed: focused element error=\(focusedErr.rawValue)")
+            return false
+        }
 
         let focused = focusedRef as! AXUIElement
         let selectedErr = AXUIElementSetAttributeValue(
@@ -138,6 +165,7 @@ enum TextOutput {
         if selectedErr == .success {
             return true
         }
+        FlowyLog.warn("AX selected-text insert failed error=\(selectedErr.rawValue)")
 
         var valueRef: CFTypeRef?
         let valueErr = AXUIElementCopyAttributeValue(
@@ -146,6 +174,7 @@ enum TextOutput {
             &valueRef
         )
         guard valueErr == .success, let valueRef, CFGetTypeID(valueRef) == CFStringGetTypeID() else {
+            FlowyLog.warn("AX value read failed error=\(valueErr.rawValue)")
             return false
         }
 
@@ -156,11 +185,13 @@ enum TextOutput {
             &rangeRef
         )
         guard rangeErr == .success, let rangeRef, CFGetTypeID(rangeRef) == AXValueGetTypeID() else {
+            FlowyLog.warn("AX selected range read failed error=\(rangeErr.rawValue)")
             return false
         }
 
         var selectedRange = CFRange()
         guard AXValueGetValue(rangeRef as! AXValue, .cfRange, &selectedRange) else {
+            FlowyLog.warn("AX selected range decode failed")
             return false
         }
 
@@ -176,7 +207,10 @@ enum TextOutput {
             kAXValueAttribute as CFString,
             mutable as CFString
         )
-        guard setErr == .success else { return false }
+        guard setErr == .success else {
+            FlowyLog.warn("AX value write failed error=\(setErr.rawValue)")
+            return false
+        }
 
         var nextRange = CFRange(location: location + (text as NSString).length, length: 0)
         if let nextRangeValue = AXValueCreate(.cfRange, &nextRange) {
@@ -191,7 +225,13 @@ enum TextOutput {
     }
 
     private static func typeUnicode(_ text: String) -> Bool {
+        guard AXIsProcessTrusted() else {
+            FlowyLog.warn("Unicode typing skipped: AXIsProcessTrusted=false, macOS will ignore synthetic key events")
+            return false
+        }
+
         guard let source = CGEventSource(stateID: .combinedSessionState) else {
+            FlowyLog.error("Unicode typing failed: could not create CGEventSource")
             return false
         }
 
@@ -206,6 +246,7 @@ enum TextOutput {
                 let keyDown = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: true),
                 let keyUp = CGEvent(keyboardEventSource: source, virtualKey: 0, keyDown: false)
             else {
+                FlowyLog.error("Unicode typing failed: could not create keyboard events")
                 return false
             }
 

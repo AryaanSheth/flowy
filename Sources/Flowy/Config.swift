@@ -69,14 +69,14 @@ struct AppConfig: Codable, Equatable {
     }
 
     static let defaultOllamaPrompt = """
-    You are a transcription cleaner. Fix punctuation, capitalization and grammar in the dictated text. Preserve the speaker's exact words and meaning. Do not add new content, summaries, or commentary. Return only the cleaned text.
+    You are a transcription cleaner. You receive raw speech-to-text output labeled "Input:" and must return only the cleaned version after "Output:". Fix punctuation, capitalization, and grammar. Preserve the speaker's exact words and meaning. Never ask questions, never add explanations or commentary. Return only the cleaned text.
     """
 
     static var configURL: URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent("Library", isDirectory: true)
             .appendingPathComponent("Application Support", isDirectory: true)
-            .appendingPathComponent("flowey", isDirectory: true)
+            .appendingPathComponent("flowy", isDirectory: true)
             .appendingPathComponent("config.json")
     }
 
@@ -101,7 +101,7 @@ struct AppConfig: Codable, Equatable {
             at: url.deletingLastPathComponent(),
             withIntermediateDirectories: true
         )
-        let data = try JSONEncoder.flowey.encode(sanitized())
+        let data = try JSONEncoder.flowy.encode(sanitized())
         try data.write(to: url, options: [.atomic])
     }
 
@@ -153,7 +153,7 @@ struct AppConfig: Codable, Equatable {
 }
 
 extension JSONEncoder {
-    static var flowey: JSONEncoder {
+    static var flowy: JSONEncoder {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         return encoder

@@ -46,7 +46,7 @@ struct SettingsView: View {
     private var header: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("flowey")
+                Text("flowy")
                     .font(.system(size: 20, weight: .semibold, design: .rounded))
                 Text("local dictation for macOS")
                     .font(.caption)
@@ -367,7 +367,7 @@ struct SettingsView: View {
             sectionTitle("System")
 
             GroupBox("Startup") {
-                Toggle("Launch Flowey at login", isOn: $draft.autostart)
+                Toggle("Launch Flowy at login", isOn: $draft.autostart)
             }
 
             GroupBox("Permissions") {
@@ -410,7 +410,7 @@ struct SettingsView: View {
         if !model.permissions.accessibilityTrusted {
             callout(
                 title: "Accessibility permission required",
-                message: "Required only for pasting transcribed text into other apps. The global hotkey can work without it.",
+                message: "Required for pasting text. If Flowy is already listed in System Settings with the switch ON, remove it and re-add it — macOS invalidates accessibility trust each time the app is rebuilt.",
                 actionTitle: "Request Access",
                 action: {
                     TextOutput.requestAccessibilityAccess()
@@ -421,7 +421,7 @@ struct SettingsView: View {
         if !model.permissions.speechAuthorized {
             callout(
                 title: "Speech Recognition not authorized",
-                message: "Enable Flowey in System Settings > Privacy & Security > Speech Recognition.",
+                message: "Enable Flowy in System Settings > Privacy & Security > Speech Recognition.",
                 actionTitle: "Request Permission",
                 action: model.requestInitialPermissions
             )
@@ -429,7 +429,7 @@ struct SettingsView: View {
         if !model.permissions.microphoneAuthorized {
             callout(
                 title: "Microphone not authorized",
-                message: "Flowey needs microphone access before recording.",
+                message: "Flowy needs microphone access before recording.",
                 actionTitle: "Request Permission",
                 action: model.requestInitialPermissions
             )

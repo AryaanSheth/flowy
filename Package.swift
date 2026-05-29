@@ -3,17 +3,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "Flowey",
+    name: "Flowy",
     platforms: [
         .macOS(.v13),
     ],
     products: [
-        .executable(name: "Flowey", targets: ["Flowey"]),
+        .executable(name: "Flowy", targets: ["Flowy"]),
     ],
     targets: [
         .executableTarget(
-            name: "Flowey",
-            path: "Sources/Flowey",
+            name: "Flowy",
+            path: "Sources/Flowy",
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("ApplicationServices"),

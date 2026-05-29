@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flowey Overlay</title>
+  <title>Flowy Overlay</title>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -76,7 +76,7 @@
       width: 2.5px;
       height: 3px;
       border-radius: 2px;
-      background: #79c48a;
+      background: #4dbfcb;
       transform-origin: center bottom;
       animation: bar var(--d) ease-in-out infinite var(--del);
     }
@@ -97,7 +97,7 @@
 
     /* ── Transcribing state ──────────────────────────────────────── */
     body.transcribing .b {
-      background: #c4a048;
+      background: #7bb8c4;
       animation-name: bar-slow;
     }
 
@@ -166,7 +166,7 @@
 
     // ── Listen for status events from Rust ────────────────────────
     if (window.__TAURI__?.event) {
-      window.__TAURI__.event.listen('flowey:status', ({ payload }) => {
+      window.__TAURI__.event.listen('flowy:status', ({ payload }) => {
         applyStatus(payload);
       });
     }

@@ -55,7 +55,7 @@ final class HotkeyMonitor {
         )
 
         guard handlerStatus == noErr else {
-            throw FloweyError.message("Could not install the global hotkey handler (\(handlerStatus)).")
+            throw FlowyError.message("Could not install the global hotkey handler (\(handlerStatus)).")
         }
 
         try registerCurrentHotkey()
@@ -105,7 +105,7 @@ final class HotkeyMonitor {
             )
 
             guard status == noErr, let ref else {
-                throw FloweyError.message("Could not register global hotkey '\(parsedHotkey.rawValue)'. It may already be used by macOS or another app.")
+                throw FlowyError.message("Could not register global hotkey '\(parsedHotkey.rawValue)'. It may already be used by macOS or another app.")
             }
 
             hotkeyRefs.append(ref)
@@ -199,7 +199,7 @@ private struct ParsedHotkey {
             .filter { !$0.isEmpty }
 
         guard let keyPart = parts.last else {
-            throw FloweyError.message("Hotkey cannot be empty")
+            throw FlowyError.message("Hotkey cannot be empty")
         }
 
         var hotkey = ParsedHotkey(rawValue: raw, keyCode: try keyCode(for: keyPart))
@@ -216,7 +216,7 @@ private struct ParsedHotkey {
             case "shift":
                 hotkey.shift = true
             default:
-                throw FloweyError.message("Unsupported hotkey modifier: \(part)")
+                throw FlowyError.message("Unsupported hotkey modifier: \(part)")
             }
         }
         return hotkey
@@ -233,7 +233,7 @@ private struct ParsedHotkey {
                 return code
             }
         }
-        throw FloweyError.message("Unsupported hotkey key: \(key)")
+        throw FlowyError.message("Unsupported hotkey key: \(key)")
     }
 
     private static let keyCodes: [String: Int] = [

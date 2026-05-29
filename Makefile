@@ -1,11 +1,11 @@
-APP_NAME := Flowey
+APP_NAME := Flowy
 APP_BUNDLE := target/release/bundle/macos/$(APP_NAME).app
 APPLICATIONS_BUNDLE := /Applications/$(APP_NAME).app
 
-.PHONY: help doctor dev build launch relaunch install install-relaunch install-relaunch-reset reset-accessibility open-installed check test clean
+.PHONY: help doctor dev build launch relaunch install install-relaunch install-relaunch-reset reset-accessibility open-installed check test logs clear-logs clean
 
 help:
-	@printf "Flowey targets:\n"
+	@printf "Flowy targets:\n"
 	@printf "  make doctor          Check the local Swift/macOS toolchain\n"
 	@printf "  make dev             Build a debug native macOS app\n"
 	@printf "  make build           Build the release native macOS app bundle\n"
@@ -14,10 +14,12 @@ help:
 	@printf "  make install         Copy the packaged app to /Applications\n"
 	@printf "  make install-relaunch Clean, rebuild, install, and launch /Applications app\n"
 	@printf "  make install-relaunch-reset Same as install-relaunch, but reset Accessibility first\n"
-	@printf "  make reset-accessibility Reset Flowey's Accessibility permission entry\n"
-	@printf "  make open-installed  Open /Applications/flowey.app\n"
+	@printf "  make reset-accessibility Reset Flowy's Accessibility permission entry\n"
+	@printf "  make open-installed  Open /Applications/flowy.app\n"
 	@printf "  make check           Compile-check the native Swift app\n"
 	@printf "  make test            Run native build smoke checks\n"
+	@printf "  make logs            Tail Flowy's log file\n"
+	@printf "  make clear-logs      Clear Flowy's log file\n"
 	@printf "  make clean           Remove native build artifacts\n"
 
 doctor:
@@ -46,7 +48,7 @@ install-relaunch-reset:
 	./scripts/rebuild-launch.sh --install --reset-accessibility
 
 reset-accessibility:
-	tccutil reset Accessibility com.flowey.app || true
+	tccutil reset Accessibility com.flowy.app || true
 
 open-installed:
 	open "$(APPLICATIONS_BUNDLE)"
@@ -57,6 +59,15 @@ check:
 test:
 	./scripts/build-macos.sh --debug --check-only
 	/usr/bin/file "target/debug/bundle/macos/$(APP_NAME).app/Contents/MacOS/$(APP_NAME)" | grep -q "arm64"
+
+logs:
+	mkdir -p "$$HOME/Library/Logs/Flowy"
+	touch "$$HOME/Library/Logs/Flowy/flowy.log"
+	tail -n 200 -f "$$HOME/Library/Logs/Flowy/flowy.log"
+
+clear-logs:
+	mkdir -p "$$HOME/Library/Logs/Flowy"
+	: > "$$HOME/Library/Logs/Flowy/flowy.log"
 
 clean:
 	rm -rf target .build

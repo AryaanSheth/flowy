@@ -1,7 +1,7 @@
 import AppKit
 
 @main
-enum FloweyMain {
+enum FlowyMain {
     @MainActor
     static func main() {
         let app = NSApplication.shared

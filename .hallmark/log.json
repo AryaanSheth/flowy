@@ -5,6 +5,16 @@
     "theme": "Terminal",
     "theme_axes": "dark / display-heavy / chromatic-green",
     "enrichment": "CSS-art waveform divider",
-    "brief": "Flowey — local macOS speech-to-text product page"
+    "brief": "Flowy — local macOS speech-to-text product page"
+  },
+  {
+    "date": "2026-05-29",
+    "macrostructure": "Marquee Hero",
+    "theme": "custom (bold ocean flow)",
+    "theme_axes": "dark / display-heavy / cool-teal (195°)",
+    "enrichment": "CSS-art animated sine wave (dual-SVG 200% track)",
+    "nav": "N9 edge-aligned",
+    "footer": "Ft2 inline",
+    "brief": "Flowy — Bold, Flow, Waves. Website + App UI redesign."
   }
 ]

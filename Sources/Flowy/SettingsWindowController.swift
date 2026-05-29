@@ -17,7 +17,7 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
             backing: .buffered,
             defer: false
         )
-        window.title = "Flowey Settings"
+        window.title = "Flowy Settings"
         window.contentView = hostingView
         window.center()
         window.isReleasedWhenClosed = false

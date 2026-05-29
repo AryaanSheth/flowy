@@ -41,7 +41,7 @@ cat >&2 <<EOF
 Swift toolchain check failed.
 
 This means the active Swift compiler cannot import Apple's Foundation module.
-Flowey cannot be compiled until Command Line Tools or Xcode are repaired.
+Flowy cannot be compiled until Command Line Tools or Xcode are repaired.
 
 Current toolchain:
 $(swift --version 2>&1 || true)

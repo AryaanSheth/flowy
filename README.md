@@ -1,4 +1,4 @@
-# 🌿 Flowey
+# 🌿 Flowy
 
 Minimal local speech-to-text for **macOS**.
 Hold a global hotkey → speak → release → text appears at the cursor.
@@ -81,7 +81,7 @@ Apple Silicon.
    # or
    ollama pull qwen2.5:3b       # similar, slightly different style
    ```
-3. In Flowey, open **Settings → AI**, enable, click **Test**, pick the model.
+3. In Flowy, open **Settings → AI**, enable, click **Test**, pick the model.
 
 Customise the system prompt to fit your style — for example, force lowercase
 for terminal use, or have it strip filler words.
@@ -92,7 +92,7 @@ for terminal use, or have it strip filler words.
 
 | Path | |
 |---|---|
-| macOS | `~/Library/Application Support/flowey/config.json` |
+| macOS | `~/Library/Application Support/flowy/config.json` |
 
 Example `config.json`:
 
@@ -121,9 +121,9 @@ On first use the OS may prompt for three permissions:
 1. **Speech Recognition** — required for transcription.
 2. **Microphone** — required for recording. Granted automatically on first record attempt.
 3. **Accessibility** — required for keystroke injection.
-   System Settings → Privacy & Security → Accessibility → enable `flowey`.
+   System Settings → Privacy & Security → Accessibility → enable `flowy`.
 
-If Accessibility is unavailable, Flowey falls back to copying transcribed text
+If Accessibility is unavailable, Flowy falls back to copying transcribed text
 to your clipboard so you can paste manually.
 
 ---

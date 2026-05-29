@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Flowey — Your voice. Your machine.</title>
+  <title>Flowy — Your voice. Your machine.</title>
   <meta name="description" content="Hold a hotkey. Speak. Release. Your words appear — and never leave your machine. Local speech-to-text for macOS. Free, always.">
 
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -12,13 +12,12 @@
   <link rel="stylesheet" href="tokens.css">
 
   <style>
-    /* Hallmark · genre: atmospheric · macrostructure: Manifesto · theme: Terminal
-     * Bricolage Grotesque 900 (display) + Geist 400 (body) + Geist Mono (outlier: wordmark)
-     * nav: N5 Floating pill · footer: Ft5 Statement · enrichment: CSS-art waveform divider
-     * pre-emit critique: P5 H5 E5 S5 R4 V5
+    /* Hallmark · genre: atmospheric · macrostructure: Marquee Hero · theme: custom (bold ocean flow)
+     * vibe: deep ocean, heavy type, flowing teal · nav: N9 edge-aligned · footer: Ft2 inline
+     * pre-emit critique: P5 H5 E5 S5 R5 V5
      */
 
-    /* ── Reset ──────────────────────────────────────── */
+    /* ── Reset ───────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { overflow-x: clip; }
     html { scroll-behavior: smooth; }
@@ -33,28 +32,16 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Atmospheric bloom — two fixed radial gradients */
+    /* Deep ocean ambient glow — single fixed layer */
     body::before {
       content: "";
       position: fixed;
       inset: 0;
       background:
-        radial-gradient(ellipse 55% 38% at 50% -4%,  oklch(74% 0.22 145 / 0.10) 0%, transparent 80%),
-        radial-gradient(ellipse 35% 28% at 12% 90%,  oklch(74% 0.22 145 / 0.05) 0%, transparent 70%);
+        radial-gradient(ellipse 60% 40% at 50% -5%, oklch(64% 0.23 195 / 0.08) 0%, transparent 72%),
+        radial-gradient(ellipse 40% 30% at 92% 100%, oklch(64% 0.23 195 / 0.05) 0%, transparent 60%);
       pointer-events: none;
       z-index: 0;
-    }
-
-    /* Grain overlay */
-    body::after {
-      content: "";
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 900;
-      opacity: 0.032;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-      background-size: 160px;
     }
 
     a { color: inherit; text-decoration: none; }
@@ -63,264 +50,235 @@
     ::-webkit-scrollbar-track { background: var(--color-paper); }
     ::-webkit-scrollbar-thumb { background: var(--color-rule); border-radius: 2px; }
 
-    /* ── Utilities ──────────────────────────────────── */
+    /* ── Utilities ───────────────────────────────────── */
     .container { max-width: 1080px; margin: 0 auto; padding: 0 var(--space-6); }
     .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); border: 0; }
 
     /* ── Reveal animations ──────────────────────────── */
     .fade-up {
       opacity: 0;
-      transform: translateY(20px);
+      transform: translateY(24px);
       transition: opacity var(--dur-reveal) var(--ease-out),
                   transform var(--dur-reveal) var(--ease-out);
     }
     .fade-up.visible { opacity: 1; transform: none; }
 
-    .sweep-r {
-      clip-path: inset(0 100% 0 0);
-      transition: clip-path var(--dur-reveal) var(--ease-out);
-    }
-    .sweep-r.visible { clip-path: inset(0 0% 0 0); }
-
-    .d1 { transition-delay: 0.06s; }
-    .d2 { transition-delay: 0.12s; }
-    .d3 { transition-delay: 0.18s; }
-    .d4 { transition-delay: 0.24s; }
+    .d1 { transition-delay: 0.07s; }
+    .d2 { transition-delay: 0.14s; }
+    .d3 { transition-delay: 0.21s; }
+    .d4 { transition-delay: 0.28s; }
 
     @media (prefers-reduced-motion: reduce) {
-      .fade-up, .sweep-r {
-        opacity: 1; transform: none;
-        clip-path: none;
-        transition: opacity 150ms linear;
-      }
+      .fade-up { opacity: 1; transform: none; transition: opacity 150ms linear; }
     }
 
-    /* ════════════════════════════════════════════════
-       NAV — N5 Floating pill
-    ════════════════════════════════════════════════ */
+
+    /* ══════════════════════════════════════════════════
+       NAV — N9 Edge-aligned minimal
+    ══════════════════════════════════════════════════ */
     .nav {
       position: fixed;
-      top: var(--space-4);
-      left: 50%;
-      transform: translateX(-50%);
+      top: 0; left: 0; right: 0;
       z-index: 200;
-      width: calc(100% - var(--space-8));
-      max-width: 720px;
-    }
-
-    .nav-pill {
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: var(--space-4);
-      padding: var(--space-3) var(--space-4);
-      background: oklch(13% 0.015 145 / 0.88);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border: 1px solid oklch(22% 0.015 145 / 0.8);
-      border-radius: var(--radius-pill);
+      padding: var(--space-6) var(--space-8);
     }
 
     .wordmark {
-      font-family: var(--font-mono);
-      font-size: var(--text-sm);
-      font-weight: 500;
-      color: var(--color-ink);
-      letter-spacing: -0.01em;
-      display: flex;
-      align-items: center;
-      gap: var(--space-2);
-      flex-shrink: 0;
-    }
-    .wordmark-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--color-accent);
-    }
-
-    .nav-links {
-      display: flex;
-      align-items: center;
-      gap: var(--space-6);
-      list-style: none;
-    }
-    .nav-links a {
-      font-size: var(--text-sm);
-      color: var(--color-ink-2);
-      transition: color var(--dur-base) var(--ease-out);
-    }
-    .nav-links a:hover { color: var(--color-ink); }
-
-    .nav-dl {
-      display: inline-flex;
-      align-items: center;
-      gap: var(--space-2);
-      padding: var(--space-2) var(--space-4);
-      border-radius: var(--radius-pill);
-      font-size: var(--text-sm);
-      font-family: var(--font-body);
-      font-weight: 500;
-      background: var(--color-accent);
-      color: var(--color-cta-ink);
-      transition: opacity var(--dur-base), transform var(--dur-base) var(--ease-out);
-      white-space: nowrap;
-      flex-shrink: 0;
-    }
-    .nav-dl:hover { opacity: 0.88; transform: translateY(-1px); }
-    .nav-dl:focus-visible {
-      outline: 2px solid var(--color-focus);
-      outline-offset: 2px;
-    }
-    .nav-dl:active { transform: translateY(0); }
-
-    /* ════════════════════════════════════════════════
-       HERO — Manifesto
-    ════════════════════════════════════════════════ */
-    .hero {
-      position: relative;
-      z-index: 1;
-      padding: clamp(7rem, 16vw, 11rem) 0 clamp(4rem, 8vw, 6rem);
-      overflow: hidden;
-    }
-
-    .hero-eyebrow {
-      font-size: var(--text-xs);
-      font-weight: 400;
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--color-accent);
-      margin-bottom: var(--space-8);
-      display: block;
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
-
-    .manifesto-head {
       font-family: var(--font-display);
-      font-size: var(--text-display);
-      font-weight: 900;
-      line-height: 1.0;
-      letter-spacing: -0.04em;
-      text-transform: uppercase;
-      color: var(--color-ink);
-      transform: rotate(-2.5deg);
-      transform-origin: left center;
-      margin-left: -0.02em; /* optical alignment */
-      margin-bottom: clamp(2rem, 5vw, 3.5rem);
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
-
-    /* Block-highlight on the key word */
-    .manifesto-head .block-accent {
-      display: inline;
-      background-color: var(--color-accent);
-      color: var(--color-cta-ink);
-      font-style: normal;
-      padding: 0 0.08em 0.02em;
-    }
-
-    .hero-body {
       font-size: var(--text-md);
-      font-weight: 300;
-      color: var(--color-ink-2);
-      max-width: 52ch;
-      line-height: 1.62;
-      overflow-wrap: anywhere;
-      min-width: 0;
+      font-weight: 800;
+      color: var(--color-ink);
+      letter-spacing: -0.03em;
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
     }
-
-    /* ════════════════════════════════════════════════
-       WAVEFORM DIVIDER — CSS art, Tier A
-    ════════════════════════════════════════════════ */
-    .wave-divider {
-      position: relative;
-      z-index: 1;
-      background: var(--color-paper-2);
-      padding: var(--space-8) 0;
-      border-top: 1px solid var(--color-rule);
-      border-bottom: 1px solid var(--color-rule);
+    .wordmark-wave {
+      width: 20px; height: 12px;
+      display: inline-block;
       overflow: hidden;
-    }
-
-    .wave-inner {
-      display: flex;
-      align-items: center;
-      gap: var(--space-6);
-      justify-content: center;
-    }
-
-    .wave-rec-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--color-accent);
-      flex-shrink: 0;
-      animation: rec-pulse 1.9s ease-in-out infinite;
-    }
-    @keyframes rec-pulse {
-      0%, 100% { opacity: 1; }
-      50%       { opacity: 0.25; }
-    }
-
-    .wave-bars {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      height: 40px;
-    }
-    .wave-bars span {
-      display: block;
-      width: 4px;
-      height: 40px;
-      border-radius: 3px;
-      background: var(--color-accent);
-      transform-origin: center;
-      animation: wbar var(--d) ease-in-out infinite alternate var(--dl);
-    }
-    @keyframes wbar {
-      0%   { transform: scaleY(0.08); opacity: 0.25; }
-      100% { transform: scaleY(1);    opacity: 1;    }
-    }
-
-    .wave-label {
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: var(--color-ink-2);
       flex-shrink: 0;
     }
+    .wordmark-wave svg { display: block; }
 
-    /* ════════════════════════════════════════════════
-       ASSERTIONS — bleed sections, one claim each
-    ════════════════════════════════════════════════ */
-    .assertion-block {
-      position: relative;
-      z-index: 1;
-      padding: clamp(2.5rem, 6vw, 5rem) 0;
-      border-bottom: 1px solid var(--color-rule);
-    }
-    .assertion-block:nth-child(even) { background: var(--color-paper-2); }
-
-    .assertion-inner {
+    .nav-end {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: var(--space-8);
     }
 
-    .assertion-num {
-      font-family: var(--font-display);
+    .nav-link {
       font-size: var(--text-sm);
       font-weight: 400;
+      color: var(--color-ink-2);
+      transition: color var(--dur-base) var(--ease-out);
+      white-space: nowrap;
+    }
+    .nav-link:hover { color: var(--color-ink); }
+    .nav-link:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; border-radius: 2px; }
+
+    .nav-cta {
+      font-size: var(--text-sm);
+      font-weight: 500;
       color: var(--color-accent);
-      letter-spacing: 0.08em;
+      transition: opacity var(--dur-base) var(--ease-out);
+      white-space: nowrap;
+    }
+    .nav-cta:hover { opacity: 0.78; }
+    .nav-cta:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 3px; border-radius: 2px; }
+
+
+    /* ══════════════════════════════════════════════════
+       HERO — Marquee Hero
+       The heading IS the fold.
+    ══════════════════════════════════════════════════ */
+    .hero {
+      position: relative;
+      z-index: 1;
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      justify-content: flex-end;
+      padding-top: 5rem;
+    }
+
+    .hero-inner {
+      padding: 0 var(--space-8) 0;
+    }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 400;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      display: block;
+      margin-bottom: var(--space-6);
+      overflow-wrap: anywhere;
+      min-width: 0;
+    }
+
+    .hero-head {
+      font-family: var(--font-display);
+      font-size: var(--text-display);
+      font-weight: 900;
+      line-height: 0.92;
+      letter-spacing: -0.055em;
+      text-transform: uppercase;
+      color: var(--color-ink);
+      overflow-wrap: anywhere;
+      min-width: 0;
+      margin-bottom: var(--space-10);
+    }
+
+    .hero-sub {
+      font-size: var(--text-md);
+      font-weight: 300;
+      color: var(--color-ink-2);
+      max-width: 44ch;
+      line-height: 1.58;
+      margin-bottom: var(--space-12);
+      overflow-wrap: anywhere;
+      min-width: 0;
+    }
+
+    /* ── Wave stage — bottom of hero ───────────────── */
+    .wave-stage {
+      position: relative;
+      width: 100%;
+      height: 80px;
+      overflow: hidden;
       flex-shrink: 0;
-      min-width: 2.4rem;
+    }
+
+    .wave-track {
+      display: flex;
+      width: 200%;
+      animation: wave-scroll 10s linear infinite;
+      will-change: transform;
+    }
+
+    .wave-track svg {
+      flex: 1 0 50%;
+      display: block;
+      height: 80px;
+    }
+
+    .wave-path-a {
+      fill: none;
+      stroke: var(--color-accent);
+      stroke-width: 1.5;
+      opacity: 0.9;
+    }
+
+    .wave-path-b {
+      fill: none;
+      stroke: var(--color-accent);
+      stroke-width: 1;
+      opacity: 0.28;
+      transform: translateY(10px) scaleY(0.7);
+      transform-box: fill-box;
+    }
+
+    @keyframes wave-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .wave-track { animation: none; }
+    }
+
+
+    /* ══════════════════════════════════════════════════
+       RULE — thick horizontal rule separating hero/body
+    ══════════════════════════════════════════════════ */
+    .rule-thick {
+      border: none;
+      border-top: 1px solid var(--color-rule);
+      position: relative;
+      z-index: 1;
+    }
+
+
+    /* ══════════════════════════════════════════════════
+       ASSERTIONS — bold 3-up grid
+    ══════════════════════════════════════════════════ */
+    .assertions {
+      position: relative;
+      z-index: 1;
+      background: var(--color-paper-2);
+      border-bottom: 1px solid var(--color-rule);
+    }
+
+    .assertions-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .assertion {
+      padding: var(--space-12) var(--space-8);
+      border-right: 1px solid var(--color-rule);
+    }
+    .assertion:last-child { border-right: none; }
+
+    .assertion-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--color-accent);
+      display: block;
+      margin-bottom: var(--space-4);
     }
 
     .assertion-text {
       font-family: var(--font-display);
-      font-size: var(--text-display-s);
+      font-size: var(--text-2xl);
       font-weight: 800;
       line-height: 1.08;
       letter-spacing: -0.03em;
@@ -329,10 +287,19 @@
       min-width: 0;
     }
 
-    /* ════════════════════════════════════════════════
-       CAPABILITIES — manifesto list style
-    ════════════════════════════════════════════════ */
-    .capabilities {
+    .assertion-sub {
+      margin-top: var(--space-3);
+      font-size: var(--text-sm);
+      color: var(--color-ink-2);
+      font-weight: 300;
+      line-height: 1.55;
+    }
+
+
+    /* ══════════════════════════════════════════════════
+       FEATURES — tabular list
+    ══════════════════════════════════════════════════ */
+    .features {
       position: relative;
       z-index: 1;
       padding: clamp(4rem, 8vw, 7rem) 0;
@@ -340,10 +307,11 @@
       border-bottom: 1px solid var(--color-rule);
     }
 
-    .cap-header {
+    .feat-header {
       margin-bottom: var(--space-12);
     }
-    .cap-eyebrow {
+    .feat-eyebrow {
+      font-family: var(--font-mono);
       font-size: var(--text-xs);
       letter-spacing: 0.14em;
       text-transform: uppercase;
@@ -351,66 +319,74 @@
       display: block;
       margin-bottom: var(--space-4);
     }
-    .cap-title {
+    .feat-title {
       font-family: var(--font-display);
-      font-size: var(--text-2xl);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
+      font-size: var(--text-display-s);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1.04;
       color: var(--color-ink);
       overflow-wrap: anywhere;
       min-width: 0;
     }
 
-    .cap-list {
+    .feat-list {
       list-style: none;
       border-top: 1px solid var(--color-rule);
     }
 
-    .cap-item {
-      display: flex;
+    .feat-item {
+      display: grid;
+      grid-template-columns: 14rem 1fr;
+      gap: var(--space-8);
       align-items: baseline;
-      gap: var(--space-6);
       padding: var(--space-6) 0;
       border-bottom: 1px solid var(--color-rule);
       transition: background var(--dur-base) var(--ease-out);
     }
-    .cap-item:hover {
-      background: oklch(74% 0.22 145 / 0.04);
+    .feat-item:hover {
+      background: oklch(64% 0.23 195 / 0.04);
+      margin: 0 calc(var(--space-6) * -1);
+      padding-left: var(--space-6);
+      padding-right: var(--space-6);
     }
 
-    .cap-arrow {
-      font-size: var(--text-sm);
-      color: var(--color-accent);
-      flex-shrink: 0;
-      min-width: 1.5rem;
-      font-weight: 500;
-    }
-
-    .cap-name {
+    .feat-name {
       font-family: var(--font-display);
-      font-size: var(--text-lg);
+      font-size: var(--text-md);
       font-weight: 700;
       color: var(--color-ink);
       letter-spacing: -0.02em;
-      min-width: 10rem;
-      flex-shrink: 0;
-      overflow-wrap: anywhere;
-    }
-
-    .cap-desc {
-      font-size: var(--text-base);
-      color: var(--color-ink-2);
-      font-weight: 300;
-      line-height: 1.55;
       overflow-wrap: anywhere;
       min-width: 0;
     }
 
-    /* ════════════════════════════════════════════════
-       STEPS — "The Ritual"
-    ════════════════════════════════════════════════ */
-    .steps-section {
+    .feat-desc {
+      font-size: var(--text-base);
+      color: var(--color-ink-2);
+      font-weight: 300;
+      line-height: 1.58;
+      overflow-wrap: anywhere;
+      min-width: 0;
+    }
+
+    .feat-tag {
+      display: inline-block;
+      margin-top: var(--space-2);
+      padding: 2px 8px;
+      border: 1px solid var(--color-rule-2);
+      border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
+      font-size: calc(var(--text-xs) * 0.9);
+      letter-spacing: 0.06em;
+      color: var(--color-accent);
+    }
+
+
+    /* ══════════════════════════════════════════════════
+       STEPS — "How it works"
+    ══════════════════════════════════════════════════ */
+    .steps {
       position: relative;
       z-index: 1;
       padding: clamp(4rem, 8vw, 7rem) 0;
@@ -422,6 +398,7 @@
       margin-bottom: var(--space-12);
     }
     .steps-eyebrow {
+      font-family: var(--font-mono);
       font-size: var(--text-xs);
       letter-spacing: 0.14em;
       text-transform: uppercase;
@@ -431,16 +408,16 @@
     }
     .steps-title {
       font-family: var(--font-display);
-      font-size: var(--text-2xl);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
+      font-size: var(--text-display-s);
+      font-weight: 900;
+      letter-spacing: -0.04em;
+      line-height: 1.04;
       color: var(--color-ink);
       overflow-wrap: anywhere;
       min-width: 0;
     }
 
-    .steps-list {
+    .steps-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
       gap: 1px;
@@ -452,17 +429,17 @@
 
     .step {
       background: var(--color-paper);
-      padding: var(--space-8) var(--space-6);
+      padding: var(--space-10) var(--space-8);
     }
 
     .step-num {
       font-family: var(--font-display);
-      font-size: clamp(3rem, 8vw, 5rem);
+      font-size: clamp(3.5rem, 8vw, 5.5rem);
       font-weight: 900;
-      line-height: 1.0;
-      color: oklch(22% 0.018 145);
-      margin-bottom: var(--space-6);
-      letter-spacing: -0.04em;
+      line-height: 0.9;
+      letter-spacing: -0.05em;
+      color: var(--color-rule-2);
+      margin-bottom: var(--space-8);
     }
 
     .step h3 {
@@ -486,22 +463,23 @@
     }
 
     .step-badge {
-      display: inline-block;
-      margin-top: var(--space-4);
-      padding: 3px 10px;
-      border: 1px solid var(--color-rule);
+      display: inline-flex;
+      align-items: center;
+      margin-top: var(--space-6);
+      padding: 4px 10px;
+      border: 1px solid var(--color-rule-2);
       border-radius: var(--radius-sm);
+      font-family: var(--font-mono);
       font-size: var(--text-xs);
-      font-family: var(--font-body);   /* body face; mono outlier stays in ≤2 slots */
       letter-spacing: 0.06em;
       color: var(--color-accent);
-      background: var(--color-accent-3);
     }
 
-    /* ════════════════════════════════════════════════
-       CTA — full-bleed green, manifesto climax
-    ════════════════════════════════════════════════ */
-    .cta-block {
+
+    /* ══════════════════════════════════════════════════
+       CTA — full-bleed teal, Marquee Hero climax
+    ══════════════════════════════════════════════════ */
+    .cta {
       position: relative;
       z-index: 1;
       background: var(--color-cta-bg);
@@ -509,52 +487,66 @@
       overflow: hidden;
     }
 
-    /* Subtle noise on the green block */
-    .cta-block::before {
-      content: "";
+    /* Animated wave inside CTA block */
+    .cta-wave {
       position: absolute;
-      inset: 0;
-      opacity: 0.06;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-      background-size: 120px;
-      pointer-events: none;
+      bottom: 0; left: 0; right: 0;
+      height: 60px;
+      overflow: hidden;
+      opacity: 0.12;
     }
-
-    .cta-inner { position: relative; }
-
-    .cta-prompt {
-      font-family: var(--font-body);   /* body face; mono outlier stays in ≤2 slots */
-      font-size: var(--text-xs);
-      letter-spacing: 0.12em;
-      text-transform: uppercase;
-      color: oklch(16% 0.015 145 / 0.55);
-      margin-bottom: var(--space-4);
+    .cta-wave-track {
+      display: flex;
+      width: 200%;
+      animation: wave-scroll 12s linear infinite reverse;
+    }
+    .cta-wave-track svg {
+      flex: 1 0 50%;
       display: block;
+      height: 60px;
+    }
+    .cta-wave-path {
+      fill: var(--color-cta-ink);
     }
 
-    .cta-headline {
+    @media (prefers-reduced-motion: reduce) {
+      .cta-wave-track { animation: none; }
+    }
+
+    .cta-inner { position: relative; z-index: 1; }
+
+    .cta-eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: oklch(16% 0.025 220 / 0.5);
+      display: block;
+      margin-bottom: var(--space-4);
+    }
+
+    .cta-head {
       font-family: var(--font-display);
-      font-size: clamp(3rem, 10vw, 7rem);
+      font-size: clamp(3.5rem, 12vw, 8rem);
       font-weight: 900;
-      line-height: 1.0;
-      letter-spacing: -0.04em;
+      line-height: 0.92;
+      letter-spacing: -0.05em;
       text-transform: uppercase;
       color: var(--color-cta-ink);
-      margin-bottom: var(--space-8);
+      margin-bottom: var(--space-10);
       overflow-wrap: anywhere;
       min-width: 0;
     }
 
     .cta-sub {
       font-size: var(--text-base);
-      color: oklch(16% 0.015 145 / 0.65);
+      color: oklch(16% 0.025 220 / 0.62);
       margin-bottom: var(--space-10);
       font-weight: 400;
       overflow-wrap: anywhere;
       min-width: 0;
     }
 
-    /* The oversized solid block button — manifesto CTA */
     .cta-btn {
       display: inline-flex;
       align-items: center;
@@ -575,7 +567,7 @@
     }
     .cta-btn:hover {
       transform: translateY(-3px);
-      box-shadow: 0 12px 40px oklch(10% 0.015 145 / 0.3);
+      box-shadow: 0 14px 40px oklch(10% 0.025 220 / 0.35);
     }
     .cta-btn:focus-visible {
       outline: 2px solid var(--color-cta-ink);
@@ -587,39 +579,24 @@
       display: block;
       margin-top: var(--space-6);
       font-size: var(--text-xs);
-      color: oklch(16% 0.015 145 / 0.45);
-      letter-spacing: 0.05em;
+      font-family: var(--font-mono);
+      color: oklch(16% 0.025 220 / 0.42);
+      letter-spacing: 0.06em;
     }
 
-    /* ════════════════════════════════════════════════
-       FOOTER — Ft5 Statement
-    ════════════════════════════════════════════════ */
-    footer {
+
+    /* ══════════════════════════════════════════════════
+       FOOTER — Ft2 Inline single line
+    ══════════════════════════════════════════════════ */
+    .foot {
       position: relative;
       z-index: 1;
       background: var(--color-paper);
       border-top: 1px solid var(--color-rule);
-      padding: var(--space-12) 0;
+      padding: var(--space-8) 0;
     }
 
-    .foot-statement {
-      font-family: var(--font-display);
-      font-size: var(--text-display-s);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      line-height: 1.1;
-      color: oklch(30% 0.018 145);
-      margin-bottom: var(--space-8);
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
-
-    .foot-statement em {
-      font-style: normal;
-      color: var(--color-accent);
-    }
-
-    .foot-bottom {
+    .foot-inner {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -627,7 +604,22 @@
       gap: var(--space-4);
     }
 
-    .foot-copy {
+    .foot-left {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      flex-wrap: wrap;
+    }
+
+    .foot-wordmark {
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      color: var(--color-ink-2);
+    }
+
+    .foot-tagline {
       font-size: var(--text-xs);
       color: var(--color-ink-3);
       letter-spacing: 0.03em;
@@ -646,44 +638,38 @@
       transition: color var(--dur-base) var(--ease-out);
     }
     .foot-links a:hover { color: var(--color-ink-2); }
-    .foot-links a:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+    .foot-links a:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; border-radius: 2px; }
 
-    /* ════════════════════════════════════════════════
-       RESPONSIVE
-    ════════════════════════════════════════════════ */
+
+    /* ══════════════════════════════════════════════════
+       RESPONSIVE — verified at 320 / 375 / 414 / 768 px
+    ══════════════════════════════════════════════════ */
     @media (max-width: 860px) {
-      .steps-list {
+      .assertions-grid {
         grid-template-columns: 1fr;
-        gap: 1px;
       }
+      .assertion {
+        border-right: none;
+        border-bottom: 1px solid var(--color-rule);
+      }
+      .assertion:last-child { border-bottom: none; }
 
-      .cap-item {
-        flex-wrap: wrap;
+      .feat-item {
+        grid-template-columns: 1fr;
         gap: var(--space-3);
       }
-      .cap-name {
-        min-width: unset;
-        flex-shrink: 1;
-      }
 
-      .assertion-inner {
-        flex-direction: column;
-        gap: var(--space-3);
+      .steps-grid {
+        grid-template-columns: 1fr;
       }
     }
 
     @media (max-width: 640px) {
-      /* Nav: hide links, keep wordmark + CTA */
-      .nav-links { display: none; }
-      .nav-pill { padding: var(--space-2) var(--space-4); }
+      .nav { padding: var(--space-4) var(--space-6); }
+      .nav-link:not(.nav-cta) { display: none; }
 
-      /* Hero: no tilt on small screens (would cause overflow) */
-      .manifesto-head {
-        transform: none;
-        margin-left: 0;
-      }
-
-      .wave-inner { flex-wrap: wrap; justify-content: flex-start; }
+      .hero-inner { padding: 0 var(--space-6) 0; }
+      .hero-head { letter-spacing: -0.04em; }
 
       .cta-btn {
         width: 100%;
@@ -691,148 +677,153 @@
         padding: var(--space-5) var(--space-6);
       }
 
-      .foot-bottom {
-        flex-direction: column;
-        align-items: flex-start;
-      }
+      .foot-inner { flex-direction: column; align-items: flex-start; }
     }
 
     @media (max-width: 414px) {
-      .manifesto-head {
-        font-size: clamp(3rem, 16vw, 4.5rem);
+      .hero-head {
+        font-size: clamp(4rem, 25vw, 5rem);
+        letter-spacing: -0.035em;
       }
+      .assertions-grid,
+      .steps-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 
 <body>
 
-<!-- ══ NAV — N5 Floating pill ════════════════════════ -->
+<!-- ══ NAV — N9 Edge-aligned minimal ════════════════ -->
 <header role="banner">
   <nav class="nav" aria-label="Main navigation">
-    <div class="nav-pill">
-      <a href="#" class="wordmark" aria-label="Flowey home">
-        <span class="wordmark-dot" aria-hidden="true"></span>
-        flowey
-      </a>
-      <ul class="nav-links" role="list">
-        <li><a href="#capabilities">what it does</a></li>
-        <li><a href="#install">install</a></li>
-        <li><a href="https://github.com/AryaanSheth/flowey" target="_blank" rel="noopener">github ↗</a></li>
-      </ul>
-      <a href="#download" class="nav-dl" aria-label="Download Flowey">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 3v13M5 16l7 7 7-7"/></svg>
-        download
-      </a>
+    <a href="#" class="wordmark" aria-label="Flowy home">
+      <span class="wordmark-wave" aria-hidden="true">
+        <svg viewBox="0 0 20 12" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M0,6 C2.5,2 5,10 7.5,6 C10,2 12.5,10 15,6 C17.5,2 18.5,8 20,6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+      </span>
+      flowy
+    </a>
+    <div class="nav-end">
+      <a href="#what-it-does" class="nav-link">what it does</a>
+      <a href="#install" class="nav-link">install</a>
+      <a href="https://github.com/AryaanSheth/flowey" target="_blank" rel="noopener" class="nav-link">github ↗</a>
+      <a href="#download" class="nav-cta">↓ download</a>
     </div>
   </nav>
 </header>
 
 
-<!-- ══ HERO — Manifesto ══════════════════════════════ -->
+<!-- ══ HERO — Marquee Hero ═══════════════════════════ -->
 <section class="hero" aria-labelledby="hero-heading">
-  <div class="container">
+  <div class="hero-inner">
     <span class="hero-eyebrow fade-up">macOS · local · open source</span>
 
-    <h1 id="hero-heading" class="manifesto-head fade-up d1">
-      Your&nbsp;voice<br>stays&nbsp;<em class="block-accent">local</em>
+    <h1 id="hero-heading" class="hero-head fade-up d1">
+      FLOWY
     </h1>
 
-    <p class="hero-body fade-up d2">
-      Hold a hotkey. Speak. Release. Your words appear — in any window,
-      on your machine — and never touch a server.
+    <p class="hero-sub fade-up d2">
+      Hold a hotkey. Speak. Release.<br>
+      Your words appear — in any window, on your machine.
     </p>
+  </div>
+
+  <!-- Animated sine wave flows across the hero base -->
+  <div class="wave-stage" aria-hidden="true">
+    <div class="wave-track">
+      <svg viewBox="0 0 1440 80" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <path class="wave-path-a" d="M0,40 C33,20 87,20 120,40 C153,60 207,60 240,40 C273,20 327,20 360,40 C393,60 447,60 480,40 C513,20 567,20 600,40 C633,60 687,60 720,40 C753,20 807,20 840,40 C873,60 927,60 960,40 C993,20 1047,20 1080,40 C1113,60 1167,60 1200,40 C1233,20 1287,20 1320,40 C1353,60 1407,60 1440,40"/>
+        <path class="wave-path-b" d="M0,40 C33,20 87,20 120,40 C153,60 207,60 240,40 C273,20 327,20 360,40 C393,60 447,60 480,40 C513,20 567,20 600,40 C633,60 687,60 720,40 C753,20 807,20 840,40 C873,60 927,60 960,40 C993,20 1047,20 1080,40 C1113,60 1167,60 1200,40 C1233,20 1287,20 1320,40 C1353,60 1407,60 1440,40"/>
+      </svg>
+      <svg viewBox="0 0 1440 80" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path class="wave-path-a" d="M0,40 C33,20 87,20 120,40 C153,60 207,60 240,40 C273,20 327,20 360,40 C393,60 447,60 480,40 C513,20 567,20 600,40 C633,60 687,60 720,40 C753,20 807,20 840,40 C873,60 927,60 960,40 C993,20 1047,20 1080,40 C1113,60 1167,60 1200,40 C1233,20 1287,20 1320,40 C1353,60 1407,60 1440,40"/>
+        <path class="wave-path-b" d="M0,40 C33,20 87,20 120,40 C153,60 207,60 240,40 C273,20 327,20 360,40 C393,60 447,60 480,40 C513,20 567,20 600,40 C633,60 687,60 720,40 C753,20 807,20 840,40 C873,60 927,60 960,40 C993,20 1047,20 1080,40 C1113,60 1167,60 1200,40 C1233,20 1287,20 1320,40 C1353,60 1407,60 1440,40"/>
+      </svg>
+    </div>
   </div>
 </section>
 
 
-<!-- ══ WAVEFORM DIVIDER — CSS art ════════════════════ -->
-<div class="wave-divider" role="separator" aria-label="Recording waveform">
-  <div class="wave-inner container">
-    <span class="wave-rec-dot" aria-hidden="true"></span>
-    <div class="wave-bars" aria-hidden="true">
-      <span style="--d:.68s;--dl:.00s"></span>
-      <span style="--d:.92s;--dl:.04s"></span>
-      <span style="--d:.78s;--dl:.08s"></span>
-      <span style="--d:1.05s;--dl:.12s"></span>
-      <span style="--d:.72s;--dl:.18s"></span>
-      <span style="--d:.88s;--dl:.22s"></span>
-      <span style="--d:1.00s;--dl:.06s"></span>
-      <span style="--d:.75s;--dl:.14s"></span>
-      <span style="--d:.95s;--dl:.09s"></span>
-      <span style="--d:.82s;--dl:.20s"></span>
-      <span style="--d:.70s;--dl:.03s"></span>
+<!-- ══ RULE ═══════════════════════════════════════════ -->
+<hr class="rule-thick">
+
+
+<!-- ══ ASSERTIONS — 3-up bold claims ════════════════ -->
+<section class="assertions" aria-label="Core claims">
+  <div class="assertions-grid">
+
+    <div class="assertion fade-up">
+      <span class="assertion-label">privacy</span>
+      <p class="assertion-text">No cloud.<br>Not ever.</p>
+      <p class="assertion-sub">Every byte of audio stays on your machine. No API key, no account, no subscription.</p>
     </div>
-    <span class="wave-label">currently recording</span>
-  </div>
-</div>
 
-
-<!-- ══ ASSERTIONS — three bleed claims ═══════════════ -->
-<div role="list" aria-label="Core claims">
-
-  <div class="assertion-block" role="listitem">
-    <div class="container assertion-inner">
-      <span class="assertion-num fade-up">01</span>
-      <p class="assertion-text sweep-r d1">No cloud. No API key. No account. Not ever.</p>
+    <div class="assertion fade-up d1">
+      <span class="assertion-label">engine</span>
+      <p class="assertion-text">Apple Neural.<br>Built in.</p>
+      <p class="assertion-sub">Powered by macOS SFSpeechRecognizer. No model downloads, instant start, optimised for Apple Silicon.</p>
     </div>
-  </div>
 
-  <div class="assertion-block" role="listitem">
-    <div class="container assertion-inner">
-      <span class="assertion-num fade-up">02</span>
-      <p class="assertion-text sweep-r d1">Every byte of your audio stays on your machine.</p>
+    <div class="assertion fade-up d2">
+      <span class="assertion-label">cost</span>
+      <p class="assertion-text">Free.<br>Always.</p>
+      <p class="assertion-sub">MIT license, open source. No tier that removes features. No catch.</p>
     </div>
+
   </div>
-
-  <div class="assertion-block" role="listitem">
-    <div class="container assertion-inner">
-      <span class="assertion-num fade-up">03</span>
-      <p class="assertion-text sweep-r d1">Under 15 MB. Starts at login. Gets out of your way.</p>
-    </div>
-  </div>
-
-</div>
+</section>
 
 
-<!-- ══ CAPABILITIES ═══════════════════════════════════ -->
-<section class="capabilities" id="capabilities" aria-labelledby="cap-heading">
+<!-- ══ FEATURES — tabular list ══════════════════════ -->
+<section class="features" id="what-it-does" aria-labelledby="feat-heading">
   <div class="container">
-    <header class="cap-header fade-up">
-      <span class="cap-eyebrow">capabilities</span>
-      <h2 id="cap-heading" class="cap-title">What it does</h2>
+    <header class="feat-header fade-up">
+      <span class="feat-eyebrow">capabilities</span>
+      <h2 id="feat-heading" class="feat-title">What it does</h2>
     </header>
 
-    <ul class="cap-list" role="list">
+    <ul class="feat-list" role="list">
 
-      <li class="cap-item fade-up">
-        <span class="cap-arrow" aria-hidden="true">→</span>
-        <span class="cap-name">Push-to-talk</span>
-        <span class="cap-desc">Any global hotkey. Hold to record from any app — email, code editor, browser, terminal. Release to transcribe. Text injects directly into the focused window.</span>
+      <li class="feat-item fade-up">
+        <span class="feat-name">Push-to-talk</span>
+        <span class="feat-desc">
+          Hold any global hotkey, speak from any app — email, code editor, browser, terminal.
+          Release to transcribe. Text injects directly into the focused window.
+        </span>
       </li>
 
-      <li class="cap-item fade-up d1">
-        <span class="cap-arrow" aria-hidden="true">→</span>
-        <span class="cap-name">Native recognition</span>
-        <span class="cap-desc">Powered by Apple's SFSpeechRecognizer — built into macOS. No model files to download, no warm-up time, optimised for Apple Silicon from day one.</span>
+      <li class="feat-item fade-up d1">
+        <span class="feat-name">Native recognition</span>
+        <span class="feat-desc">
+          Apple SFSpeechRecognizer — built into macOS. No warm-up time, no model files.
+          <span class="feat-tag">on-device only</span>
+        </span>
       </li>
 
-      <li class="cap-item fade-up d2">
-        <span class="cap-arrow" aria-hidden="true">→</span>
-        <span class="cap-name">Custom dictionary</span>
-        <span class="cap-desc">Define word substitutions that apply after every transcription. Teach Flowey your names, abbreviations, and domain jargon. Test them live in the settings panel.</span>
+      <li class="feat-item fade-up d2">
+        <span class="feat-name">Custom dictionary</span>
+        <span class="feat-desc">
+          Word substitutions applied after every transcription. Teach Flowy your names, abbreviations, and jargon.
+          Test them live in the settings panel.
+        </span>
       </li>
 
-      <li class="cap-item fade-up d3">
-        <span class="cap-arrow" aria-hidden="true">→</span>
-        <span class="cap-name">Ollama polish</span>
-        <span class="cap-desc">Optionally route transcriptions through a local LLM to fix punctuation, grammar, and capitalisation. Still entirely offline — no cloud round-trips.</span>
+      <li class="feat-item fade-up d3">
+        <span class="feat-name">Local AI polish</span>
+        <span class="feat-desc">
+          Optional pass through a local Ollama model to fix punctuation and grammar.
+          Still entirely offline — no cloud round-trips ever.
+          <span class="feat-tag">ollama required</span>
+        </span>
       </li>
 
-      <li class="cap-item fade-up d4">
-        <span class="cap-arrow" aria-hidden="true">→</span>
-        <span class="cap-name">Rust + Tauri</span>
-        <span class="cap-desc">Not Electron. The binary is under 15 MB. Zero background CPU when idle. Sits silently in your menu bar until you need it.</span>
+      <li class="feat-item fade-up d4">
+        <span class="feat-name">Lightweight</span>
+        <span class="feat-desc">
+          Under 15 MB. Zero CPU when idle. Sits silently in your menu bar until you need it.
+          Starts at login.
+        </span>
       </li>
 
     </ul>
@@ -841,14 +832,14 @@
 
 
 <!-- ══ STEPS ══════════════════════════════════════════ -->
-<section class="steps-section" id="install" aria-labelledby="steps-heading">
+<section class="steps" id="install" aria-labelledby="steps-heading">
   <div class="container">
     <header class="steps-header fade-up">
-      <span class="steps-eyebrow">the ritual</span>
+      <span class="steps-eyebrow">getting started</span>
       <h2 id="steps-heading" class="steps-title">Three steps, then you speak</h2>
     </header>
 
-    <ol class="steps-list fade-up d1" role="list">
+    <ol class="steps-grid fade-up d1" role="list">
       <li class="step">
         <div class="step-num" aria-hidden="true">01</div>
         <h3>Install</h3>
@@ -870,17 +861,30 @@
 </section>
 
 
-<!-- ══ CTA — full-bleed green, manifesto climax ══════ -->
-<section class="cta-block" id="download" aria-labelledby="cta-heading">
+<!-- ══ CTA — full-bleed teal ════════════════════════ -->
+<section class="cta" id="download" aria-labelledby="cta-heading">
+
+  <!-- Animated wave inside the CTA -->
+  <div class="cta-wave" aria-hidden="true">
+    <div class="cta-wave-track">
+      <svg viewBox="0 0 1440 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+        <path class="cta-wave-path" d="M0,30 C33,15 87,15 120,30 C153,45 207,45 240,30 C273,15 327,15 360,30 C393,45 447,45 480,30 C513,15 567,15 600,30 C633,45 687,45 720,30 C753,15 807,15 840,30 C873,45 927,45 960,30 C993,15 1047,15 1080,30 C1113,45 1167,45 1200,30 C1233,15 1287,15 1320,30 C1353,45 1407,45 1440,30 L1440,60 L0,60 Z"/>
+      </svg>
+      <svg viewBox="0 0 1440 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+        <path class="cta-wave-path" d="M0,30 C33,15 87,15 120,30 C153,45 207,45 240,30 C273,15 327,15 360,30 C393,45 447,45 480,30 C513,15 567,15 600,30 C633,45 687,45 720,30 C753,15 807,15 840,30 C873,45 927,45 960,30 C993,15 1047,15 1080,30 C1113,45 1167,45 1200,30 C1233,15 1287,15 1320,30 C1353,45 1407,45 1440,30 L1440,60 L0,60 Z"/>
+      </svg>
+    </div>
+  </div>
+
   <div class="container cta-inner">
-    <span class="cta-prompt fade-up" aria-hidden="true">→ get it</span>
-    <h2 id="cta-heading" class="cta-headline sweep-r">
-      Get Flowey.<br>Free. Always.
+    <span class="cta-eyebrow fade-up" aria-hidden="true">get it</span>
+    <h2 id="cta-heading" class="cta-head fade-up d1">
+      Get Flowy.<br>Free. Always.
     </h2>
-    <p class="cta-sub fade-up d1">macOS 11 Big Sur or later · Apple Silicon &amp; Intel</p>
+    <p class="cta-sub fade-up d2">macOS 11 Big Sur or later · Apple Silicon &amp; Intel</p>
     <a href="https://github.com/AryaanSheth/flowey/releases" target="_blank" rel="noopener"
-       class="cta-btn fade-up d2"
-       aria-label="Download Flowey from GitHub Releases">
+       class="cta-btn fade-up d3"
+       aria-label="Download Flowy from GitHub Releases">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 3v13M5 16l7 7 7-7"/></svg>
       Download .dmg
     </a>
@@ -891,21 +895,19 @@
 </section>
 
 
-<!-- ══ FOOTER — Ft5 Statement ════════════════════════ -->
-<footer>
-  <div class="container">
-    <p class="foot-statement fade-up">
-      Local speech-to-text.<br><em>Yours to keep.</em>
-    </p>
-    <div class="foot-bottom">
-      <span class="foot-copy">flowey · MIT License · © 2025</span>
-      <ul class="foot-links" role="list">
-        <li><a href="https://github.com/AryaanSheth/flowey" target="_blank" rel="noopener">github</a></li>
-        <li><a href="https://github.com/AryaanSheth/flowey/releases" target="_blank" rel="noopener">releases</a></li>
-        <li><a href="https://github.com/AryaanSheth/flowey/issues" target="_blank" rel="noopener">issues</a></li>
-        <li><a href="https://github.com/AryaanSheth/flowey/blob/main/LICENSE" target="_blank" rel="noopener">license</a></li>
-      </ul>
+<!-- ══ FOOTER — Ft2 Inline single line ══════════════ -->
+<footer class="foot">
+  <div class="container foot-inner">
+    <div class="foot-left">
+      <span class="foot-wordmark">flowy</span>
+      <span class="foot-tagline">Local speech-to-text · MIT License · © 2026</span>
     </div>
+    <ul class="foot-links" role="list">
+      <li><a href="https://github.com/AryaanSheth/flowey" target="_blank" rel="noopener">github</a></li>
+      <li><a href="https://github.com/AryaanSheth/flowey/releases" target="_blank" rel="noopener">releases</a></li>
+      <li><a href="https://github.com/AryaanSheth/flowey/issues" target="_blank" rel="noopener">issues</a></li>
+      <li><a href="https://github.com/AryaanSheth/flowey/blob/main/LICENSE" target="_blank" rel="noopener">license</a></li>
+    </ul>
   </div>
 </footer>
 
@@ -919,13 +921,13 @@
         io.unobserve(e.target);
       }
     });
-  }, { threshold: 0.06, rootMargin: '0px 0px -28px 0px' });
+  }, { threshold: 0.05, rootMargin: '0px 0px -24px 0px' });
 
-  document.querySelectorAll('.fade-up, .sweep-r').forEach(el => io.observe(el));
+  document.querySelectorAll('.fade-up').forEach(el => io.observe(el));
 
   // Hero elements fire immediately on load
   window.addEventListener('load', () => {
-    document.querySelectorAll('.hero .fade-up, .hero .sweep-r').forEach(el => {
+    document.querySelectorAll('.hero .fade-up').forEach(el => {
       el.classList.add('visible');
     });
   });

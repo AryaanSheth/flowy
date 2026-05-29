@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-APP_NAME="Flowey"
+APP_NAME="Flowy"
 REPO_ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 TARGET_APP="$REPO_ROOT/target/release/bundle/macos/$APP_NAME.app"
 INSTALLED_APP="/Applications/$APP_NAME.app"
@@ -14,12 +14,12 @@ usage() {
   cat <<EOF
 Usage: scripts/rebuild-launch.sh [--install] [--reset-accessibility] [--no-clean]
 
-Build and launch a fresh native Flowey app bundle.
+Build and launch a fresh native Flowy app bundle.
 
 Options:
   --install    Copy the rebuilt app to /Applications and launch that copy.
   --reset-accessibility
-               Reset Flowey's Accessibility permission before launching.
+               Reset Flowy's Accessibility permission before launching.
   --no-clean   Kept for compatibility; native builds are incremental by default.
   -h, --help   Show this help.
 EOF
@@ -51,14 +51,14 @@ done
 
 cd "$REPO_ROOT"
 
-echo "Stopping existing Flowey instances..."
+echo "Stopping existing Flowy instances..."
 osascript -e "quit app \"$APP_NAME\"" >/dev/null 2>&1 || true
 pkill -x "$APP_NAME" >/dev/null 2>&1 || true
 sleep 1
 
 if [[ "$CLEAN" -eq 1 ]]; then
   echo "Cleaning native release build artifacts..."
-  rm -rf "$REPO_ROOT/target/release" "$REPO_ROOT/.build/flowey-native/release"
+  rm -rf "$REPO_ROOT/target/release" "$REPO_ROOT/.build/flowy-native/release"
 fi
 
 echo "Building packaged app..."
@@ -73,8 +73,8 @@ if [[ "$INSTALL" -eq 1 ]]; then
 fi
 
 if [[ "$RESET_ACCESSIBILITY" -eq 1 ]]; then
-  echo "Resetting Accessibility permission for com.flowey.app..."
-  tccutil reset Accessibility com.flowey.app >/dev/null 2>&1 || true
+  echo "Resetting Accessibility permission for com.flowy.app..."
+  tccutil reset Accessibility com.flowy.app >/dev/null 2>&1 || true
 fi
 
 echo "Launching: $APP_TO_OPEN"
@@ -88,7 +88,7 @@ if [[ "$RESET_ACCESSIBILITY" -eq 1 ]]; then
 fi
 
 echo
-echo "Running Flowey process:"
+echo "Running Flowy process:"
 if pids="$(pgrep -x "$APP_NAME")" && [[ -n "$pids" ]]; then
   while IFS= read -r pid; do
     [[ -z "$pid" ]] && continue

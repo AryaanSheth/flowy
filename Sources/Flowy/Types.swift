@@ -1,6 +1,6 @@
 import Foundation
 
-enum FloweyError: Error, LocalizedError {
+enum FlowyError: Error, LocalizedError {
     case message(String)
 
     var errorDescription: String? {

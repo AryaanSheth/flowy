@@ -10,6 +10,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var allowQuit = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        FlowyLog.info("App launched bundle=\(Bundle.main.bundlePath) pid=\(ProcessInfo.processInfo.processIdentifier)")
         NSApp.setActivationPolicy(.accessory)
 
         settingsController = SettingsWindowController(model: model)
@@ -49,7 +50,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "Start Recording", action: #selector(startRecording), keyEquivalent: ""))
         menu.addItem(NSMenuItem(title: "Stop Recording", action: #selector(stopRecording), keyEquivalent: ""))
         menu.addItem(.separator())
-        menu.addItem(NSMenuItem(title: "Quit Flowey", action: #selector(quit), keyEquivalent: "q"))
+        menu.addItem(NSMenuItem(title: "Quit Flowy", action: #selector(quit), keyEquivalent: "q"))
         for item in menu.items {
             item.target = self
         }
@@ -70,6 +71,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         } catch {
             model.lastError = error.localizedDescription
+            FlowyLog.error("Hotkey setup failed: \(error.localizedDescription)")
             NSLog("Hotkey setup failed: \(error.localizedDescription)")
         }
     }
@@ -78,7 +80,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let image = NSImage(systemSymbolName: status.systemImageName, accessibilityDescription: status.label)
         image?.isTemplate = status != .recording
         statusItem?.button?.image = image
-        statusItem?.button?.toolTip = "Flowey - \(status.label)"
+        statusItem?.button?.toolTip = "Flowy - \(status.label)"
         overlayController?.update(status: status)
     }
 

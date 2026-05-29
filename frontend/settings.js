@@ -1,5 +1,5 @@
 /**
- * Flowey Settings UI
+ * Flowy Settings UI
  * Plain vanilla JS — no build step, no framework.
  */
 
@@ -188,7 +188,7 @@ function applyStatus(s) {
 
 // Instant push from Rust via Tauri event
 if (window.__TAURI__?.event) {
-  window.__TAURI__.event.listen('flowey:status', ({ payload }) => {
+  window.__TAURI__.event.listen('flowy:status', ({ payload }) => {
     applyStatus(payload);
   });
 }
@@ -247,7 +247,7 @@ pttBtn.addEventListener('touchend',   () => pttStop());
 
 // When a status event says we went Idle (pipeline done), reset button label
 if (window.__TAURI__?.event) {
-  window.__TAURI__.event.listen('flowey:status', ({ payload }) => {
+  window.__TAURI__.event.listen('flowy:status', ({ payload }) => {
     if (payload === 'Idle' && !pttActive) {
       pttLabel.textContent = 'Hold to Record';
       pttBtn.classList.remove('recording');
@@ -430,7 +430,7 @@ dictExport.addEventListener('click', () => {
   a.href = URL.createObjectURL(
     new Blob([JSON.stringify(collectDict(), null, 2)], { type: 'application/json' })
   );
-  a.download = 'flowey-dictionary.json';
+  a.download = 'flowy-dictionary.json';
   a.click();
 });
 

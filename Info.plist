@@ -3,8 +3,8 @@
 <plist version="1.0">
 <dict>
   <key>NSSpeechRecognitionUsageDescription</key>
-  <string>Flowey uses speech recognition to convert your voice to text.</string>
+  <string>Flowy uses speech recognition to convert your voice to text.</string>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Flowey needs microphone access to record your voice for transcription.</string>
+  <string>Flowy needs microphone access to record your voice for transcription.</string>
 </dict>
 </plist>

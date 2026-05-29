@@ -42,7 +42,7 @@ enum OllamaClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(GenerateRequest(
             model: model,
-            prompt: trimmed,
+            prompt: "Input: \(trimmed)\nOutput:",
             system: system,
             stream: false,
             options: Options(temperature: 0.1)
@@ -80,7 +80,7 @@ enum OllamaClient {
         let base = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard let url = URL(string: base + path) else {
-            throw FloweyError.message("Invalid Ollama endpoint")
+            throw FlowyError.message("Invalid Ollama endpoint")
         }
         return url
     }
@@ -89,7 +89,7 @@ enum OllamaClient {
         guard let http = response as? HTTPURLResponse else { return }
         guard (200..<300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
-            throw FloweyError.message(body)
+            throw FlowyError.message(body)
         }
     }
 }

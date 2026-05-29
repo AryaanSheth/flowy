@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Flowey</title>
+  <title>Flowy</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">
@@ -15,7 +15,7 @@
   <!-- ── Brand bar ─────────────────────────────────────────── -->
   <div class="brand-bar">
     <div class="brand-left">
-      <span class="app-name">flowey</span>
+      <span class="app-name">flowy</span>
       <span class="app-version">v0.1.0</span>
     </div>
     <span id="status-badge" class="status-badge idle">idle</span>
@@ -43,13 +43,13 @@
 
       <div id="perm-accessibility" class="callout callout-warn" style="display:none">
         <strong>Accessibility permission required</strong> for the global hotkey.
-        Grant access in System Settings → Privacy &amp; Security → Accessibility, then restart Flowey.
+        Grant access in System Settings → Privacy &amp; Security → Accessibility, then restart Flowy.
         <br><a href="#" id="perm-open-accessibility">Open Accessibility Settings →</a>
       </div>
 
       <div id="perm-speech" class="callout callout-warn" style="display:none">
         <strong>Speech Recognition not authorized.</strong>
-        Enable Flowey in System Settings → Privacy &amp; Security → Speech Recognition.
+        Enable Flowy in System Settings → Privacy &amp; Security → Speech Recognition.
       </div>
 
       <div class="field-group">
@@ -60,6 +60,13 @@
               <rect x="9" y="2" width="6" height="12" rx="3"/>
               <path d="M5 10a7 7 0 0 0 14 0M12 19v3M8 22h8"/>
             </svg>
+            <div class="ptt-waves" aria-hidden="true">
+              <span class="ptt-wave-b" style="--d:0.5s;--dl:0.00s"></span>
+              <span class="ptt-wave-b" style="--d:0.6s;--dl:0.10s"></span>
+              <span class="ptt-wave-b" style="--d:0.4s;--dl:0.20s"></span>
+              <span class="ptt-wave-b" style="--d:0.7s;--dl:0.05s"></span>
+              <span class="ptt-wave-b" style="--d:0.5s;--dl:0.15s"></span>
+            </div>
             <span id="ptt-label">hold to record</span>
           </button>
         </div>
@@ -207,7 +214,7 @@
         <label class="field-label">startup</label>
         <label class="toggle-row">
           <input id="autostart" type="checkbox" />
-          <span class="toggle-label">launch flowey at login</span>
+          <span class="toggle-label">launch flowy at login</span>
         </label>
         <p class="hint">runs silently in the background at system startup</p>
       </div>
@@ -224,7 +231,7 @@
 
       <div class="field-group">
         <label class="field-label">about</label>
-        <p class="about-line">flowey <span class="about-version">v0.1.0</span> · local speech-to-text · MIT license</p>
+        <p class="about-line">flowy <span class="about-version">v0.1.0</span> · local speech-to-text · MIT license</p>
       </div>
     </section>
 

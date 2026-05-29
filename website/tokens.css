@@ -1,48 +1,50 @@
-/* Hallmark · tokens · genre: atmospheric · theme: Terminal
- * paper-band: dark (L < 30%) · display-style: display-heavy (Bricolage 900) · accent-hue: chromatic-green (hue 145)
+/* Hallmark · tokens · genre: atmospheric · theme: custom (bold ocean flow)
+ * vibe: "deep ocean, heavy type, flowing teal" · paper-band: dark · display-style: display-heavy · accent-hue: cool (195°)
+ * Differs from Terminal on: accent-hue (cool-teal vs chromatic-green)
  */
 
 :root {
-  /* ── Paper (dark, green-tinted) ─────────────────── */
-  --color-paper:     oklch(9%  0.012 145);   /* base canvas */
-  --color-paper-2:   oklch(13% 0.015 145);   /* raised surface */
-  --color-paper-3:   oklch(17% 0.018 145);   /* card surface */
-  --color-rule:      oklch(22% 0.015 145);   /* dividers */
+  /* ── Paper — deep ocean navy ──────────────────────── */
+  --color-paper:   oklch(10% 0.025 220);
+  --color-paper-2: oklch(13% 0.022 220);
+  --color-paper-3: oklch(16% 0.020 220);
+  --color-rule:    oklch(21% 0.018 220);
+  --color-rule-2:  oklch(27% 0.016 220);
 
-  /* ── Ink ────────────────────────────────────────── */
-  --color-ink:       oklch(93% 0.010 145);   /* primary text */
-  --color-ink-2:     oklch(65% 0.012 145);   /* secondary text */
-  --color-ink-3:     oklch(38% 0.010 145);   /* faint / disabled */
+  /* ── Ink ────────────────────────────────────────────── */
+  --color-ink:   oklch(93% 0.007 220);
+  --color-ink-2: oklch(64% 0.012 220);
+  --color-ink-3: oklch(38% 0.012 220);
 
-  /* ── Accent (phosphor green) ────────────────────── */
-  --color-accent:    oklch(74% 0.22  145);   /* phosphor — ~3% usage target */
-  --color-accent-2:  oklch(74% 0.22  145 / 0.14);
-  --color-accent-3:  oklch(74% 0.22  145 / 0.07);
-  --color-focus:     oklch(74% 0.22  145);   /* focus ring */
+  /* ── Accent — flowing teal (~3% usage target) ────────── */
+  --color-accent:   oklch(64% 0.23 195);
+  --color-accent-2: oklch(64% 0.23 195 / 0.14);
+  --color-accent-3: oklch(64% 0.23 195 / 0.07);
+  --color-focus:    oklch(64% 0.23 195);
 
-  /* ── CTA surface (full-bleed green section) ──────── */
-  --color-cta-bg:    oklch(68% 0.22  145);   /* slightly darker than accent */
-  --color-cta-ink:   oklch(10% 0.015 145);   /* dark text on green */
+  /* ── CTA surface (full-bleed teal section) ───────────── */
+  --color-cta-bg:  oklch(57% 0.22 195);
+  --color-cta-ink: oklch(10% 0.025 220);
 
-  /* ── Fonts ──────────────────────────────────────── */
+  /* ── Fonts ──────────────────────────────────────────── */
   --font-display: 'Bricolage Grotesque', system-ui, sans-serif;
   --font-body:    'Geist',               system-ui, sans-serif;
-  --font-mono:    'Geist Mono',          ui-monospace, monospace; /* outlier: wordmark only */
+  --font-mono:    'Geist Mono',          ui-monospace, monospace;
 
-  /* ── Type scale (1.25 major-third ratio, 16px base) */
-  --text-xs:       0.64rem;
-  --text-sm:       0.80rem;
-  --text-base:     1.00rem;
-  --text-md:       1.25rem;
-  --text-lg:       1.5625rem;
-  --text-xl:       1.9531rem;
-  --text-2xl:      2.4414rem;
-  --text-3xl:      3.0518rem;
-  --text-4xl:      3.8147rem;
+  /* ── Type scale (1.25 major-third, 16px base) ──────── */
+  --text-xs:        0.64rem;
+  --text-sm:        0.80rem;
+  --text-base:      1.00rem;
+  --text-md:        1.25rem;
+  --text-lg:        1.5625rem;
+  --text-xl:        1.9531rem;
+  --text-2xl:       2.4414rem;
+  --text-3xl:       3.0518rem;
+  --text-4xl:       3.8147rem;
   --text-display-s: clamp(2.4rem, 5vw + 1rem, 4.2rem);
-  --text-display:   clamp(4.5rem, 11vw + 1rem, 8.5rem); /* manifesto poster — ≤24 char headline */
+  --text-display:   clamp(5rem, 22vw, 16rem);
 
-  /* ── Spacing (4pt scale) ────────────────────────── */
+  /* ── Spacing (4pt scale) ────────────────────────────── */
   --space-1:   0.25rem;
   --space-2:   0.5rem;
   --space-3:   0.75rem;
@@ -62,18 +64,18 @@
   --space-2xl: var(--space-24);
   --space-3xl: var(--space-32);
 
-  /* ── Motion ─────────────────────────────────────── */
-  --dur-fast:   120ms;
-  --dur-base:   200ms;
-  --dur-slow:   360ms;
-  --dur-reveal: 540ms;
-  --ease-out:   cubic-bezier(0.2, 0, 0, 1);
-  --ease-in:    cubic-bezier(0.4, 0, 1, 1);
+  /* ── Motion ─────────────────────────────────────────── */
+  --dur-fast:    120ms;
+  --dur-base:    200ms;
+  --dur-slow:    360ms;
+  --dur-reveal:  560ms;
+  --ease-out:    cubic-bezier(0.2, 0, 0, 1);
+  --ease-in:     cubic-bezier(0.4, 0, 1, 1);
   --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
-  /* ── Border radius ───────────────────────────────── */
-  --radius-sm:  4px;
-  --radius-md:  8px;
-  --radius-lg:  12px;
-  --radius-pill: 100px;
+  /* ── Border radius ───────────────────────────────────── */
+  --radius-sm:   4px;
+  --radius-md:   8px;
+  --radius-lg:   12px;
+  --radius-pill: 999px;
 }

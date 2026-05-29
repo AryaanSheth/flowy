@@ -1,8 +1,8 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-APP_NAME="Flowey"
-BUNDLE_ID="com.flowey.app"
+APP_NAME="Flowy"
+BUNDLE_ID="com.flowy.app"
 VERSION="0.1.0"
 MIN_MACOS="13.0"
 
@@ -15,7 +15,7 @@ usage() {
   cat <<EOF
 Usage: scripts/build-macos.sh [--debug] [--release] [--check-only] [--clean]
 
-Build the native macOS-only Flowey app bundle.
+Build the native macOS-only Flowy app bundle.
 
 Options:
   --debug       Compile with debug settings into target/debug.
@@ -56,7 +56,7 @@ cd "$REPO_ROOT"
 
 "$REPO_ROOT/scripts/doctor-swift.sh" --quiet
 
-BUILD_ROOT="$REPO_ROOT/.build/flowey-native/$CONFIGURATION"
+BUILD_ROOT="$REPO_ROOT/.build/flowy-native/$CONFIGURATION"
 TARGET_ROOT="$REPO_ROOT/target/$CONFIGURATION"
 APP_BUNDLE="$TARGET_ROOT/bundle/macos/$APP_NAME.app"
 EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
@@ -94,7 +94,7 @@ FRAMEWORKS=(
 
 echo "Building $APP_NAME ($CONFIGURATION, arm64 macOS $MIN_MACOS+)..."
 CLANG_MODULE_CACHE_PATH="$MODULE_CACHE" \
-xcrun swiftc "${SWIFT_FLAGS[@]}" Sources/Flowey/*.swift "${FRAMEWORKS[@]}" -o "$EXECUTABLE"
+xcrun swiftc "${SWIFT_FLAGS[@]}" Sources/Flowy/*.swift "${FRAMEWORKS[@]}" -o "$EXECUTABLE"
 
 if [[ -f "$REPO_ROOT/icons/icon.icns" ]]; then
   cp "$REPO_ROOT/icons/icon.icns" "$RESOURCES/icon.icns"
@@ -132,9 +132,9 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSMicrophoneUsageDescription</key>
-  <string>Flowey needs microphone access to record your voice for transcription.</string>
+  <string>Flowy needs microphone access to record your voice for transcription.</string>
   <key>NSSpeechRecognitionUsageDescription</key>
-  <string>Flowey uses speech recognition to convert your voice to text.</string>
+  <string>Flowy uses speech recognition to convert your voice to text.</string>
   <key>NSSupportsAutomaticTermination</key>
   <false/>
   <key>NSSupportsSuddenTermination</key>
@@ -144,7 +144,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
 EOF
 
 if command -v codesign >/dev/null 2>&1; then
-  CODESIGN_IDENTITY="${FLOWEY_CODESIGN_IDENTITY:--}"
+  CODESIGN_IDENTITY="${FLOWY_CODESIGN_IDENTITY:--}"
   codesign --force --deep --sign "$CODESIGN_IDENTITY" "$APP_BUNDLE" >/dev/null
 fi
 

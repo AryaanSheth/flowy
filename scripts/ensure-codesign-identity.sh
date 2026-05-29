@@ -1,7 +1,7 @@
 #!/usr/bin/env zsh
 set -euo pipefail
 
-IDENTITY_NAME="${FLOWEY_CODESIGN_IDENTITY:-Flowey Local Development}"
+IDENTITY_NAME="${FLOWY_CODESIGN_IDENTITY:-Flowy Local Development}"
 REPO_ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 CERT_DIR="$REPO_ROOT/.build/codesign"
 KEYCHAIN="${HOME}/Library/Keychains/login.keychain-db"
