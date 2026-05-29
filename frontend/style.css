@@ -1,5 +1,5 @@
 /* Hallmark · component: app-settings · genre: atmospheric · theme: custom (bold ocean flow)
- * paper: oklch(10% 0.025 220) · accent: oklch(64% 0.23 195)
+ * paper: oklch(10% 0.025 220) · accent: oklch(68% 0.113 193) — brand teal #1AAFAD
  * states: default · hover · focus · active · disabled · recording · transcribing · error
  */
 
@@ -18,10 +18,11 @@
   --text-2:     oklch(64% 0.012 220);
   --muted:      oklch(40% 0.014 220);
 
-  --accent:     oklch(64% 0.23  195);
-  --accent-dim: oklch(64% 0.23  195 / 0.06);
-  --accent-mid: oklch(64% 0.23  195 / 0.12);
-  --accent-glow: oklch(64% 0.23 195 / 0.18);
+  --brand:      oklch(68% 0.113 193);   /* #1AAFAD — logo teal */
+  --accent:     oklch(68% 0.113 193);
+  --accent-dim: oklch(68% 0.113 193 / 0.08);
+  --accent-mid: oklch(68% 0.113 193 / 0.15);
+  --accent-glow: oklch(68% 0.113 193 / 0.22);
 
   --danger:     oklch(58% 0.18 20);
   --danger-dim: oklch(58% 0.18 20 / 0.07);
@@ -69,40 +70,11 @@ html, body {
   align-items: center;
   justify-content: space-between;
   padding: 0 18px;
-  border-bottom: 1px solid var(--border);
+  background: var(--brand);
+  border-bottom: none;
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
-}
-
-/* Subtle animated wave on brand bar bottom edge */
-.brand-bar::after {
-  content: "";
-  position: absolute;
-  bottom: 0; left: -100%;
-  width: 300%;
-  height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent 0%,
-    var(--accent) 30%,
-    var(--accent) 40%,
-    transparent 60%,
-    transparent 100%
-  );
-  opacity: 0;
-  animation: brand-wave 6s ease-in-out infinite;
-}
-
-@keyframes brand-wave {
-  0%   { left: -100%; opacity: 0; }
-  20%  { opacity: 0.6; }
-  80%  { opacity: 0.6; }
-  100% { left: 100%;  opacity: 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .brand-bar::after { animation: none; }
 }
 
 .brand-left {
@@ -113,14 +85,14 @@ html, body {
 
 .app-name {
   font-size: 13px;
-  font-weight: 500;
-  color: var(--text);
+  font-weight: 600;
+  color: white;
   letter-spacing: -0.01em;
 }
 
 .app-version {
   font-size: 9.5px;
-  color: var(--muted);
+  color: oklch(100% 0 0 / 0.65);
 }
 
 /* ── Status badge ────────────────────────────────────── */
@@ -132,9 +104,9 @@ html, body {
 
 .status-badge::before { content: '● '; }
 
-.status-badge.idle         { color: var(--muted); }
-.status-badge.recording    { color: var(--danger); animation: blink 1s ease-in-out infinite; }
-.status-badge.transcribing { color: var(--accent); animation: blink 0.8s ease-in-out infinite; }
+.status-badge.idle         { color: oklch(100% 0 0 / 0.55); }
+.status-badge.recording    { color: oklch(85% 0.15 20); animation: blink 1s ease-in-out infinite; }
+.status-badge.transcribing { color: white; animation: blink 0.8s ease-in-out infinite; }
 
 @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 

@@ -1,6 +1,70 @@
 import AppKit
 import SwiftUI
 
+// MARK: – Design tokens
+private enum BD {
+    static let bg      = Color(red: 0.000, green: 0.017, blue: 0.031)
+    static let card    = Color(red: 0.016, green: 0.060, blue: 0.075)
+    static let border  = Color(red: 0.058, green: 0.103, blue: 0.118)
+    static let ink     = Color(red: 0.890, green: 0.914, blue: 0.921)
+    static let muted   = Color(red: 0.520, green: 0.557, blue: 0.569)
+    static let teal    = Color(red: 0.102, green: 0.686, blue: 0.678)
+    static let danger  = Color(red: 0.840, green: 0.280, blue: 0.230)
+    static let warn    = Color(red: 0.930, green: 0.680, blue: 0.200)
+}
+
+// MARK: – Button styles
+private struct TealBtn: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+            .background(BD.teal.opacity(configuration.isPressed ? 0.7 : 1),
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+    }
+}
+
+private struct GhostBtn: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 12))
+            .foregroundStyle(BD.muted)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 7)
+    }
+}
+
+private struct NudgeBtn: ButtonStyle {  // small inline action button
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(configuration.isPressed ? BD.teal.opacity(0.6) : BD.muted)
+    }
+}
+
+// MARK: – TextFieldStyle
+private struct BrandField: TextFieldStyle {
+    // swiftlint:disable:next identifier_name
+    func _body(configuration: TextField<Self._Label>) -> some View {
+        configuration
+            .font(.system(size: 12))
+            .foregroundStyle(BD.ink)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(BD.card, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .stroke(BD.border, lineWidth: 1))
+    }
+}
+
+// MARK: – Row-level helpers (flat layout, no card containers)
+private struct RowDivider: View {
+    var body: some View { BD.border.frame(height: 1) }
+}
+
+// MARK: – Main view
 struct SettingsView: View {
     @ObservedObject var model: AppModel
 
@@ -22,340 +86,365 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            header
-            Divider()
+            brandHeader
             HStack(spacing: 0) {
                 sidebar
-                Divider()
-                ScrollView {
-                    sectionContent
-                        .padding(24)
-                        .frame(maxWidth: .infinity, alignment: .topLeading)
+                ZStack {
+                    BD.bg
+                    ScrollView {
+                        sectionContent
+                            .padding(.horizontal, 28)
+                            .padding(.vertical, 24)
+                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    }
                 }
             }
-            Divider()
             footer
         }
-        .frame(minWidth: 760, minHeight: 640)
-        .onAppear {
-            refreshDevices()
-            model.refreshPermissions()
-        }
+        .frame(minWidth: 720, minHeight: 560)
+        .background(BD.bg)
+        .environment(\.colorScheme, .dark)
+        .onAppear { refreshDevices(); model.refreshPermissions() }
     }
 
-    private var header: some View {
+    // MARK: Header
+    private var brandHeader: some View {
         HStack {
-            VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 8) {
+                Canvas { ctx, size in
+                    var p = Path()
+                    let h = size.height, w = size.width
+                    p.move(to: .init(x: 0, y: h * 0.5))
+                    p.addCurve(to: .init(x: w * 0.5, y: h * 0.5),
+                               control1: .init(x: w * 0.15, y: h * 0.06),
+                               control2: .init(x: w * 0.35, y: h * 0.94))
+                    p.addCurve(to: .init(x: w, y: h * 0.5),
+                               control1: .init(x: w * 0.65, y: h * 0.06),
+                               control2: .init(x: w * 0.85, y: h * 0.94))
+                    ctx.stroke(p, with: .color(.white),
+                               style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                }
+                .frame(width: 22, height: 12)
                 Text("flowy")
-                    .font(.system(size: 20, weight: .semibold, design: .rounded))
-                Text("local dictation for macOS")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.white)
+                    .tracking(-0.2)
             }
             Spacer()
-            Label(model.status.label, systemImage: model.status.systemImageName)
-                .font(.system(size: 12, weight: .semibold))
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(statusColor.opacity(0.16), in: Capsule())
-                .foregroundStyle(statusColor)
+            HStack(spacing: 5) {
+                Circle().fill(statusDotColor).frame(width: 5, height: 5)
+                Text(model.status.label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.82))
+            }
+            .padding(.horizontal, 9).padding(.vertical, 4)
+            .background(.white.opacity(0.10), in: Capsule())
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 14)
+        .padding(.horizontal, 18).padding(.vertical, 10)
+        .background(BD.teal)
     }
 
+    // MARK: Sidebar
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        VStack(alignment: .leading, spacing: 1) {
             ForEach(SettingsSection.allCases) { section in
+                let active = selectedSection == section
                 Button {
                     selectedSection = section
-                    if section == .audio { refreshDevices() }
+                    if section == .audio  { refreshDevices() }
                     if section == .system { model.refreshPermissions() }
                 } label: {
-                    Label(section.title, systemImage: section.symbol)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 8)
-                        .background(
-                            selectedSection == section
-                                ? Color.accentColor.opacity(0.14)
-                                : Color.clear,
-                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        )
+                    HStack(spacing: 7) {
+                        Image(systemName: section.symbol)
+                            .font(.system(size: 11))
+                            .foregroundStyle(active ? BD.teal : BD.muted)
+                            .frame(width: 14)
+                        Text(section.title)
+                            .font(.system(size: 13, weight: active ? .medium : .regular))
+                            .foregroundStyle(active ? BD.ink : BD.muted)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .overlay(alignment: .leading) {
+                        if active {
+                            BD.teal.frame(width: 2).padding(.vertical, 6)
+                        }
+                    }
                 }
                 .buttonStyle(.plain)
             }
             Spacer()
         }
-        .padding(14)
-        .frame(width: 172)
-        .background(Color(nsColor: .controlBackgroundColor))
+        .padding(.top, 10)
+        .frame(width: 155)
+        .background(BD.bg)
+        .overlay(alignment: .trailing) { BD.border.frame(width: 1) }
     }
 
+    // MARK: Section routing
     @ViewBuilder
     private var sectionContent: some View {
         switch selectedSection {
-        case .shortcut: shortcutSection
-        case .audio: audioSection
-        case .output: outputSection
+        case .shortcut:   shortcutSection
+        case .audio:      audioSection
+        case .output:     outputSection
         case .dictionary: dictionarySection
-        case .ai: aiSection
-        case .history: historySection
-        case .system: systemSection
+        case .ai:         aiSection
+        case .history:    historySection
+        case .system:     systemSection
         }
     }
 
+    // MARK: Footer
     private var footer: some View {
         HStack {
             Text(model.lastError ?? saveMessage)
-                .font(.caption)
-                .foregroundStyle(model.lastError == nil ? Color.secondary : Color.red)
+                .font(.system(size: 11))
+                .foregroundStyle(model.lastError == nil ? BD.muted : BD.danger)
                 .lineLimit(1)
             Spacer()
-            Button("Discard") {
-                resetDraft()
-            }
-            Button("Save") {
-                saveDraft()
-            }
-            .keyboardShortcut(.defaultAction)
+            Button("Discard") { resetDraft() }.buttonStyle(GhostBtn())
+            Button("Save") { saveDraft() }
+                .buttonStyle(TealBtn())
+                .keyboardShortcut(.defaultAction)
         }
-        .padding(.horizontal, 22)
-        .padding(.vertical, 12)
+        .padding(.horizontal, 18).padding(.vertical, 10)
+        .background(BD.bg)
+        .overlay(alignment: .top) { BD.border.frame(height: 1) }
     }
 
+    // MARK: – Sections ──────────────────────────────────────────────────────
+
     private var shortcutSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
             sectionTitle("Shortcut")
             permissionBanners
 
-            GroupBox {
-                VStack(alignment: .leading, spacing: 12) {
-                    HoldRecordButton(
-                        isRecording: model.status == .recording,
-                        onPress: model.startRecording,
-                        onRelease: model.stopRecording
-                    )
-                    .frame(width: 210, height: 44)
-
-                    Text("Click and hold, then release to transcribe.")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
-                }
+            // Record button — slightly featured
+            VStack(alignment: .leading, spacing: 8) {
+                HoldRecordButton(
+                    isRecording: model.status == .recording,
+                    onPress: model.startRecording,
+                    onRelease: model.stopRecording
+                )
+                .frame(maxWidth: .infinity, minHeight: 34)
+                Text("Click and hold — release to transcribe.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(BD.muted)
             }
+            .padding(.bottom, 24)
 
-            GroupBox("Global hotkey") {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        HotkeyRecorderView(hotkey: $draft.hotkey)
-                            .frame(width: 250, height: 32)
-                        Button {
-                            draft.hotkey = "CmdOrCtrl+Shift+Space"
-                        } label: {
-                            Label("Reset", systemImage: "arrow.counterclockwise")
-                        }
+            RowDivider()
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Global hotkey")
+                        .font(.system(size: 13))
+                        .foregroundStyle(BD.ink)
+                    Button("reset to default") {
+                        draft.hotkey = "CmdOrCtrl+Shift+Space"
                     }
-                    Text("Click the shortcut field, then press the macro or key combination. Save to activate it.")
-                        .foregroundStyle(.secondary)
-                        .font(.caption)
+                    .font(.system(size: 10))
+                    .foregroundStyle(BD.muted)
+                    .buttonStyle(.plain)
                 }
+                Spacer()
+                HotkeyRecorderView(hotkey: $draft.hotkey)
+                    .frame(height: 28)
             }
-
-            GroupBox("Recording limit") {
-                Stepper(value: $draft.maxRecordingSecs, in: 5...300, step: 5) {
-                    Text("\(draft.maxRecordingSecs) seconds")
+            .padding(.vertical, 10)
+            RowDivider()
+            row("Recording limit") {
+                HStack(spacing: 6) {
+                    Text("\(draft.maxRecordingSecs) s")
+                        .font(.system(size: 12))
+                        .foregroundStyle(BD.ink)
+                        .frame(width: 36, alignment: .trailing)
+                    Stepper("", value: $draft.maxRecordingSecs, in: 5...300, step: 5)
+                        .labelsHidden()
                 }
             }
         }
     }
 
     private var audioSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
             sectionTitle("Audio")
-            GroupBox("Input device") {
-                HStack {
-                    Picker("Microphone", selection: inputDeviceBinding) {
+            row("Input device") {
+                HStack(spacing: 8) {
+                    Picker("", selection: inputDeviceBinding) {
                         Text("System default").tag("")
-                        ForEach(devices) { device in
-                            Text(device.name).tag(device.uid)
-                        }
+                        ForEach(devices) { d in Text(d.name).tag(d.uid) }
                     }
-                    .labelsHidden()
-                    .frame(maxWidth: .infinity)
-
-                    Button {
-                        refreshDevices()
-                    } label: {
-                        Label("Refresh", systemImage: "arrow.clockwise")
+                    .labelsHidden().frame(width: 200)
+                    Button { refreshDevices() } label: {
+                        Image(systemName: "arrow.clockwise").font(.system(size: 11))
                     }
+                    .buttonStyle(NudgeBtn())
                 }
             }
         }
     }
 
     private var outputSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
             sectionTitle("Output")
-            GroupBox("Text delivery") {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(OutputMode.allCases) { mode in
-                        Button {
-                            draft.outputMode = mode
-                        } label: {
-                            HStack(alignment: .top, spacing: 10) {
-                                Image(systemName: draft.outputMode == mode ? "largecircle.fill.circle" : "circle")
-                                    .foregroundStyle(Color.accentColor)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(mode.title)
-                                        .fontWeight(.medium)
-                                    Text(mode.subtitle)
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
+            ForEach(Array(OutputMode.allCases.enumerated()), id: \.offset) { i, mode in
+                Button { draft.outputMode = mode } label: {
+                    HStack(alignment: .top, spacing: 11) {
+                        ZStack {
+                            Circle().stroke(
+                                draft.outputMode == mode ? BD.teal : BD.border,
+                                lineWidth: 1.5)
+                                .frame(width: 15, height: 15)
+                            if draft.outputMode == mode {
+                                Circle().fill(BD.teal).frame(width: 7, height: 7)
                             }
-                            .contentShape(Rectangle())
                         }
-                        .buttonStyle(.plain)
+                        .padding(.top, 2)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(mode.title)
+                                .font(.system(size: 13))
+                                .foregroundStyle(BD.ink)
+                            Text(mode.subtitle)
+                                .font(.system(size: 11))
+                                .foregroundStyle(BD.muted)
+                        }
+                        Spacer()
                     }
+                    .padding(.vertical, 11)
+                    .contentShape(Rectangle())
                 }
+                .buttonStyle(.plain)
+                if i < OutputMode.allCases.count - 1 { RowDivider() }
             }
         }
     }
 
     private var dictionarySection: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             sectionTitle("Dictionary")
-            GroupBox("Word substitutions") {
-                VStack(alignment: .leading, spacing: 10) {
-                    ForEach(dictRows.indices, id: \.self) { index in
-                        HStack {
-                            TextField("word", text: $dictRows[index].key)
-                                .textFieldStyle(.roundedBorder)
-                            Image(systemName: "arrow.right")
-                                .foregroundStyle(.secondary)
-                            TextField("replacement", text: $dictRows[index].value)
-                                .textFieldStyle(.roundedBorder)
-                            Button {
-                                dictRows.remove(at: index)
-                                runDictionaryTest()
-                            } label: {
-                                Image(systemName: "trash")
-                            }
-                            .buttonStyle(.borderless)
+            VStack(alignment: .leading, spacing: 6) {
+                ForEach(dictRows.indices, id: \.self) { i in
+                    HStack(spacing: 6) {
+                        TextField("word", text: $dictRows[i].key)
+                            .textFieldStyle(BrandField())
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 10))
+                            .foregroundStyle(BD.muted)
+                        TextField("replacement", text: $dictRows[i].value)
+                            .textFieldStyle(BrandField())
+                        Button { dictRows.remove(at: i); runDictionaryTest() } label: {
+                            Image(systemName: "xmark").font(.system(size: 10))
                         }
-                    }
-
-                    Button {
-                        dictRows.append(DictionaryRow(key: "", value: ""))
-                    } label: {
-                        Label("Add substitution", systemImage: "plus")
+                        .buttonStyle(NudgeBtn())
                     }
                 }
+                Button { dictRows.append(DictionaryRow(key: "", value: "")) } label: {
+                    Label("Add", systemImage: "plus").font(.system(size: 11))
+                }
+                .buttonStyle(NudgeBtn())
+                .padding(.top, 4)
             }
 
-            GroupBox("Preview") {
-                VStack(alignment: .leading, spacing: 8) {
-                    TextField("Type text to preview substitutions", text: $dictionaryTestInput)
-                        .textFieldStyle(.roundedBorder)
-                        .onChange(of: dictionaryTestInput) { _ in runDictionaryTest() }
-                    Text(dictionaryTestOutput)
-                        .font(.system(.body, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
-                }
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Preview")
+                    .font(.system(size: 11)).foregroundStyle(BD.muted)
+                TextField("Type to test substitutions…", text: $dictionaryTestInput)
+                    .textFieldStyle(BrandField())
+                    .onChange(of: dictionaryTestInput) { _ in runDictionaryTest() }
+                Text(dictionaryTestOutput)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(BD.muted)
             }
         }
     }
 
     private var aiSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
             sectionTitle("AI")
-
-            GroupBox("Ollama enhancement") {
-                VStack(alignment: .leading, spacing: 12) {
-                    Toggle("Enable local cleanup pass", isOn: $draft.ollamaEnabled)
-                    Text("This runs after every dictation and can add noticeable delay, especially with 7B+ models.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    HStack {
-                        TextField("http://localhost:11434", text: $draft.ollamaEndpoint)
-                            .textFieldStyle(.roundedBorder)
-                        Button {
-                            Task { await checkOllama() }
-                        } label: {
-                            Label("Test", systemImage: "bolt.horizontal.circle")
-                        }
-                    }
-
-                    if !ollamaModels.isEmpty {
-                        Picker("Model", selection: $draft.ollamaModel) {
-                            ForEach(ollamaModels, id: \.self) { model in
-                                Text(model).tag(model)
-                            }
-                        }
-                    } else {
-                        TextField("Model", text: $draft.ollamaModel)
-                            .textFieldStyle(.roundedBorder)
-                    }
-
-                    Text(ollamaMessage)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-
-                    TextEditor(text: $draft.ollamaPrompt)
-                        .font(.system(.body, design: .monospaced))
-                        .frame(minHeight: 120)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color(nsColor: .separatorColor))
-                        )
+            row("Ollama enhancement") {
+                Toggle("", isOn: $draft.ollamaEnabled).labelsHidden().tint(BD.teal)
+            }
+            RowDivider()
+            row("Endpoint") {
+                HStack(spacing: 8) {
+                    TextField("http://localhost:11434", text: $draft.ollamaEndpoint)
+                        .textFieldStyle(BrandField())
+                        .frame(width: 200)
+                    Button("Test") { Task { await checkOllama() } }
+                        .buttonStyle(NudgeBtn())
                 }
+            }
+            RowDivider()
+            row("Model") {
+                if !ollamaModels.isEmpty {
+                    Picker("", selection: $draft.ollamaModel) {
+                        ForEach(ollamaModels, id: \.self) { Text($0).tag($0) }
+                    }
+                    .labelsHidden().frame(width: 200)
+                } else {
+                    TextField("llama3.2:3b", text: $draft.ollamaModel)
+                        .textFieldStyle(BrandField())
+                        .frame(width: 200)
+                }
+            }
+            if !ollamaMessage.isEmpty {
+                Text(ollamaMessage)
+                    .font(.system(size: 11)).foregroundStyle(BD.muted)
+                    .padding(.top, 8)
+            }
+            RowDivider().padding(.top, 14)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("System prompt")
+                    .font(.system(size: 11)).foregroundStyle(BD.muted)
+                    .padding(.top, 12).padding(.bottom, 6)
+                TextEditor(text: $draft.ollamaPrompt)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(BD.ink)
+                    .scrollContentBackground(.hidden)
+                    .background(Color.clear)
+                    .frame(minHeight: 90)
+                RowDivider()
             }
         }
     }
 
     private var historySection: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 16) {
             HStack {
                 sectionTitle("History")
                 Spacer()
-                Button {
-                    model.clearHistory()
-                } label: {
-                    Label("Clear", systemImage: "trash")
+                Button { model.clearHistory() } label: {
+                    Text("Clear").font(.system(size: 12))
                 }
+                .buttonStyle(NudgeBtn())
                 .disabled(model.history.isEmpty)
             }
-
             if model.history.isEmpty {
                 VStack(spacing: 10) {
                     Image(systemName: "text.bubble")
-                        .font(.system(size: 34))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 28)).foregroundStyle(BD.border)
                     Text("No transcriptions yet")
-                        .font(.headline)
-                    Text("Hold the hotkey or the record button and speak.")
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 13)).foregroundStyle(BD.muted)
                 }
-                .frame(maxWidth: .infinity, minHeight: 260)
+                .frame(maxWidth: .infinity, minHeight: 180)
             } else {
-                VStack(alignment: .leading, spacing: 10) {
+                VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(model.history.enumerated()), id: \.offset) { _, text in
-                        HStack(alignment: .top) {
+                        HStack(alignment: .top, spacing: 10) {
                             Text(text)
+                                .font(.system(size: 12)).foregroundStyle(BD.ink)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                            Button {
-                                TextOutput.copyToClipboard(text)
-                            } label: {
+                            Button { TextOutput.copyToClipboard(text) } label: {
                                 Image(systemName: "doc.on.doc")
+                                    .font(.system(size: 11)).foregroundStyle(BD.muted)
                             }
-                            .buttonStyle(.borderless)
+                            .buttonStyle(.plain)
                         }
-                        .padding(10)
-                        .background(Color(nsColor: .controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                        .padding(.horizontal, 10).padding(.vertical, 9)
+                        .background(BD.card)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     }
                 }
             }
@@ -363,79 +452,135 @@ struct SettingsView: View {
     }
 
     private var systemSection: some View {
-        VStack(alignment: .leading, spacing: 18) {
+        VStack(alignment: .leading, spacing: 0) {
             sectionTitle("System")
-
-            GroupBox("Startup") {
-                Toggle("Launch Flowy at login", isOn: $draft.autostart)
+            row("Launch at login") {
+                Toggle("", isOn: $draft.autostart).labelsHidden().tint(BD.teal)
             }
+            RowDivider()
 
-            GroupBox("Permissions") {
-                VStack(alignment: .leading, spacing: 8) {
-                    permissionRow("Speech Recognition", granted: model.permissions.speechAuthorized)
-                    permissionRow("Microphone", granted: model.permissions.microphoneAuthorized)
-                    permissionRow("Accessibility", granted: model.permissions.accessibilityTrusted)
-                    Button {
-                        TextOutput.requestAccessibilityAccess()
-                        TextOutput.openAccessibilitySettings()
-                    } label: {
-                        Label("Open Accessibility Settings", systemImage: "gear")
-                    }
-                }
+            // Permission rows
+            permRow("Speech Recognition", granted: model.permissions.speechAuthorized)
+            RowDivider()
+            permRow("Microphone",         granted: model.permissions.microphoneAuthorized)
+            RowDivider()
+            permRow("Accessibility",       granted: model.permissions.accessibilityTrusted)
+            RowDivider()
+            Button {
+                TextOutput.requestAccessibilityAccess()
+                TextOutput.openAccessibilitySettings()
+            } label: {
+                Label("Open Accessibility Settings", systemImage: "lock.open")
+                    .font(.system(size: 12))
             }
+            .buttonStyle(NudgeBtn())
+            .padding(.vertical, 10)
+            RowDivider()
 
-            GroupBox("Config") {
-                HStack {
+            // Config path
+            row("Config") {
+                HStack(spacing: 8) {
                     Text(model.configPath)
-                        .font(.system(.caption, design: .monospaced))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(BD.muted)
                         .textSelection(.enabled)
-                    Spacer()
+                        .lineLimit(1)
                     Button {
-                        NSWorkspace.shared.selectFile(AppConfig.configURL.path, inFileViewerRootedAtPath: "")
+                        NSWorkspace.shared.selectFile(
+                            AppConfig.configURL.path, inFileViewerRootedAtPath: "")
                     } label: {
-                        Label("Reveal", systemImage: "folder")
+                        Image(systemName: "folder")
+                            .font(.system(size: 11))
                     }
+                    .buttonStyle(NudgeBtn())
                 }
-            }
-
-            GroupBox("Build") {
-                Text("Native Swift, macOS-only, arm64 release bundle.")
-                    .foregroundStyle(.secondary)
             }
         }
     }
 
+    // MARK: – Permission banners (minimal inline banners)
     @ViewBuilder
     private var permissionBanners: some View {
         if !model.permissions.accessibilityTrusted {
-            callout(
-                title: "Accessibility permission required",
-                message: "Required for pasting text. If Flowy is already listed in System Settings with the switch ON, remove it and re-add it — macOS invalidates accessibility trust each time the app is rebuilt.",
-                actionTitle: "Request Access",
-                action: {
-                    TextOutput.requestAccessibilityAccess()
-                    TextOutput.openAccessibilitySettings()
-                }
+            inlineBanner(
+                "Accessibility required — if Flowy is already listed in System Settings, remove and re-add it.",
+                action: { TextOutput.requestAccessibilityAccess(); TextOutput.openAccessibilitySettings() },
+                actionLabel: "Fix"
             )
         }
         if !model.permissions.speechAuthorized {
-            callout(
-                title: "Speech Recognition not authorized",
-                message: "Enable Flowy in System Settings > Privacy & Security > Speech Recognition.",
-                actionTitle: "Request Permission",
-                action: model.requestInitialPermissions
+            inlineBanner(
+                "Speech Recognition not authorized.",
+                action: model.requestInitialPermissions,
+                actionLabel: "Request"
             )
         }
         if !model.permissions.microphoneAuthorized {
-            callout(
-                title: "Microphone not authorized",
-                message: "Flowy needs microphone access before recording.",
-                actionTitle: "Request Permission",
-                action: model.requestInitialPermissions
+            inlineBanner(
+                "Microphone access required.",
+                action: model.requestInitialPermissions,
+                actionLabel: "Request"
             )
         }
     }
 
+    // MARK: – Shared sub-views
+    private func sectionTitle(_ text: String) -> some View {
+        Text(text)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundStyle(BD.ink)
+            .padding(.bottom, 16)
+    }
+
+    private func row<C: View>(_ label: String, @ViewBuilder control: () -> C) -> some View {
+        HStack(spacing: 12) {
+            Text(label)
+                .font(.system(size: 13))
+                .foregroundStyle(BD.ink)
+            Spacer()
+            control()
+        }
+        .padding(.vertical, 10)
+    }
+
+    private func permRow(_ title: String, granted: Bool) -> some View {
+        HStack {
+            Circle()
+                .fill(granted ? BD.teal : BD.danger.opacity(0.8))
+                .frame(width: 5, height: 5)
+            Text(title)
+                .font(.system(size: 13))
+                .foregroundStyle(BD.ink)
+            Spacer()
+            Text(granted ? "granted" : "missing")
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(granted ? BD.teal.opacity(0.75) : BD.danger.opacity(0.75))
+        }
+        .padding(.vertical, 10)
+    }
+
+    private func inlineBanner(
+        _ message: String,
+        action: @escaping () -> Void,
+        actionLabel: String
+    ) -> some View {
+        HStack(spacing: 10) {
+            Circle().fill(BD.warn).frame(width: 5, height: 5)
+            Text(message)
+                .font(.system(size: 11))
+                .foregroundStyle(BD.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer()
+            Button(actionLabel, action: action)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(BD.warn)
+                .buttonStyle(.plain)
+        }
+        .padding(.vertical, 8)
+        .padding(.bottom, 6)
+    }
+
+    // MARK: – Bindings & logic
     private var inputDeviceBinding: Binding<String> {
         Binding(
             get: { draft.inputDevice ?? "" },
@@ -443,53 +588,15 @@ struct SettingsView: View {
         )
     }
 
-    private var statusColor: Color {
+    private var statusDotColor: Color {
         switch model.status {
-        case .idle: return .secondary
-        case .recording: return .red
-        case .transcribing: return .accentColor
+        case .idle:         return .white.opacity(0.4)
+        case .recording:    return Color(red: 1.0, green: 0.42, blue: 0.38)
+        case .transcribing: return .white
         }
     }
 
-    private func sectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.system(size: 22, weight: .semibold))
-    }
-
-    private func callout(
-        title: String,
-        message: String,
-        actionTitle: String,
-        action: @escaping () -> Void
-    ) -> some View {
-        HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "exclamationmark.triangle.fill")
-                .foregroundStyle(.orange)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(title).fontWeight(.semibold)
-                Text(message).foregroundStyle(.secondary)
-            }
-            Spacer()
-            Button(actionTitle, action: action)
-        }
-        .padding(12)
-        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-    }
-
-    private func permissionRow(_ title: String, granted: Bool) -> some View {
-        HStack {
-            Image(systemName: granted ? "checkmark.circle.fill" : "xmark.circle.fill")
-                .foregroundStyle(granted ? .green : .red)
-            Text(title)
-            Spacer()
-            Text(granted ? "Granted" : "Missing")
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func refreshDevices() {
-        devices = AudioDeviceManager.inputDevices()
-    }
+    private func refreshDevices() { devices = AudioDeviceManager.inputDevices() }
 
     private func saveDraft() {
         var clean = draft
@@ -510,88 +617,77 @@ struct SettingsView: View {
     }
 
     private func collectedDictionary() -> [String: String] {
-        var dictionary: [String: String] = [:]
+        var r: [String: String] = [:]
         for row in dictRows {
-            let key = row.key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let value = row.value.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !key.isEmpty {
-                dictionary[key] = value
-            }
+            let k = row.key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let v = row.value.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !k.isEmpty { r[k] = v }
         }
-        return dictionary
+        return r
     }
 
     private func runDictionaryTest() {
         guard !dictionaryTestInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            dictionaryTestOutput = "-"
-            return
+            dictionaryTestOutput = "-"; return
         }
         dictionaryTestOutput = DictionaryRewriter.apply(
-            dictionaryTestInput,
-            dictionary: collectedDictionary()
-        )
+            dictionaryTestInput, dictionary: collectedDictionary())
     }
 
     private func checkOllama() async {
-        ollamaMessage = "Checking..."
+        ollamaMessage = "Checking…"
         let result = await OllamaClient.status(endpoint: draft.ollamaEndpoint)
         if result.reachable {
             ollamaModels = result.models
             if draft.ollamaModel.isEmpty, let first = result.models.first {
                 draft.ollamaModel = first
             }
-            ollamaMessage = "Connected. \(result.models.count) model\(result.models.count == 1 ? "" : "s") found."
+            ollamaMessage = "Connected · \(result.models.count) model\(result.models.count == 1 ? "" : "s") found."
         } else {
             ollamaModels = []
             ollamaMessage = result.error ?? "Could not reach Ollama."
         }
     }
 
-    private static func rows(from dictionary: [String: String]) -> [DictionaryRow] {
-        dictionary
-            .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+    private static func rows(from dict: [String: String]) -> [DictionaryRow] {
+        dict.sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
             .map { DictionaryRow(key: $0.key, value: $0.value) }
     }
 }
 
+// MARK: – Section enum
 private enum SettingsSection: String, CaseIterable, Identifiable {
-    case shortcut
-    case audio
-    case output
-    case dictionary
-    case ai
-    case history
-    case system
-
+    case shortcut, audio, output, dictionary, ai, history, system
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .shortcut: return "Shortcut"
-        case .audio: return "Audio"
-        case .output: return "Output"
-        case .dictionary: return "Dictionary"
-        case .ai: return "AI"
-        case .history: return "History"
-        case .system: return "System"
+        case .shortcut:   "Shortcut"
+        case .audio:      "Audio"
+        case .output:     "Output"
+        case .dictionary: "Dictionary"
+        case .ai:         "AI"
+        case .history:    "History"
+        case .system:     "System"
         }
     }
 
     var symbol: String {
         switch self {
-        case .shortcut: return "keyboard"
-        case .audio: return "waveform"
-        case .output: return "text.cursor"
-        case .dictionary: return "book"
-        case .ai: return "sparkles"
-        case .history: return "clock.arrow.circlepath"
-        case .system: return "gearshape"
+        case .shortcut:   "keyboard"
+        case .audio:      "waveform"
+        case .output:     "text.cursor"
+        case .dictionary: "book"
+        case .ai:         "sparkles"
+        case .history:    "clock.arrow.circlepath"
+        case .system:     "gearshape"
         }
     }
 }
 
+// MARK: – DictionaryRow
 private struct DictionaryRow: Identifiable, Equatable {
     let id = UUID()
-    var key: String
+    var key:   String
     var value: String
 }

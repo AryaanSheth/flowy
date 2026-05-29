@@ -1,14 +1,16 @@
 APP_NAME := Flowy
+VERSION  := 0.1.0
 APP_BUNDLE := target/release/bundle/macos/$(APP_NAME).app
 APPLICATIONS_BUNDLE := /Applications/$(APP_NAME).app
 
-.PHONY: help doctor dev build launch relaunch install install-relaunch install-relaunch-reset reset-accessibility open-installed check test logs clear-logs clean
+.PHONY: help doctor dev build dmg launch relaunch install install-relaunch install-relaunch-reset reset-accessibility open-installed check test logs clear-logs clean
 
 help:
 	@printf "Flowy targets:\n"
 	@printf "  make doctor          Check the local Swift/macOS toolchain\n"
 	@printf "  make dev             Build a debug native macOS app\n"
 	@printf "  make build           Build the release native macOS app bundle\n"
+	@printf "  make dmg             Build and package a distributable .dmg\n"
 	@printf "  make launch          Open the packaged app from target/release\n"
 	@printf "  make relaunch        Rebuild, kill old app, launch target app\n"
 	@printf "  make install         Copy the packaged app to /Applications\n"
@@ -30,6 +32,9 @@ dev:
 
 build:
 	./scripts/build-macos.sh
+
+dmg: build
+	./scripts/package-dmg.sh $(VERSION)
 
 launch: build
 	open "$(APP_BUNDLE)"

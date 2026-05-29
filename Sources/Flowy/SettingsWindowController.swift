@@ -21,6 +21,8 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         window.contentView = hostingView
         window.center()
         window.isReleasedWhenClosed = false
+        window.appearance = NSAppearance(named: .darkAqua)
+        window.backgroundColor = NSColor(red: 0.000, green: 0.017, blue: 0.031, alpha: 1.0)
 
         super.init()
         window.delegate = self

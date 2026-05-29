@@ -1,6 +1,6 @@
 /* Hallmark · tokens · genre: atmospheric · theme: custom (bold ocean flow)
- * vibe: "deep ocean, heavy type, flowing teal" · paper-band: dark · display-style: display-heavy · accent-hue: cool (195°)
- * Differs from Terminal on: accent-hue (cool-teal vs chromatic-green)
+ * vibe: "deep ocean, heavy type, flowing teal" · paper-band: dark · display-style: display-heavy
+ * brand teal: #1AAFAD — oklch(68% 0.113 193)
  */
 
 :root {
@@ -16,14 +16,14 @@
   --color-ink-2: oklch(64% 0.012 220);
   --color-ink-3: oklch(38% 0.012 220);
 
-  /* ── Accent — flowing teal (~3% usage target) ────────── */
-  --color-accent:   oklch(64% 0.23 195);
-  --color-accent-2: oklch(64% 0.23 195 / 0.14);
-  --color-accent-3: oklch(64% 0.23 195 / 0.07);
-  --color-focus:    oklch(64% 0.23 195);
+  /* ── Accent — brand teal #1AAFAD (~3% usage target) ─── */
+  --color-accent:   oklch(68% 0.113 193);
+  --color-accent-2: oklch(68% 0.113 193 / 0.14);
+  --color-accent-3: oklch(68% 0.113 193 / 0.07);
+  --color-focus:    oklch(68% 0.113 193);
 
   /* ── CTA surface (full-bleed teal section) ───────────── */
-  --color-cta-bg:  oklch(57% 0.22 195);
+  --color-cta-bg:  oklch(58% 0.113 193);
   --color-cta-ink: oklch(10% 0.025 220);
 
   /* ── Fonts ──────────────────────────────────────────── */

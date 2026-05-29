@@ -1,0 +1,77 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version (e.g. 0.1.0)'
+        required: true
+        default: '0.1.0'
+
+jobs:
+  build:
+    name: Build & Package
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: sudo xcode-select -s /Applications/Xcode.app
+
+      - name: Resolve version
+        id: ver
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+            echo "tag=v${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            TAG="${{ github.ref_name }}"
+            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+            echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Build app
+        run: scripts/build-macos.sh --check-only
+        # --check-only builds the bundle and skips the launch hint
+
+      - name: Package DMG
+        run: scripts/package-dmg.sh "${{ steps.ver.outputs.version }}"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          TAG="${{ steps.ver.outputs.tag }}"
+          DMG="target/release/Flowy-${VERSION}.dmg"
+
+          NOTES="## Flowy ${VERSION}
+
+          **macOS 13+, Apple Silicon**
+
+          ### Install
+          1. Download the .dmg below
+          2. Open it and drag **Flowy** to Applications
+          3. Launch Flowy — it lives in your menu bar
+          4. Grant Microphone and Speech Recognition when prompted
+          5. Set your hotkey in Settings and start speaking
+
+          > First launch: macOS may say the app is from an unidentified developer.
+          > Right-click the app → **Open** → **Open** to bypass Gatekeeper once.
+          "
+
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            gh release create "$TAG" "$DMG" \
+              --title "Flowy ${VERSION}" \
+              --notes "$NOTES" \
+              --prerelease
+          else
+            gh release create "$TAG" "$DMG" \
+              --title "Flowy ${VERSION}" \
+              --notes "$NOTES"
+          fi
