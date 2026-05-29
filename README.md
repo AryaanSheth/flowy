@@ -1,10 +1,8 @@
-# 🌿 Flowy
+# Flowy
 
-Minimal local speech-to-text for **macOS**.
-Hold a global hotkey → speak → release → text appears at the cursor.
+Minimal local speech-to-text for **macOS**.  
+Hold a global hotkey → speak → release → text appears at the cursor.  
 Fully offline. No telemetry. Optional LLM cleanup via local Ollama.
-
-> macOS-only for now — Windows & Linux are on the roadmap.
 
 ---
 
@@ -12,89 +10,71 @@ Fully offline. No telemetry. Optional LLM cleanup via local Ollama.
 
 | Feature | Detail |
 |---|---|
-| **Local only** | Transcription uses macOS Speech Recognition on your Mac — no API keys, no app server |
+| **Local only** | Transcription uses macOS Speech Recognition — no API keys, no cloud |
 | **Push-to-talk** | Hold a configurable global hotkey while speaking; text is injected on release |
 | **Custom dictionary** | Word-substitution map applied after transcription |
-| **Ollama enhancement** | Optional cleanup pass through a local LLM (e.g. `llama3.2:3b`) for punctuation & grammar |
+| **Ollama enhancement** | Optional cleanup pass through a local LLM for punctuation & grammar |
 | **Audio device picker** | Choose which microphone to record from |
 | **Output modes** | Type into focused window, copy to clipboard, or both |
 | **History** | Browse and copy your last 20 transcriptions |
 | **Autostart** | Optional launch at login |
-| **Minimal footprint** | Tauri (not Electron) — native webview, ~15 MB binary |
 
 ---
 
-## Prerequisites
+## Requirements
+
+- macOS 13 Ventura or later (Apple Silicon)
+- Xcode Command Line Tools
 
 ```bash
-# Xcode Command Line Tools (Clang + headers)
 xcode-select --install
+```
 
-# Rust toolchain (≥ 1.77)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+Optional — Ollama for AI enhancement:
 
-# Tauri CLI
-cargo install tauri-cli --version "^2"
-
-# Optional: Ollama for AI enhancement
+```bash
 brew install ollama
 ollama pull llama3.2:3b
-ollama serve   # runs in the background
+ollama serve
 ```
 
 ---
 
-## Run
-
-### Development
+## Build
 
 ```bash
-cargo tauri dev
+# Build and copy Flowy.app to /Applications
+make build
+
+# Build, then relaunch the running app
+make relaunch
+
+# Package a distributable DMG
+make dmg
 ```
-
-The settings window is hidden at startup. Right-click the tray icon → **Settings**.
-
-### Build a .dmg
-
-```bash
-# Regenerate icons from a 1024×1024 source PNG (optional)
-cargo tauri icon icons/icon.png
-
-# Build
-cargo tauri build
-```
-
-The signed `.dmg` is placed in `target/release/bundle/dmg/`.
 
 ---
 
-## Ollama post-processing (optional)
+## macOS permissions
 
-macOS Speech Recognition handles the audio→text part locally. The optional
-Ollama pass can clean up punctuation and capitalization locally in ~200 ms on
-Apple Silicon.
+On first use the OS will prompt for:
 
-1. **Install Ollama**: `brew install ollama && ollama serve`
-2. **Pull a small instruction-tuned model**:
-   ```bash
-   ollama pull llama3.2:3b      # ~2 GB, ~10 tok/s on M2
-   # or
-   ollama pull qwen2.5:3b       # similar, slightly different style
-   ```
-3. In Flowy, open **Settings → AI**, enable, click **Test**, pick the model.
+1. **Speech Recognition** — required for transcription.
+2. **Microphone** — required for recording.
+3. **Accessibility** — required for keystroke injection.  
+   System Settings → Privacy & Security → Accessibility → enable `Flowy`.
 
-Customise the system prompt to fit your style — for example, force lowercase
-for terminal use, or have it strip filler words.
+If Accessibility is not granted, Flowy falls back to copying text to the clipboard.
 
 ---
 
-## Configuration file
+## Configuration
+
+Config is written automatically on first launch.
 
 | Path | |
 |---|---|
 | macOS | `~/Library/Application Support/flowy/config.json` |
-
-Example `config.json`:
 
 ```json
 {
@@ -114,40 +94,24 @@ Example `config.json`:
 
 ---
 
-## macOS permissions
-
-On first use the OS may prompt for three permissions:
-
-1. **Speech Recognition** — required for transcription.
-2. **Microphone** — required for recording. Granted automatically on first record attempt.
-3. **Accessibility** — required for keystroke injection.
-   System Settings → Privacy & Security → Accessibility → enable `flowy`.
-
-If Accessibility is unavailable, Flowy falls back to copying transcribed text
-to your clipboard so you can paste manually.
-
----
-
 ## Architecture
 
-```
-Global hotkey ─── key down ──► recording thread (cpal)
-               └─ key up   ──► stop signal (AtomicBool)
-                                    │
-                             std::sync::mpsc
-                                    │
-                        pipeline thread (std::thread)
-                          ├─ downmix + write temp WAV
-                          ├─ transcribe              (macOS SFSpeechRecognizer)
-                          ├─ apply custom dictionary
-                          ├─ optional Ollama cleanup (ureq HTTP)
-                          ├─ store in history
-                          └─ inject text             (NSPasteboard + CGEvent)
-```
+Pure Swift / AppKit + SwiftUI macOS app. No Electron, no Tauri, no web layer.
 
-Frontend is plain HTML/CSS/JS (no framework, no build step) served via Tauri's
-asset protocol. The Rust backend exposes Tauri commands consumed by the
-settings window.
+```
+Global hotkey ──► AppModel (SwiftUI @Observable)
+                      │
+               AVAudioEngine recording
+                      │
+               SFSpeechRecognizer (on-device)
+                      │
+               custom dictionary substitution
+                      │
+               optional Ollama HTTP pass
+                      │
+               CGEvent keystroke injection  ──► focused app
+               (fallback: NSPasteboard)
+```
 
 ---
 
