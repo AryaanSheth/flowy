@@ -55,6 +55,40 @@ make dmg
 
 ---
 
+## Gatekeeper warning on first launch
+
+When you open Flowy for the first time, macOS will block it with a message like
+_"Flowy cannot be opened because it is from an unidentified developer"_ or flag it
+as potentially malicious. This is expected — the app is not yet signed with an
+Apple Developer ID certificate.
+
+**Workaround (one-time):**
+
+1. Right-click (or Control-click) `Flowy.app` → **Open**
+2. Click **Open** in the dialog that appears
+
+Or via System Settings:
+
+1. Try to open Flowy normally — it will be blocked
+2. Open **System Settings → Privacy & Security**
+3. Scroll to the Security section and click **Open Anyway** next to the Flowy entry
+4. Confirm with **Open**
+
+You only need to do this once. After that, Flowy opens normally.
+
+**Why this happens — and the proper fix:**
+
+macOS Gatekeeper requires apps distributed outside the App Store to be signed
+with a paid Apple Developer ID ($99/year) and notarized via Apple's notarization
+service. Until Flowy is enrolled in the Apple Developer Program and the CI
+pipeline is updated to sign and notarize the build, every downloaded copy will
+trigger this warning.
+
+Signing is on the roadmap. If you'd like to help or sponsor the developer
+account, open an issue.
+
+---
+
 ## macOS permissions
 
 On first use the OS will prompt for:
