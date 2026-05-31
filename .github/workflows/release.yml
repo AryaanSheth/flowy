@@ -53,7 +53,11 @@ jobs:
         run: |
           VERSION="${{ steps.ver.outputs.version }}"
           TAG="${{ steps.ver.outputs.tag }}"
-          DMG="target/release/Flowy-${VERSION}.dmg"
+          # Versioned file produced by package-dmg.sh
+          DMG_VERSIONED="target/release/Flowy-${VERSION}.dmg"
+          # Stable name so the website's direct-download URL never changes
+          DMG="target/release/Flowy.dmg"
+          cp "$DMG_VERSIONED" "$DMG"
 
           NOTES="## Flowy ${VERSION}
 
@@ -71,12 +75,12 @@ jobs:
           "
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            gh release create "$TAG" "$DMG" \
+            gh release create "$TAG" "$DMG_VERSIONED" "$DMG" \
               --title "Flowy ${VERSION}" \
               --notes "$NOTES" \
               --prerelease
           else
-            gh release create "$TAG" "$DMG" \
+            gh release create "$TAG" "$DMG_VERSIONED" "$DMG" \
               --title "Flowy ${VERSION}" \
               --notes "$NOTES"
           fi
