@@ -199,24 +199,28 @@ final class SpeechRecorder {
         guard let vadCallback, !stopping, !vadFired else { return }
         let db = Self.rmsDB(buffer)
 
-        if db >= vadSpeechStartDB {
-            vadSpeakerDetected = true
-            vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
-            if db > vadPeakDB { vadPeakDB = db }
+        // Phase 1 — wait for the user to speak above the arm threshold.
+        // Once armed we never drop back into this phase, so background noise
+        // above vadSpeechStartDB can no longer reset the silence timer.
+        if !vadSpeakerDetected {
+            if db >= vadSpeechStartDB {
+                vadSpeakerDetected = true
+                vadPeakDB = db
+                vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
+            }
             return
         }
 
-        guard vadSpeakerDetected else { return }
+        // Phase 2 — speech detected. Track peak and use adaptive silence threshold.
+        // vadSpeechStartDB is intentionally NOT used here; only the peak-relative
+        // thresholds matter, so background noise between vadSpeechStartDB and
+        // silenceThreshold no longer resets the clock.
+        if db > vadPeakDB { vadPeakDB = db }
 
-        // Adaptive thresholds: derived from peak speaking volume so they work in
-        // both quiet rooms and noisy offices. A speaker at -12 dBFS gets:
-        //   silenceThreshold ≈ -34  (was hardcoded -40, too low for typical rooms)
-        //   deepThreshold    ≈ -47  (was hardcoded -55, almost never triggered)
         let silenceThreshold = max(Self.silenceDBFloor, vadPeakDB - Self.silenceDropDB)
         let deepThreshold    = max(Self.deepSilenceDBFloor, vadPeakDB - Self.deepSilenceDropDB)
 
         if db > silenceThreshold {
-            // Still within ambient noise band of the speaking level — reset clock
             vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
             return
         }
