@@ -32,7 +32,7 @@ struct AppConfig: Codable, Equatable {
         translationEnabled: Bool = false,
         translationTargetLanguage: String = "en",
         vadEnabled: Bool = true,
-        vadSilenceSeconds: Double = 1.0,
+        vadSilenceSeconds: Double = 0.6,
         ollamaEnabled: Bool = false,
         ollamaEndpoint: String = "http://localhost:11434",
         ollamaModel: String = "llama3.2:3b",
@@ -91,7 +91,7 @@ struct AppConfig: Codable, Equatable {
         translationEnabled = try c.decodeIfPresent(Bool.self, forKey: .translationEnabled) ?? false
         translationTargetLanguage = try c.decodeIfPresent(String.self, forKey: .translationTargetLanguage) ?? "en"
         vadEnabled = try c.decodeIfPresent(Bool.self, forKey: .vadEnabled) ?? true
-        vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 1.5
+        vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 0.6
         ollamaEnabled = try c.decodeIfPresent(Bool.self, forKey: .ollamaEnabled) ?? false
         ollamaEndpoint = try c.decodeIfPresent(String.self, forKey: .ollamaEndpoint) ?? "http://localhost:11434"
         ollamaModel = try c.decodeIfPresent(String.self, forKey: .ollamaModel) ?? "llama3.2:3b"
@@ -152,7 +152,7 @@ struct AppConfig: Codable, Equatable {
 
         next.maxRecordingSecs = min(300, max(5, next.maxRecordingSecs))
         next.historySize = min(200, max(1, next.historySize))
-        next.vadSilenceSeconds = min(3.0, max(0.5, next.vadSilenceSeconds))
+        next.vadSilenceSeconds = min(3.0, max(0.3, next.vadSilenceSeconds))
 
         next.ollamaEndpoint = next.ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         if next.ollamaEndpoint.isEmpty {
