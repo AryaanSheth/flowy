@@ -23,8 +23,6 @@ final class AppModel: ObservableObject {
     init(config: AppConfig = .load()) {
         self.config = config
         refreshPermissions()
-        // Pre-warm the audio engine so the first recording skips engine.prepare().
-        speechRecorder.warmUp(deviceUID: config.inputDevice)
     }
 
     var configPath: String {
@@ -32,12 +30,15 @@ final class AppModel: ObservableObject {
     }
 
     func requestInitialPermissions() {
+        // Warm up the audio engine now that the app is fully launched and the
+        // audio subsystem is ready. Calling engine.prepare() earlier (e.g. in
+        // init) crashes because AVAudioEngineGraph isn't initializable yet.
+        speechRecorder.warmUp(deviceUID: config.inputDevice)
+
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             Task { @MainActor in
                 self?.refreshPermissions()
                 if status == .authorized {
-                    // Load the on-device speech model now so the first recording
-                    // doesn't pay the cold-start penalty.
                     self?.speechRecorder.warmUpRecognizer()
                 }
             }
