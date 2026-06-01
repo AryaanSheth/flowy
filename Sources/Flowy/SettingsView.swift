@@ -286,14 +286,22 @@ struct SettingsView: View {
                     }
                 }
                 RowDivider()
-                row("Speech threshold") {
-                    HStack(spacing: 8) {
+                row("Mic sensitivity") {
+                    // Negate so slider right = more sensitive (lower dBFS threshold).
+                    // Range 10…45 maps to dBFS -10…-45.
+                    let sensitivityBinding = Binding<Double>(
+                        get: { -draft.vadSpeechThresholdDB },
+                        set: { draft.vadSpeechThresholdDB = -$0 }
+                    )
+                    HStack(spacing: 6) {
+                        Text("Low").font(.system(size: 10)).foregroundStyle(BD.ink.opacity(0.5))
+                        Slider(value: sensitivityBinding, in: 10...45, step: 5)
+                            .frame(width: 100)
+                        Text("High").font(.system(size: 10)).foregroundStyle(BD.ink.opacity(0.5))
                         Text(String(format: "%.0f dB", draft.vadSpeechThresholdDB))
-                            .font(.system(size: 12))
-                            .foregroundStyle(BD.ink)
-                            .frame(width: 46, alignment: .trailing)
-                        Slider(value: $draft.vadSpeechThresholdDB, in: -50.0 ... -5.0, step: 1.0)
-                            .frame(width: 120)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(BD.ink.opacity(0.6))
+                            .frame(width: 44, alignment: .trailing)
                     }
                 }
             }
