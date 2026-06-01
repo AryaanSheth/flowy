@@ -25,7 +25,7 @@ struct AppConfig: Codable, Equatable {
         autostart: Bool = false,
         dictionary: [String: String] = [:],
         inputDevice: String? = nil,
-        outputMode: OutputMode = .type,
+        outputMode: OutputMode = .typeAndClipboard,
         maxRecordingSecs: Int = 60,
         historySize: Int = 20,
         activeToneID: String? = nil,
@@ -87,7 +87,7 @@ struct AppConfig: Codable, Equatable {
         autostart = try c.decodeIfPresent(Bool.self, forKey: .autostart) ?? false
         dictionary = try c.decodeIfPresent([String: String].self, forKey: .dictionary) ?? [:]
         inputDevice = try c.decodeIfPresent(String.self, forKey: .inputDevice)
-        outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .type
+        outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .typeAndClipboard
         maxRecordingSecs = try c.decodeIfPresent(Int.self, forKey: .maxRecordingSecs) ?? 60
         historySize = try c.decodeIfPresent(Int.self, forKey: .historySize) ?? 20
         activeToneID = try c.decodeIfPresent(String.self, forKey: .activeToneID)

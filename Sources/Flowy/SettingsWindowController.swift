@@ -12,17 +12,21 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
         let content = SettingsView(model: model)
         let hostingView = NSHostingView(rootView: content)
         window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 760, height: 640),
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 440),
+            styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
-        window.title = "Flowy Settings"
+        window.title = "Flowy"
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
+        window.isMovableByWindowBackground = true
+        window.backgroundColor = .clear
+        window.isOpaque = false
         window.contentView = hostingView
         window.center()
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .darkAqua)
-        window.backgroundColor = NSColor(red: 0.000, green: 0.017, blue: 0.031, alpha: 1.0)
 
         super.init()
         window.delegate = self

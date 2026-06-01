@@ -2,28 +2,41 @@ import AppKit
 import AVFoundation
 import SwiftUI
 
-// MARK: – Design tokens
-private enum BD {
-    static let bg      = Color(red: 0.000, green: 0.017, blue: 0.031)
-    static let card    = Color(red: 0.016, green: 0.060, blue: 0.075)
-    static let border  = Color(red: 0.058, green: 0.103, blue: 0.118)
-    static let ink     = Color(red: 0.890, green: 0.914, blue: 0.921)
-    static let muted   = Color(red: 0.520, green: 0.557, blue: 0.569)
-    static let teal    = Color(red: 0.102, green: 0.686, blue: 0.678)
-    static let danger  = Color(red: 0.840, green: 0.280, blue: 0.230)
-    static let warn    = Color(red: 0.930, green: 0.680, blue: 0.200)
+// MARK: – Glass blur background
+private struct VisualEffect: NSViewRepresentable {
+    let material: NSVisualEffectView.Material
+    let blending: NSVisualEffectView.BlendingMode
+    func makeNSView(context: Context) -> NSVisualEffectView {
+        let v = NSVisualEffectView()
+        v.material = material
+        v.blendingMode = blending
+        v.state = .active
+        return v
+    }
+    func updateNSView(_ v: NSVisualEffectView, context: Context) {}
+}
+
+// MARK: – Design tokens (glass palette)
+private enum G {
+    static let text    = Color.white
+    static let dim     = Color.white.opacity(0.48)
+    static let faint   = Color.white.opacity(0.22)
+    static let border  = Color.white.opacity(0.09)
+    static let fill    = Color.white.opacity(0.055)
+    static let teal    = Color(red: 0.10, green: 0.80, blue: 0.72)
+    static let danger  = Color(red: 1.00, green: 0.38, blue: 0.35)
+    static let warn    = Color(red: 0.96, green: 0.77, blue: 0.28)
 }
 
 // MARK: – Button styles
-private struct TealBtn: ButtonStyle {
+private struct PrimaryBtn: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12, weight: .semibold))
-            .foregroundStyle(.white)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
-            .background(BD.teal.opacity(configuration.isPressed ? 0.7 : 1),
-                        in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .foregroundStyle(.black.opacity(0.85))
+            .padding(.horizontal, 16).padding(.vertical, 7)
+            .background(G.teal.opacity(configuration.isPressed ? 0.7 : 1),
+                        in: RoundedRectangle(cornerRadius: 7, style: .continuous))
     }
 }
 
@@ -31,9 +44,8 @@ private struct GhostBtn: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 12))
-            .foregroundStyle(BD.muted)
-            .padding(.horizontal, 14)
-            .padding(.vertical, 7)
+            .foregroundStyle(G.dim)
+            .padding(.horizontal, 14).padding(.vertical, 7)
     }
 }
 
@@ -41,26 +53,25 @@ private struct NudgeBtn: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 11, weight: .medium))
-            .foregroundStyle(configuration.isPressed ? BD.teal.opacity(0.6) : BD.muted)
+            .foregroundStyle(configuration.isPressed ? G.teal.opacity(0.6) : G.faint)
     }
 }
 
-private struct BrandField: TextFieldStyle {
+private struct GlassField: TextFieldStyle {
     // swiftlint:disable:next identifier_name
     func _body(configuration: TextField<Self._Label>) -> some View {
         configuration
             .font(.system(size: 12))
-            .foregroundStyle(BD.ink)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 6)
-            .background(BD.card, in: RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous)
-                .stroke(BD.border, lineWidth: 1))
+            .foregroundStyle(G.text)
+            .padding(.horizontal, 8).padding(.vertical, 6)
+            .background(G.fill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .strokeBorder(G.border, lineWidth: 1))
     }
 }
 
-private struct RowDivider: View {
-    var body: some View { BD.border.frame(height: 1) }
+private struct Divider: View {
+    var body: some View { G.border.frame(height: 1) }
 }
 
 // MARK: – Main view
@@ -68,483 +79,476 @@ struct SettingsView: View {
     @ObservedObject var model: AppModel
 
     @State private var draft: AppConfig
-    @State private var selectedSection: SettingsSection = .record
+    @State private var tab: Tab = .record
     @State private var devices: [AudioInputDevice] = []
-    @State private var dictRows: [DictionaryRow]
-    @State private var dictionaryTestInput = ""
-    @State private var dictionaryTestOutput = "-"
-    @State private var saveMessage = ""
+    @State private var dictRows: [DictRow]
+    @State private var testInput  = ""
+    @State private var testOutput = "—"
+    @State private var saveMsg    = ""
 
     init(model: AppModel) {
         self.model = model
-        _draft = State(initialValue: model.config)
-        _dictRows = State(initialValue: Self.rows(from: model.config.dictionary))
+        _draft    = State(initialValue: model.config)
+        _dictRows = State(initialValue: Self.dictRows(from: model.config.dictionary))
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            brandHeader
-            HStack(spacing: 0) {
-                sidebar
-                ZStack {
-                    BD.bg
-                    ScrollView {
-                        sectionContent
-                            .padding(.horizontal, 28)
-                            .padding(.vertical, 24)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
-                    }
+        ZStack {
+            VisualEffect(material: .hudWindow, blending: .behindWindow)
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                header
+                HStack(spacing: 0) {
+                    sidebar
+                    content
                 }
+                footer
             }
-            footer
         }
-        .frame(minWidth: 600, minHeight: 440)
-        .background(BD.bg)
         .environment(\.colorScheme, .dark)
         .onAppear { refreshDevices(); model.refreshPermissions() }
     }
 
-    // MARK: Header
-    private var brandHeader: some View {
-        HStack {
-            HStack(spacing: 8) {
-                Canvas { ctx, size in
-                    var p = Path()
-                    let h = size.height, w = size.width
-                    p.move(to: .init(x: 0, y: h * 0.5))
-                    p.addCurve(to: .init(x: w * 0.5, y: h * 0.5),
-                               control1: .init(x: w * 0.15, y: h * 0.06),
-                               control2: .init(x: w * 0.35, y: h * 0.94))
-                    p.addCurve(to: .init(x: w, y: h * 0.5),
-                               control1: .init(x: w * 0.65, y: h * 0.06),
-                               control2: .init(x: w * 0.85, y: h * 0.94))
-                    ctx.stroke(p, with: .color(.white),
-                               style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
-                }
-                .frame(width: 22, height: 12)
-                Text("flowy")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundStyle(.white)
-                    .tracking(-0.2)
+    // MARK: – Header
+    private var header: some View {
+        HStack(spacing: 10) {
+            // Wave logo
+            Canvas { ctx, size in
+                var p = Path()
+                let h = size.height, w = size.width
+                p.move(to: .init(x: 0, y: h * 0.5))
+                p.addCurve(to: .init(x: w * 0.5, y: h * 0.5),
+                           control1: .init(x: w * 0.15, y: h * 0.1),
+                           control2: .init(x: w * 0.35, y: h * 0.9))
+                p.addCurve(to: .init(x: w, y: h * 0.5),
+                           control1: .init(x: w * 0.65, y: h * 0.1),
+                           control2: .init(x: w * 0.85, y: h * 0.9))
+                ctx.stroke(p, with: .color(.white),
+                           style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
             }
+            .frame(width: 20, height: 11)
+
+            Text("flowy")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(G.text)
+                .tracking(-0.3)
+
             Spacer()
+
             HStack(spacing: 5) {
-                Circle().fill(statusDotColor).frame(width: 5, height: 5)
+                Circle().fill(statusDot).frame(width: 5, height: 5)
                 Text(model.status.label)
-                    .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .font(.system(size: 11))
+                    .foregroundStyle(G.dim)
             }
-            .padding(.horizontal, 9).padding(.vertical, 4)
-            .background(.white.opacity(0.10), in: Capsule())
         }
-        .padding(.horizontal, 18).padding(.vertical, 10)
-        .background(BD.teal)
+        .padding(.horizontal, 18)
+        .padding(.top, 14)
+        .padding(.bottom, 10)
+        .background(G.fill)
+        .overlay(alignment: .bottom) { G.border.frame(height: 1) }
     }
 
-    // MARK: Sidebar
+    // MARK: – Sidebar
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: 1) {
-            ForEach(SettingsSection.allCases) { section in
-                let active = selectedSection == section
-                Button {
-                    selectedSection = section
-                    if section == .audio  { refreshDevices() }
-                    if section == .system { model.refreshPermissions() }
-                } label: {
-                    HStack(spacing: 7) {
-                        Image(systemName: section.symbol)
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(Tab.allCases) { t in
+                Button { tab = t } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: t.icon)
                             .font(.system(size: 11))
-                            .foregroundStyle(active ? BD.teal : BD.muted)
+                            .foregroundStyle(tab == t ? G.teal : G.faint)
                             .frame(width: 14)
-                        Text(section.title)
-                            .font(.system(size: 13, weight: active ? .medium : .regular))
-                            .foregroundStyle(active ? BD.ink : BD.muted)
+                        Text(t.label)
+                            .font(.system(size: 12, weight: tab == t ? .medium : .regular))
+                            .foregroundStyle(tab == t ? G.text : G.dim)
                         Spacer()
                     }
-                    .padding(.horizontal, 12).padding(.vertical, 8)
+                    .padding(.horizontal, 12).padding(.vertical, 7)
+                    .background(tab == t ? G.fill : .clear,
+                                in: RoundedRectangle(cornerRadius: 6, style: .continuous))
                     .overlay(alignment: .leading) {
-                        if active { BD.teal.frame(width: 2).padding(.vertical, 6) }
+                        if tab == t {
+                            G.teal.frame(width: 2)
+                                .clipShape(RoundedRectangle(cornerRadius: 1))
+                                .padding(.vertical, 6)
+                        }
                     }
                 }
                 .buttonStyle(.plain)
+                .padding(.horizontal, 6)
             }
             Spacer()
         }
         .padding(.top, 10)
-        .frame(width: 140)
-        .background(BD.bg)
-        .overlay(alignment: .trailing) { BD.border.frame(width: 1) }
+        .frame(width: 130)
+        .overlay(alignment: .trailing) { G.border.frame(width: 1) }
     }
 
-    // MARK: Section routing
-    @ViewBuilder
-    private var sectionContent: some View {
-        switch selectedSection {
-        case .record:     recordSection
-        case .audio:      audioSection
-        case .output:     outputSection
-        case .dictionary: dictionarySection
-        case .history:    historySection
-        case .system:     systemSection
+    // MARK: – Content
+    private var content: some View {
+        ScrollView {
+            Group {
+                switch tab {
+                case .record:     recordTab
+                case .dictionary: dictionaryTab
+                case .history:    historyTab
+                case .system:     systemTab
+                }
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 
-    // MARK: Footer
+    // MARK: – Footer
     private var footer: some View {
         HStack {
-            Text(model.lastError ?? saveMessage)
+            Text(model.lastError ?? saveMsg)
                 .font(.system(size: 11))
-                .foregroundStyle(model.lastError == nil ? BD.muted : BD.danger)
+                .foregroundStyle(model.lastError == nil ? G.faint : G.danger)
                 .lineLimit(1)
             Spacer()
             Button("Discard") { resetDraft() }.buttonStyle(GhostBtn())
             Button("Save") { saveDraft() }
-                .buttonStyle(TealBtn())
+                .buttonStyle(PrimaryBtn())
                 .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
-        .background(BD.bg)
-        .overlay(alignment: .top) { BD.border.frame(height: 1) }
+        .background(G.fill)
+        .overlay(alignment: .top) { G.border.frame(height: 1) }
     }
 
-    // MARK: – Sections
+    // MARK: – Tabs
 
-    private var recordSection: some View {
+    private var recordTab: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("Record")
-            permissionBanners
+            tabTitle("Record")
+            permBanners
 
-            VStack(alignment: .leading, spacing: 8) {
+            // Hold-to-record button
+            VStack(alignment: .leading, spacing: 6) {
                 HoldRecordButton(
                     isRecording: model.status == .recording,
                     onPress: model.startRecording,
                     onRelease: model.stopRecording
                 )
                 .frame(maxWidth: .infinity, minHeight: 34)
-                Text("Click and hold — release to transcribe.")
+                Text("Hold to record · release to transcribe")
                     .font(.system(size: 11))
-                    .foregroundStyle(BD.muted)
+                    .foregroundStyle(G.faint)
             }
-            .padding(.bottom, 24)
+            .padding(.bottom, 20)
 
-            RowDivider()
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("Global hotkey")
-                        .font(.system(size: 13))
-                        .foregroundStyle(BD.ink)
-                    Button("reset to default") { draft.hotkey = "CmdOrCtrl+Shift+Space" }
-                        .font(.system(size: 10))
-                        .foregroundStyle(BD.muted)
-                        .buttonStyle(.plain)
+            glassCard {
+                // Hotkey
+                HStack(spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Hotkey").font(.system(size: 13)).foregroundStyle(G.text)
+                        Button("reset") { draft.hotkey = "CmdOrCtrl+Shift+Space" }
+                            .font(.system(size: 10)).foregroundStyle(G.faint).buttonStyle(.plain)
+                    }
+                    Spacer()
+                    HotkeyRecorderView(hotkey: $draft.hotkey).frame(height: 28)
                 }
-                Spacer()
-                HotkeyRecorderView(hotkey: $draft.hotkey).frame(height: 28)
-            }
-            .padding(.vertical, 10)
-            RowDivider()
-            row("Recording limit") {
-                HStack(spacing: 6) {
-                    Text("\(draft.maxRecordingSecs) s")
-                        .font(.system(size: 12)).foregroundStyle(BD.ink)
-                        .frame(width: 36, alignment: .trailing)
-                    Stepper("", value: $draft.maxRecordingSecs, in: 5...300, step: 5)
-                        .labelsHidden()
+                .padding(.vertical, 10).padding(.horizontal, 14)
+
+                Divider().padding(.horizontal, 14)
+
+                // Input device
+                row("Microphone") {
+                    HStack(spacing: 8) {
+                        Picker("", selection: inputDeviceBinding) {
+                            Text("System default").tag("")
+                            ForEach(devices) { d in Text(d.name).tag(d.uid) }
+                        }
+                        .labelsHidden().frame(width: 180)
+                        Button { refreshDevices() } label: {
+                            Image(systemName: "arrow.clockwise").font(.system(size: 10))
+                        }.buttonStyle(NudgeBtn())
+                    }
                 }
-            }
-            RowDivider()
-            row("Auto-stop on silence") {
-                Toggle("", isOn: $draft.vadEnabled).labelsHidden().tint(BD.teal)
-            }
-            if draft.vadEnabled {
-                RowDivider()
-                row("Silence delay") {
+
+                Divider().padding(.horizontal, 14)
+
+                // Recording limit
+                row("Max duration") {
                     HStack(spacing: 6) {
-                        Text(String(format: "%.1f s", draft.vadSilenceSeconds))
-                            .font(.system(size: 12)).foregroundStyle(BD.ink)
+                        Text("\(draft.maxRecordingSecs) s")
+                            .font(.system(size: 12)).foregroundStyle(G.text)
                             .frame(width: 36, alignment: .trailing)
-                        Stepper("", value: $draft.vadSilenceSeconds, in: 0.3...3.0, step: 0.3)
+                        Stepper("", value: $draft.maxRecordingSecs, in: 5...300, step: 5)
                             .labelsHidden()
                     }
                 }
+
+                Divider().padding(.horizontal, 14)
+
+                // Auto-stop
+                row("Auto-stop on silence") {
+                    Toggle("", isOn: $draft.vadEnabled).labelsHidden().tint(G.teal)
+                }
+
+                if draft.vadEnabled {
+                    Divider().padding(.horizontal, 14)
+                    row("Silence delay") {
+                        HStack(spacing: 6) {
+                            Text(String(format: "%.1f s", draft.vadSilenceSeconds))
+                                .font(.system(size: 12)).foregroundStyle(G.text)
+                                .frame(width: 36, alignment: .trailing)
+                            Stepper("", value: $draft.vadSilenceSeconds, in: 0.3...3.0, step: 0.3)
+                                .labelsHidden()
+                        }
+                    }
+                }
             }
         }
     }
 
-    private var audioSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("Audio")
-            row("Input device") {
-                HStack(spacing: 8) {
-                    Picker("", selection: inputDeviceBinding) {
-                        Text("System default").tag("")
-                        ForEach(devices) { d in Text(d.name).tag(d.uid) }
+    private var dictionaryTab: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            tabTitle("Dictionary")
+            glassCard {
+                VStack(alignment: .leading, spacing: 0) {
+                    ForEach(dictRows.indices, id: \.self) { i in
+                        HStack(spacing: 6) {
+                            TextField("word", text: $dictRows[i].key)
+                                .textFieldStyle(GlassField())
+                            Image(systemName: "arrow.right")
+                                .font(.system(size: 10)).foregroundStyle(G.faint)
+                            TextField("replacement", text: $dictRows[i].value)
+                                .textFieldStyle(GlassField())
+                            Button { dictRows.remove(at: i); runTest() } label: {
+                                Image(systemName: "xmark").font(.system(size: 10))
+                            }.buttonStyle(NudgeBtn())
+                        }
+                        .padding(.horizontal, 14).padding(.vertical, 8)
+                        if i < dictRows.count - 1 { Divider().padding(.horizontal, 14) }
                     }
-                    .labelsHidden().frame(width: 200)
-                    Button { refreshDevices() } label: {
-                        Image(systemName: "arrow.clockwise").font(.system(size: 11))
+                    if dictRows.isEmpty {
+                        Text("No substitutions yet")
+                            .font(.system(size: 12)).foregroundStyle(G.faint)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 16)
+                    }
+                    Divider().padding(.horizontal, 14)
+                    Button { dictRows.append(DictRow(key: "", value: "")) } label: {
+                        Label("Add word", systemImage: "plus").font(.system(size: 11))
                     }
                     .buttonStyle(NudgeBtn())
+                    .padding(.horizontal, 14).padding(.vertical, 10)
                 }
-            }
-        }
-    }
-
-    private var outputSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("Output")
-            ForEach(Array(OutputMode.allCases.enumerated()), id: \.offset) { i, mode in
-                Button { draft.outputMode = mode } label: {
-                    HStack(alignment: .top, spacing: 11) {
-                        ZStack {
-                            Circle()
-                                .stroke(draft.outputMode == mode ? BD.teal : BD.border, lineWidth: 1.5)
-                                .frame(width: 15, height: 15)
-                            if draft.outputMode == mode {
-                                Circle().fill(BD.teal).frame(width: 7, height: 7)
-                            }
-                        }
-                        .padding(.top, 2)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(mode.title).font(.system(size: 13)).foregroundStyle(BD.ink)
-                            Text(mode.subtitle).font(.system(size: 11)).foregroundStyle(BD.muted)
-                        }
-                        Spacer()
-                    }
-                    .padding(.vertical, 11)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                if i < OutputMode.allCases.count - 1 { RowDivider() }
-            }
-        }
-    }
-
-    private var dictionarySection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            sectionTitle("Dictionary")
-            VStack(alignment: .leading, spacing: 6) {
-                ForEach(dictRows.indices, id: \.self) { i in
-                    HStack(spacing: 6) {
-                        TextField("word", text: $dictRows[i].key)
-                            .textFieldStyle(BrandField())
-                        Image(systemName: "arrow.right")
-                            .font(.system(size: 10)).foregroundStyle(BD.muted)
-                        TextField("replacement", text: $dictRows[i].value)
-                            .textFieldStyle(BrandField())
-                        Button { dictRows.remove(at: i); runDictionaryTest() } label: {
-                            Image(systemName: "xmark").font(.system(size: 10))
-                        }
-                        .buttonStyle(NudgeBtn())
-                    }
-                }
-                Button { dictRows.append(DictionaryRow(key: "", value: "")) } label: {
-                    Label("Add", systemImage: "plus").font(.system(size: 11))
-                }
-                .buttonStyle(NudgeBtn())
-                .padding(.top, 4)
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Preview").font(.system(size: 11)).foregroundStyle(BD.muted)
-                TextField("Type to test substitutions…", text: $dictionaryTestInput)
-                    .textFieldStyle(BrandField())
-                    .onChange(of: dictionaryTestInput) { _ in runDictionaryTest() }
-                Text(dictionaryTestOutput)
+                Text("Preview").font(.system(size: 11)).foregroundStyle(G.faint)
+                TextField("Type to test…", text: $testInput)
+                    .textFieldStyle(GlassField())
+                    .onChange(of: testInput) { _ in runTest() }
+                Text(testOutput)
                     .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(BD.muted)
+                    .foregroundStyle(G.dim)
             }
         }
     }
 
-    private var historySection: some View {
+    private var historyTab: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
-                sectionTitle("History")
+                tabTitle("History")
                 Spacer()
                 Button { model.clearHistory() } label: {
-                    Text("Clear").font(.system(size: 12))
+                    Text("Clear").font(.system(size: 11))
                 }
                 .buttonStyle(NudgeBtn())
                 .disabled(model.history.isEmpty)
             }
             if model.history.isEmpty {
-                VStack(spacing: 10) {
+                VStack(spacing: 8) {
                     Image(systemName: "text.bubble")
-                        .font(.system(size: 28)).foregroundStyle(BD.border)
+                        .font(.system(size: 24)).foregroundStyle(G.border)
                     Text("No transcriptions yet")
-                        .font(.system(size: 13)).foregroundStyle(BD.muted)
+                        .font(.system(size: 13)).foregroundStyle(G.faint)
                 }
-                .frame(maxWidth: .infinity, minHeight: 180)
+                .frame(maxWidth: .infinity, minHeight: 160)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(model.history.enumerated()), id: \.offset) { _, text in
                         HStack(alignment: .top, spacing: 10) {
                             Text(text)
-                                .font(.system(size: 12)).foregroundStyle(BD.ink)
+                                .font(.system(size: 12)).foregroundStyle(G.text)
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Button { TextOutput.copyToClipboard(text) } label: {
                                 Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 11)).foregroundStyle(BD.muted)
-                            }
-                            .buttonStyle(.plain)
+                                    .font(.system(size: 11)).foregroundStyle(G.faint)
+                            }.buttonStyle(.plain)
                         }
-                        .padding(.horizontal, 10).padding(.vertical, 9)
-                        .background(BD.card)
-                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .padding(.horizontal, 12).padding(.vertical, 9)
+                        .background(G.fill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(G.border, lineWidth: 1))
                     }
                 }
             }
         }
     }
 
-    private var systemSection: some View {
+    private var systemTab: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("System")
-            row("Launch at login") {
-                Toggle("", isOn: $draft.autostart).labelsHidden().tint(BD.teal)
-            }
-            RowDivider()
-            permRow("Speech Recognition", granted: model.permissions.speechAuthorized)
-            RowDivider()
-            permRow("Microphone",         granted: model.permissions.microphoneAuthorized)
-            RowDivider()
-            permRow("Accessibility",       granted: model.permissions.accessibilityTrusted)
-            RowDivider()
-            Button {
-                TextOutput.requestAccessibilityAccess()
-                TextOutput.openAccessibilitySettings()
-            } label: {
-                Label("Open Accessibility Settings", systemImage: "lock.open")
-                    .font(.system(size: 12))
-            }
-            .buttonStyle(NudgeBtn())
-            .padding(.vertical, 10)
-            RowDivider()
-            row("Config") {
+            tabTitle("System")
+            glassCard {
+                row("Launch at login") {
+                    Toggle("", isOn: $draft.autostart).labelsHidden().tint(G.teal)
+                }
+
+                Divider().padding(.horizontal, 14)
+                permRow("Speech Recognition", ok: model.permissions.speechAuthorized)
+                Divider().padding(.horizontal, 14)
+                permRow("Microphone",         ok: model.permissions.microphoneAuthorized)
+                Divider().padding(.horizontal, 14)
+                permRow("Accessibility",       ok: model.permissions.accessibilityTrusted)
+                Divider().padding(.horizontal, 14)
+
+                Button {
+                    TextOutput.requestAccessibilityAccess()
+                    TextOutput.openAccessibilitySettings()
+                } label: {
+                    Label("Open Accessibility Settings", systemImage: "lock.open")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(NudgeBtn())
+                .padding(.horizontal, 14).padding(.vertical, 10)
+
+                Divider().padding(.horizontal, 14)
+
                 HStack(spacing: 8) {
                     Text(model.configPath)
                         .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(BD.muted)
+                        .foregroundStyle(G.faint)
                         .textSelection(.enabled)
                         .lineLimit(1)
+                    Spacer()
                     Button {
-                        NSWorkspace.shared.selectFile(
-                            AppConfig.configURL.path, inFileViewerRootedAtPath: "")
+                        NSWorkspace.shared.selectFile(AppConfig.configURL.path, inFileViewerRootedAtPath: "")
                     } label: {
                         Image(systemName: "folder").font(.system(size: 11))
-                    }
-                    .buttonStyle(NudgeBtn())
+                    }.buttonStyle(NudgeBtn())
                 }
+                .padding(.horizontal, 14).padding(.vertical, 10)
             }
         }
     }
 
-    // MARK: – Shared sub-views
+    // MARK: – Shared components
 
     @ViewBuilder
-    private var permissionBanners: some View {
+    private var permBanners: some View {
         if !model.permissions.accessibilityTrusted {
-            inlineBanner(
-                "Accessibility required — if Flowy is listed, remove and re-add it.",
-                action: { TextOutput.requestAccessibilityAccess(); TextOutput.openAccessibilitySettings() },
-                actionLabel: "Fix"
-            )
+            banner("Accessibility required — remove and re-add Flowy if already listed.",
+                   action: { TextOutput.requestAccessibilityAccess(); TextOutput.openAccessibilitySettings() },
+                   label: "Fix")
         }
         if !model.permissions.speechAuthorized {
-            inlineBanner("Speech Recognition not authorized.",
-                         action: model.requestInitialPermissions, actionLabel: "Request")
+            banner("Speech Recognition not authorized.",
+                   action: model.requestInitialPermissions, label: "Request")
         }
         if !model.permissions.microphoneAuthorized {
-            inlineBanner("Microphone access required.",
-                         action: model.requestInitialPermissions, actionLabel: "Request")
+            banner("Microphone access required.",
+                   action: model.requestInitialPermissions, label: "Request")
         }
     }
 
-    private func sectionTitle(_ text: String) -> some View {
-        Text(text)
-            .font(.system(size: 16, weight: .medium))
-            .foregroundStyle(BD.ink)
-            .padding(.bottom, 16)
+    private func tabTitle(_ s: String) -> some View {
+        Text(s)
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(G.text)
+            .padding(.bottom, 14)
+    }
+
+    @ViewBuilder
+    private func glassCard<C: View>(@ViewBuilder _ content: () -> C) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content()
+        }
+        .background(G.fill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(G.border, lineWidth: 1))
     }
 
     private func row<C: View>(_ label: String, @ViewBuilder control: () -> C) -> some View {
         HStack(spacing: 12) {
-            Text(label).font(.system(size: 13)).foregroundStyle(BD.ink)
+            Text(label).font(.system(size: 13)).foregroundStyle(G.text)
             Spacer()
             control()
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 10).padding(.horizontal, 14)
     }
 
-    private func permRow(_ title: String, granted: Bool) -> some View {
+    private func permRow(_ title: String, ok: Bool) -> some View {
         HStack {
-            Circle()
-                .fill(granted ? BD.teal : BD.danger.opacity(0.8))
-                .frame(width: 5, height: 5)
-            Text(title).font(.system(size: 13)).foregroundStyle(BD.ink)
+            Circle().fill(ok ? G.teal : G.danger.opacity(0.8)).frame(width: 5, height: 5)
+            Text(title).font(.system(size: 13)).foregroundStyle(G.text)
             Spacer()
-            Text(granted ? "granted" : "missing")
+            Text(ok ? "granted" : "missing")
                 .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(granted ? BD.teal.opacity(0.75) : BD.danger.opacity(0.75))
+                .foregroundStyle(ok ? G.teal.opacity(0.8) : G.danger.opacity(0.8))
         }
-        .padding(.vertical, 10)
+        .padding(.vertical, 10).padding(.horizontal, 14)
     }
 
-    private func inlineBanner(_ message: String, action: @escaping () -> Void, actionLabel: String) -> some View {
+    private func banner(_ msg: String, action: @escaping () -> Void, label: String) -> some View {
         HStack(spacing: 10) {
-            Circle().fill(BD.warn).frame(width: 5, height: 5)
-            Text(message)
-                .font(.system(size: 11)).foregroundStyle(BD.muted)
+            Circle().fill(G.warn).frame(width: 5, height: 5)
+            Text(msg).font(.system(size: 11)).foregroundStyle(G.dim)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
-            Button(actionLabel, action: action)
+            Button(label, action: action)
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(BD.warn)
-                .buttonStyle(.plain)
+                .foregroundStyle(G.warn).buttonStyle(.plain)
         }
-        .padding(.vertical, 8).padding(.bottom, 6)
+        .padding(.vertical, 7).padding(.bottom, 4)
     }
 
-    // MARK: – Bindings & logic
+    // MARK: – Logic
 
     private var inputDeviceBinding: Binding<String> {
-        Binding(
-            get: { draft.inputDevice ?? "" },
-            set: { draft.inputDevice = $0.isEmpty ? nil : $0 }
-        )
+        Binding(get: { draft.inputDevice ?? "" },
+                set: { draft.inputDevice = $0.isEmpty ? nil : $0 })
     }
 
-    private var statusDotColor: Color {
+    private var statusDot: Color {
         switch model.status {
-        case .idle:         return .white.opacity(0.4)
-        case .recording:    return Color(red: 1.0, green: 0.42, blue: 0.38)
-        case .transcribing: return .white
+        case .idle:         return G.faint
+        case .recording:    return G.danger
+        case .transcribing: return G.text
         }
     }
 
     private func refreshDevices() { devices = AudioDeviceManager.inputDevices() }
 
     private func saveDraft() {
-        var clean = draft
-        clean.dictionary = collectedDictionary()
+        var c = draft
+        c.dictionary = collectedDict()
+        c.outputMode = .typeAndClipboard  // always
         do {
-            try model.saveConfig(clean)
+            try model.saveConfig(c)
             resetDraft()
-            saveMessage = "Saved"
+            saveMsg = "Saved"
         } catch {
-            saveMessage = error.localizedDescription
+            saveMsg = error.localizedDescription
         }
     }
 
     private func resetDraft() {
-        draft = model.config
-        dictRows = Self.rows(from: model.config.dictionary)
-        runDictionaryTest()
+        draft    = model.config
+        dictRows = Self.dictRows(from: model.config.dictionary)
+        runTest()
     }
 
-    private func collectedDictionary() -> [String: String] {
+    private func collectedDict() -> [String: String] {
         var r: [String: String] = [:]
         for row in dictRows {
             let k = row.key.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
@@ -554,41 +558,36 @@ struct SettingsView: View {
         return r
     }
 
-    private func runDictionaryTest() {
-        guard !dictionaryTestInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            dictionaryTestOutput = "-"; return
+    private func runTest() {
+        guard !testInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            testOutput = "—"; return
         }
-        dictionaryTestOutput = DictionaryRewriter.apply(
-            dictionaryTestInput, dictionary: collectedDictionary())
+        testOutput = DictionaryRewriter.apply(testInput, dictionary: collectedDict())
     }
 
-    private static func rows(from dict: [String: String]) -> [DictionaryRow] {
-        dict.sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
-            .map { DictionaryRow(key: $0.key, value: $0.value) }
+    private static func dictRows(from d: [String: String]) -> [DictRow] {
+        d.sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
+         .map { DictRow(key: $0.key, value: $0.value) }
     }
 }
 
-// MARK: – Section enum
-private enum SettingsSection: String, CaseIterable, Identifiable {
-    case record, audio, output, dictionary, history, system
+// MARK: – Tab enum
+private enum Tab: String, CaseIterable, Identifiable {
+    case record, dictionary, history, system
     var id: String { rawValue }
 
-    var title: String {
+    var label: String {
         switch self {
         case .record:     "Record"
-        case .audio:      "Audio"
-        case .output:     "Output"
         case .dictionary: "Dictionary"
         case .history:    "History"
         case .system:     "System"
         }
     }
 
-    var symbol: String {
+    var icon: String {
         switch self {
-        case .record:     "keyboard"
-        case .audio:      "waveform"
-        case .output:     "text.cursor"
+        case .record:     "waveform"
         case .dictionary: "book"
         case .history:    "clock.arrow.circlepath"
         case .system:     "gearshape"
@@ -596,9 +595,9 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: – DictionaryRow
-private struct DictionaryRow: Identifiable, Equatable {
+// MARK: – DictRow
+private struct DictRow: Identifiable, Equatable {
     let id = UUID()
-    var key:   String
+    var key: String
     var value: String
 }
