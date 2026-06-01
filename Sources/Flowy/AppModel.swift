@@ -30,6 +30,13 @@ final class AppModel: ObservableObject {
     }
 
     func requestInitialPermissions() {
+        // If mic is already authorized (e.g. on subsequent launches) warm up now.
+        // Otherwise engine.prepare() throws on macOS 26 — never touch the audio
+        // graph until the mic permission callback confirms access is granted.
+        if AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
+            speechRecorder.warmUp(deviceUID: config.inputDevice)
+        }
+
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             Task { @MainActor in
                 self?.refreshPermissions()
@@ -39,15 +46,12 @@ final class AppModel: ObservableObject {
             }
         }
 
-        AVCaptureDevice.requestAccess(for: .audio) { [weak self] _ in
-            Task { @MainActor in self?.refreshPermissions() }
-        }
-
-        // Warm up the engine after a short delay so the permission dialogs
-        // appear first and the main thread is not blocked by engine.prepare().
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self else { return }
-            self.speechRecorder.warmUp(deviceUID: self.config.inputDevice)
+        AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
+            Task { @MainActor in
+                self?.refreshPermissions()
+                // Warm up only once the system confirms mic access.
+                if granted { self?.speechRecorder.warmUp(deviceUID: self?.config.inputDevice) }
+            }
         }
     }
 
