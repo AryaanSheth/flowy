@@ -1,9 +1,9 @@
 APP_NAME := Flowy
-VERSION  := 0.1.0
+VERSION  := 0.2.0
 APP_BUNDLE := target/release/bundle/macos/$(APP_NAME).app
 APPLICATIONS_BUNDLE := /Applications/$(APP_NAME).app
 
-.PHONY: help doctor dev build dmg launch relaunch install install-relaunch install-relaunch-reset reset-accessibility open-installed check test logs clear-logs clean
+.PHONY: help doctor dev build dmg launch relaunch install install-relaunch install-relaunch-reset uninstall reset-accessibility open-installed check test logs clear-logs clean
 
 help:
 	@printf "Flowy targets:\n"
@@ -22,6 +22,7 @@ help:
 	@printf "  make test            Run native build smoke checks\n"
 	@printf "  make logs            Tail Flowy's log file\n"
 	@printf "  make clear-logs      Clear Flowy's log file\n"
+	@printf "  make uninstall       Kill and remove /Applications/Flowy.app\n"
 	@printf "  make clean           Remove native build artifacts\n"
 
 doctor:
@@ -51,6 +52,11 @@ install-relaunch:
 
 install-relaunch-reset:
 	./scripts/rebuild-launch.sh --install --reset-accessibility
+
+uninstall:
+	pkill -x "$(APP_NAME)" 2>/dev/null || true
+	rm -rf "$(APPLICATIONS_BUNDLE)"
+	@printf "Uninstalled $(APP_NAME) from /Applications\n"
 
 reset-accessibility:
 	tccutil reset Accessibility com.flowy.app || true
