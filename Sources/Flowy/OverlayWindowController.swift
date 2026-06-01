@@ -9,7 +9,7 @@ final class OverlayWindowController {
 
     init() {
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 230, height: 86),
+            contentRect: NSRect(x: 0, y: 0, width: 88, height: 52),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -36,7 +36,7 @@ final class OverlayWindowController {
         case .idle:
             let item = DispatchWorkItem { [weak panel] in panel?.orderOut(nil) }
             hideWorkItem = item
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: item)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: item)
         }
     }
 
@@ -46,104 +46,90 @@ final class OverlayWindowController {
         let size = panel.frame.size
         panel.setFrameOrigin(NSPoint(
             x: frame.midX - size.width / 2,
-            y: frame.maxY - size.height - 24
+            y: frame.maxY - size.height - 20
         ))
     }
 }
 
-// MARK: – Observable model
+// MARK: – Model
 
 @MainActor
 private final class OverlayModel: ObservableObject {
     @Published var status: AppStatus = .recording
 }
 
-// MARK: – Waveform overlay pill
+// MARK: – Pill
 
 private struct OverlayPill: View {
     @ObservedObject var model: OverlayModel
 
     private struct Bar {
-        let minH: CGFloat
-        let maxH: CGFloat
-        let duration: Double
-        let delay: Double
+        let min: CGFloat
+        let max: CGFloat
+        let dur: Double
+        let del: Double
     }
 
     private let bars: [Bar] = [
-        Bar(minH: 4,  maxH: 18, duration: 0.44, delay: 0.00),
-        Bar(minH: 6,  maxH: 26, duration: 0.36, delay: 0.13),
-        Bar(minH: 10, maxH: 32, duration: 0.50, delay: 0.06),
-        Bar(minH: 6,  maxH: 26, duration: 0.39, delay: 0.20),
-        Bar(minH: 4,  maxH: 18, duration: 0.42, delay: 0.10),
+        Bar(min: 3, max: 12, dur: 0.46, del: 0.00),
+        Bar(min: 4, max: 18, dur: 0.38, del: 0.10),
+        Bar(min: 5, max: 22, dur: 0.52, del: 0.05),
+        Bar(min: 4, max: 18, dur: 0.41, del: 0.16),
+        Bar(min: 3, max: 12, dur: 0.48, del: 0.08),
     ]
 
-    @State private var heights: [CGFloat] = [4, 6, 10, 6, 4]
+    @State private var heights: [CGFloat] = [3, 4, 5, 4, 3]
 
     var body: some View {
-        ZStack {
-            // Outer dark container with blue glow border
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color(white: 0.10))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .strokeBorder(
-                            LinearGradient(
-                                colors: [
-                                    Color(red: 0.25, green: 0.55, blue: 1.00),
-                                    Color(red: 0.20, green: 0.45, blue: 0.95),
-                                ],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 2.5
-                        )
-                )
-                .shadow(color: Color(red: 0.25, green: 0.55, blue: 1.0).opacity(0.55),
-                        radius: 10, x: 0, y: 0)
-                .frame(width: 202, height: 66)
-
-            // Inner dark pill
-            Capsule(style: .continuous)
-                .fill(Color(white: 0.14))
-                .frame(width: 116, height: 42)
-                .overlay(waveform)
-        }
-        // Panel is 230×86; extra room lets the shadow render without clipping
-        .frame(width: 230, height: 86)
-        .onAppear { animate(model.status) }
-        .onChange(of: model.status) { animate($0) }
-    }
-
-    private var waveform: some View {
-        HStack(spacing: 4.5) {
+        HStack(spacing: 3.5) {
             ForEach(bars.indices, id: \.self) { i in
-                RoundedRectangle(cornerRadius: 2.5, style: .continuous)
-                    .fill(.white)
-                    .frame(width: 3.5, height: heights[i])
+                RoundedRectangle(cornerRadius: 1, style: .continuous)
+                    .fill(Color.white.opacity(model.status == .recording ? 1 : 0.55))
+                    .frame(width: 2, height: heights[i])
+                    .animation(.easeInOut(duration: 0.3), value: model.status)
             }
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(
+            Capsule(style: .continuous)
+                .fill(Color(white: 0.07))
+                .overlay(
+                    Capsule(style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.09), lineWidth: 0.5)
+                )
+        )
+        .shadow(color: .black.opacity(0.5), radius: 8, x: 0, y: 2)
+        .padding(8)
+        .onAppear { drive(model.status) }
+        .onChange(of: model.status) { drive($0) }
     }
 
-    private func animate(_ status: AppStatus) {
-        if status == .recording {
-            for (i, bar) in bars.enumerated() {
+    private func drive(_ status: AppStatus) {
+        switch status {
+        case .recording:
+            for (i, b) in bars.enumerated() {
                 withAnimation(
-                    Animation
-                        .easeInOut(duration: bar.duration)
-                        .repeatForever(autoreverses: true)
-                        .delay(bar.delay)
-                ) {
-                    heights[i] = bar.maxH
-                }
+                    .easeInOut(duration: b.dur)
+                    .repeatForever(autoreverses: true)
+                    .delay(b.del)
+                ) { heights[i] = b.max }
             }
-        } else {
-            // Bars settle gently when processing / idle
-            for (i, bar) in bars.enumerated() {
+
+        case .transcribing:
+            // Slow uniform breath — all bars together, like a pulse
+            for i in bars.indices {
                 withAnimation(
-                    .easeOut(duration: 0.45).delay(Double(i) * 0.04)
-                ) {
-                    heights[i] = bar.minH
+                    .easeInOut(duration: 1.1)
+                    .repeatForever(autoreverses: true)
+                    .delay(0)
+                ) { heights[i] = 6 }
+            }
+
+        case .idle:
+            for (i, b) in bars.enumerated() {
+                withAnimation(.easeOut(duration: 0.3).delay(Double(i) * 0.03)) {
+                    heights[i] = b.min
                 }
             }
         }
