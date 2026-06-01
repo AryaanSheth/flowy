@@ -168,30 +168,40 @@ final class AppModel: ObservableObject {
         let snapshot = config
         var text = DictionaryRewriter.apply(rawText, dictionary: snapshot.dictionary)
 
-        if !snapshot.ollamaEnabled {
+        // Resolve the effective Ollama prompt: active tone overrides ollamaPrompt.
+        // An empty prompt (Raw tone) means skip Ollama entirely.
+        let allTones = TonePreset.builtIns + snapshot.customTones
+        let activeTone = snapshot.activeToneID.flatMap { id in allTones.first { $0.id == id } }
+        let effectivePrompt: String?
+        if let tone = activeTone {
+            effectivePrompt = tone.prompt.isEmpty ? nil : tone.prompt
+        } else if snapshot.ollamaEnabled {
+            effectivePrompt = snapshot.ollamaPrompt
+        } else {
+            effectivePrompt = nil
+        }
+
+        if effectivePrompt == nil {
             text = AmendmentRewriter.apply(text)
         }
 
-        if snapshot.ollamaEnabled {
+        if let prompt = effectivePrompt {
             let started = Date()
-            FlowyLog.info("Ollama enhancement started model=\(snapshot.ollamaModel) endpoint=\(snapshot.ollamaEndpoint)")
+            let toneLabel = activeTone?.name ?? "ollama"
+            FlowyLog.info("Ollama enhancement started tone=\(toneLabel) model=\(snapshot.ollamaModel)")
             do {
                 let enhanced = try await OllamaClient.enhance(
                     endpoint: snapshot.ollamaEndpoint,
                     model: snapshot.ollamaModel,
-                    system: snapshot.ollamaPrompt,
+                    system: prompt,
                     text: text
                 )
-                if !enhanced.isEmpty {
-                    text = enhanced
-                }
+                if !enhanced.isEmpty { text = enhanced }
             } catch {
                 FlowyLog.warn("Ollama enhancement failed: \(error.localizedDescription)")
-                NSLog("Ollama enhancement failed: \(error.localizedDescription)")
             }
             let latency = Date().timeIntervalSince(started)
             FlowyLog.info(String(format: "Ollama enhancement latency %.2fs", latency))
-            NSLog("Ollama enhancement latency: %.2fs", latency)
         }
 
         if snapshot.translationEnabled, let translate = translateText {

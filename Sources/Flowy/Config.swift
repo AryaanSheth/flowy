@@ -8,6 +8,8 @@ struct AppConfig: Codable, Equatable {
     var outputMode: OutputMode
     var maxRecordingSecs: Int
     var historySize: Int
+    var activeToneID: String?
+    var customTones: [TonePreset]
     var translationEnabled: Bool
     var translationTargetLanguage: String
     var vadEnabled: Bool
@@ -25,6 +27,8 @@ struct AppConfig: Codable, Equatable {
         outputMode: OutputMode = .type,
         maxRecordingSecs: Int = 60,
         historySize: Int = 20,
+        activeToneID: String? = nil,
+        customTones: [TonePreset] = [],
         translationEnabled: Bool = false,
         translationTargetLanguage: String = "en",
         vadEnabled: Bool = true,
@@ -41,6 +45,8 @@ struct AppConfig: Codable, Equatable {
         self.outputMode = outputMode
         self.maxRecordingSecs = maxRecordingSecs
         self.historySize = historySize
+        self.activeToneID = activeToneID
+        self.customTones = customTones
         self.translationEnabled = translationEnabled
         self.translationTargetLanguage = translationTargetLanguage
         self.vadEnabled = vadEnabled
@@ -59,6 +65,8 @@ struct AppConfig: Codable, Equatable {
         case outputMode
         case maxRecordingSecs
         case historySize
+        case activeToneID
+        case customTones
         case translationEnabled
         case translationTargetLanguage
         case vadEnabled
@@ -78,6 +86,8 @@ struct AppConfig: Codable, Equatable {
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .type
         maxRecordingSecs = try c.decodeIfPresent(Int.self, forKey: .maxRecordingSecs) ?? 60
         historySize = try c.decodeIfPresent(Int.self, forKey: .historySize) ?? 20
+        activeToneID = try c.decodeIfPresent(String.self, forKey: .activeToneID)
+        customTones = try c.decodeIfPresent([TonePreset].self, forKey: .customTones) ?? []
         translationEnabled = try c.decodeIfPresent(Bool.self, forKey: .translationEnabled) ?? false
         translationTargetLanguage = try c.decodeIfPresent(String.self, forKey: .translationTargetLanguage) ?? "en"
         vadEnabled = try c.decodeIfPresent(Bool.self, forKey: .vadEnabled) ?? true

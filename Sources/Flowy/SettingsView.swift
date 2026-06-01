@@ -78,11 +78,15 @@ struct SettingsView: View {
     @State private var saveMessage = ""
     @State private var ollamaMessage = ""
     @State private var ollamaModels: [String] = []
+    @State private var customToneRows: [ToneRow] = []
 
     init(model: AppModel) {
         self.model = model
         _draft = State(initialValue: model.config)
         _dictRows = State(initialValue: Self.rows(from: model.config.dictionary))
+        _customToneRows = State(initialValue: model.config.customTones.map {
+            ToneRow(id: $0.id, name: $0.name, prompt: $0.prompt)
+        })
     }
 
     var body: some View {
@@ -191,6 +195,7 @@ struct SettingsView: View {
         case .output:     outputSection
         case .dictionary: dictionarySection
         case .ai:         aiSection
+        case .tone:       toneSection
         case .history:    historySection
         case .system:     systemSection
         }
@@ -642,6 +647,151 @@ struct SettingsView: View {
         .padding(.vertical, 10)
     }
 
+    // MARK: – Tone section
+
+    private var toneSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionTitle("Tone")
+
+            // Ollama warning if no endpoint configured and a non-raw tone is selected
+            if draft.activeToneID != nil && draft.activeToneID != "raw" && !draft.ollamaEnabled {
+                inlineBanner("Tone requires Ollama — enable it in the AI tab.",
+                             action: { selectedSection = .ai }, actionLabel: "Go")
+                    .padding(.bottom, 4)
+            }
+
+            // ── Built-in tones ─────────────────────────────────────
+            Text("Built-in")
+                .font(.system(size: 11)).foregroundStyle(BD.muted)
+                .padding(.bottom, 6)
+
+            ForEach(Array(TonePreset.builtIns.enumerated()), id: \.element.id) { i, tone in
+                toneRow(tone, isBuiltIn: true)
+                RowDivider()
+            }
+
+            // ── Custom tones ───────────────────────────────────────
+            Text("Custom")
+                .font(.system(size: 11)).foregroundStyle(BD.muted)
+                .padding(.top, 16).padding(.bottom, 6)
+
+            ForEach($customToneRows) { $row in
+                customToneRow($row)
+                RowDivider()
+            }
+
+            Button {
+                let newID = UUID().uuidString
+                customToneRows.append(ToneRow(id: newID, name: "", prompt: ""))
+            } label: {
+                Label("New Tone", systemImage: "plus").font(.system(size: 11))
+            }
+            .buttonStyle(NudgeBtn())
+            .padding(.top, 8)
+        }
+    }
+
+    private func toneRow(_ tone: TonePreset, isBuiltIn: Bool) -> some View {
+        let selected = draft.activeToneID == tone.id
+        return Button {
+            draft.activeToneID = selected ? nil : tone.id
+        } label: {
+            HStack(alignment: .top, spacing: 11) {
+                ZStack {
+                    Circle()
+                        .stroke(selected ? BD.teal : BD.border, lineWidth: 1.5)
+                        .frame(width: 15, height: 15)
+                    if selected { Circle().fill(BD.teal).frame(width: 7, height: 7) }
+                }
+                .padding(.top, 2)
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(tone.name)
+                            .font(.system(size: 13))
+                            .foregroundStyle(BD.ink)
+                        if tone.id == "clean" {
+                            Text("default")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(BD.teal)
+                                .padding(.horizontal, 5).padding(.vertical, 2)
+                                .background(BD.teal.opacity(0.15), in: Capsule())
+                        }
+                        if tone.id == "raw" {
+                            Text("no AI")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(BD.muted)
+                                .padding(.horizontal, 5).padding(.vertical, 2)
+                                .background(BD.border, in: Capsule())
+                        }
+                    }
+                    Text(toneSubtitle(tone))
+                        .font(.system(size: 11))
+                        .foregroundStyle(BD.muted)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func customToneRow(_ row: Binding<ToneRow>) -> some View {
+        let isSelected = draft.activeToneID == row.id
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 11) {
+                Button {
+                    draft.activeToneID = isSelected ? nil : row.id
+                } label: {
+                    ZStack {
+                        Circle()
+                            .stroke(isSelected ? BD.teal : BD.border, lineWidth: 1.5)
+                            .frame(width: 15, height: 15)
+                        if isSelected { Circle().fill(BD.teal).frame(width: 7, height: 7) }
+                    }
+                }
+                .buttonStyle(.plain)
+                TextField("Tone name", text: row.name)
+                    .textFieldStyle(BrandField())
+                    .frame(maxWidth: 160)
+                Spacer()
+                Button {
+                    if draft.activeToneID == row.id { draft.activeToneID = nil }
+                    customToneRows.removeAll { $0.id == row.id }
+                } label: {
+                    Image(systemName: "xmark").font(.system(size: 10))
+                }
+                .buttonStyle(NudgeBtn())
+            }
+            .padding(.vertical, 8)
+
+            TextEditor(text: row.prompt)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(BD.ink)
+                .scrollContentBackground(.hidden)
+                .background(BD.card)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .stroke(BD.border, lineWidth: 1)
+                )
+                .frame(minHeight: 70)
+                .padding(.bottom, 8)
+        }
+    }
+
+    private func toneSubtitle(_ tone: TonePreset) -> String {
+        switch tone.id {
+        case "raw":      return "Output the raw transcription unchanged"
+        case "clean":    return "Fix grammar, punctuation, and self-corrections"
+        case "formal":   return "Rewrite in formal professional English"
+        case "business": return "Rewrite in business casual — clear and workplace-ready"
+        case "concise":  return "Trim to essentials, remove filler"
+        case "bullets":  return "Convert to bullet points"
+        default:         return "Custom tone"
+        }
+    }
+
     private var historySection: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -834,6 +984,10 @@ struct SettingsView: View {
     private func saveDraft() {
         var clean = draft
         clean.dictionary = collectedDictionary()
+        clean.customTones = customToneRows
+            .map { TonePreset(id: $0.id, name: $0.name.trimmingCharacters(in: .whitespacesAndNewlines),
+                              prompt: $0.prompt.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .filter { !$0.name.isEmpty }
         do {
             try model.saveConfig(clean)
             resetDraft()
@@ -846,6 +1000,9 @@ struct SettingsView: View {
     private func resetDraft() {
         draft = model.config
         dictRows = Self.rows(from: model.config.dictionary)
+        customToneRows = model.config.customTones.map {
+            ToneRow(id: $0.id, name: $0.name, prompt: $0.prompt)
+        }
         runDictionaryTest()
     }
 
@@ -890,7 +1047,7 @@ struct SettingsView: View {
 
 // MARK: – Section enum
 private enum SettingsSection: String, CaseIterable, Identifiable {
-    case shortcut, audio, output, dictionary, ai, history, system
+    case shortcut, audio, output, dictionary, ai, tone, history, system
     var id: String { rawValue }
 
     var title: String {
@@ -900,6 +1057,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         case .output:     "Output"
         case .dictionary: "Dictionary"
         case .ai:         "AI"
+        case .tone:       "Tone"
         case .history:    "History"
         case .system:     "System"
         }
@@ -912,6 +1070,7 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
         case .output:     "text.cursor"
         case .dictionary: "book"
         case .ai:         "sparkles"
+        case .tone:       "wand.and.sparkles"
         case .history:    "clock.arrow.circlepath"
         case .system:     "gearshape"
         }
@@ -923,4 +1082,11 @@ private struct DictionaryRow: Identifiable, Equatable {
     let id = UUID()
     var key:   String
     var value: String
+}
+
+// MARK: – ToneRow
+private struct ToneRow: Identifiable {
+    let id: String   // used as TonePreset.id
+    var name: String
+    var prompt: String
 }
