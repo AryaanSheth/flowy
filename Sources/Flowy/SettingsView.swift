@@ -182,7 +182,7 @@ struct SettingsView: View {
             Spacer()
         }
         .padding(.top, 10)
-        .frame(width: 130)
+        .frame(width: 158)
         .overlay(alignment: .trailing) { G.border.frame(width: 1) }
     }
 
