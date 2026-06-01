@@ -13,6 +13,8 @@ final class AppModel: ObservableObject {
 
     var onStatusChanged: ((AppStatus) -> Void)?
     var onHotkeyChanged: ((String) -> Void)?
+    /// Set by AppDelegate on macOS 14+ to provide Apple Translation support.
+    var translateText: ((String, String) async throws -> String)?
 
     private var recorder: SpeechRecorder?
     private var capturedApp: NSRunningApplication?
@@ -190,6 +192,18 @@ final class AppModel: ObservableObject {
             let latency = Date().timeIntervalSince(started)
             FlowyLog.info(String(format: "Ollama enhancement latency %.2fs", latency))
             NSLog("Ollama enhancement latency: %.2fs", latency)
+        }
+
+        if snapshot.translationEnabled, let translate = translateText {
+            let started = Date()
+            FlowyLog.info("Translation started target=\(snapshot.translationTargetLanguage)")
+            do {
+                let translated = try await translate(text, snapshot.translationTargetLanguage)
+                if !translated.isEmpty { text = translated }
+            } catch {
+                FlowyLog.warn("Translation failed: \(error.localizedDescription)")
+            }
+            FlowyLog.info(String(format: "Translation latency %.2fs", Date().timeIntervalSince(started)))
         }
 
         history.insert(text, at: 0)

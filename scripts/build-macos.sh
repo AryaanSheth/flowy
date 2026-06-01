@@ -90,6 +90,7 @@ FRAMEWORKS=(
   -framework ServiceManagement
   -framework Speech
   -framework SwiftUI
+  -Xlinker -weak_framework -Xlinker Translation
 )
 
 echo "Building $APP_NAME ($CONFIGURATION, arm64 macOS $MIN_MACOS+)..."

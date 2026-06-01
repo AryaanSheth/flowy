@@ -335,6 +335,45 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
                 if i < OutputMode.allCases.count - 1 { RowDivider() }
             }
+
+            // ── Translation ──────────────────────────────────────────
+            RowDivider()
+            translationSection
+        }
+    }
+
+    @ViewBuilder
+    private var translationSection: some View {
+        if #available(macOS 15, *) {
+            row("Translate output") {
+                Toggle("", isOn: $draft.translationEnabled).labelsHidden().tint(BD.teal)
+            }
+            if draft.translationEnabled {
+                RowDivider()
+                row("Target language") {
+                    Picker("", selection: $draft.translationTargetLanguage) {
+                        ForEach(TranslationLanguage.supported) { lang in
+                            Text(lang.name).tag(lang.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 200)
+                }
+                RowDivider()
+                HStack(spacing: 6) {
+                    Circle().fill(BD.teal).frame(width: 5, height: 5)
+                    Text("On-device · powered by Apple Translation")
+                        .font(.system(size: 11))
+                        .foregroundStyle(BD.muted)
+                }
+                .padding(.vertical, 8)
+            }
+        } else {
+            row("Translate output") {
+                Text("Requires macOS 15")
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(BD.muted)
+            }
         }
     }
 

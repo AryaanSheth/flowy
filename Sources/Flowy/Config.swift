@@ -8,6 +8,8 @@ struct AppConfig: Codable, Equatable {
     var outputMode: OutputMode
     var maxRecordingSecs: Int
     var historySize: Int
+    var translationEnabled: Bool
+    var translationTargetLanguage: String
     var vadEnabled: Bool
     var vadSilenceSeconds: Double
     var ollamaEnabled: Bool
@@ -23,6 +25,8 @@ struct AppConfig: Codable, Equatable {
         outputMode: OutputMode = .type,
         maxRecordingSecs: Int = 60,
         historySize: Int = 20,
+        translationEnabled: Bool = false,
+        translationTargetLanguage: String = "en",
         vadEnabled: Bool = true,
         vadSilenceSeconds: Double = 1.5,
         ollamaEnabled: Bool = false,
@@ -37,6 +41,8 @@ struct AppConfig: Codable, Equatable {
         self.outputMode = outputMode
         self.maxRecordingSecs = maxRecordingSecs
         self.historySize = historySize
+        self.translationEnabled = translationEnabled
+        self.translationTargetLanguage = translationTargetLanguage
         self.vadEnabled = vadEnabled
         self.vadSilenceSeconds = vadSilenceSeconds
         self.ollamaEnabled = ollamaEnabled
@@ -53,6 +59,8 @@ struct AppConfig: Codable, Equatable {
         case outputMode
         case maxRecordingSecs
         case historySize
+        case translationEnabled
+        case translationTargetLanguage
         case vadEnabled
         case vadSilenceSeconds
         case ollamaEnabled
@@ -70,6 +78,8 @@ struct AppConfig: Codable, Equatable {
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .type
         maxRecordingSecs = try c.decodeIfPresent(Int.self, forKey: .maxRecordingSecs) ?? 60
         historySize = try c.decodeIfPresent(Int.self, forKey: .historySize) ?? 20
+        translationEnabled = try c.decodeIfPresent(Bool.self, forKey: .translationEnabled) ?? false
+        translationTargetLanguage = try c.decodeIfPresent(String.self, forKey: .translationTargetLanguage) ?? "en"
         vadEnabled = try c.decodeIfPresent(Bool.self, forKey: .vadEnabled) ?? true
         vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 1.5
         ollamaEnabled = try c.decodeIfPresent(Bool.self, forKey: .ollamaEnabled) ?? false

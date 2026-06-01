@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
@@ -8,6 +9,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayController: OverlayWindowController?
     private var hotkeyMonitor: HotkeyMonitor?
     private var allowQuit = false
+    // Held alive so the SwiftUI translation task stays active (macOS 14+)
+    private var translationBridge: AnyObject?
+    private var translationWindow: NSWindow?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         FlowyLog.info("App launched bundle=\(Bundle.main.bundlePath) pid=\(ProcessInfo.processInfo.processIdentifier)")
@@ -24,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.installHotkey(hotkey)
         }
 
+        setupTranslation()
+
         model.requestInitialPermissions()
         installHotkey(model.config.hotkey)
         settingsController?.show()
@@ -35,6 +41,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         allowQuit ? .terminateNow : .terminateCancel
+    }
+
+    private func setupTranslation() {
+        guard #available(macOS 15, *) else { return }
+        let bridge = TranslationBridge()
+        let hostView = NSHostingView(rootView: TranslationBackgroundView(bridge: bridge))
+        hostView.frame = NSRect(x: 0, y: 0, width: 1, height: 1)
+
+        let win = NSWindow(
+            contentRect: NSRect(x: 0, y: 0, width: 1, height: 1),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: false
+        )
+        win.contentView = hostView
+        win.isOpaque = false
+        win.backgroundColor = .clear
+        win.ignoresMouseEvents = true
+        win.collectionBehavior = [.canJoinAllSpaces, .transient]
+        win.setFrameOrigin(NSPoint(x: -1000, y: -1000))
+        win.orderFrontRegardless()
+
+        translationBridge = bridge
+        translationWindow = win
+
+        model.translateText = { [weak bridge] text, targetBCP47 in
+            guard let bridge else { return text }
+            return try await bridge.translate(text, targetLanguageBCP47: targetBCP47)
+        }
+        FlowyLog.info("Translation bridge installed")
     }
 
     private func buildStatusItem() {
