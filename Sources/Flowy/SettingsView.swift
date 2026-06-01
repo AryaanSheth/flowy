@@ -281,7 +281,7 @@ struct SettingsView: View {
                             .font(.system(size: 12))
                             .foregroundStyle(BD.ink)
                             .frame(width: 36, alignment: .trailing)
-                        Stepper("", value: $draft.vadSilenceSeconds, in: 0.5...5.0, step: 0.5)
+                        Stepper("", value: $draft.vadSilenceSeconds, in: 0.5...3.0, step: 0.5)
                             .labelsHidden()
                     }
                 }

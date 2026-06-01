@@ -32,7 +32,7 @@ struct AppConfig: Codable, Equatable {
         translationEnabled: Bool = false,
         translationTargetLanguage: String = "en",
         vadEnabled: Bool = true,
-        vadSilenceSeconds: Double = 1.5,
+        vadSilenceSeconds: Double = 1.0,
         ollamaEnabled: Bool = false,
         ollamaEndpoint: String = "http://localhost:11434",
         ollamaModel: String = "llama3.2:3b",
@@ -152,7 +152,7 @@ struct AppConfig: Codable, Equatable {
 
         next.maxRecordingSecs = min(300, max(5, next.maxRecordingSecs))
         next.historySize = min(200, max(1, next.historySize))
-        next.vadSilenceSeconds = min(5.0, max(0.5, next.vadSilenceSeconds))
+        next.vadSilenceSeconds = min(3.0, max(0.5, next.vadSilenceSeconds))
 
         next.ollamaEndpoint = next.ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         if next.ollamaEndpoint.isEmpty {

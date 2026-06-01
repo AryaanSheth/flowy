@@ -4,8 +4,10 @@ import Speech
 
 final class SpeechRecorder {
     // dBFS thresholds for VAD
-    private static let speechStartDB: Float = -25.0
-    private static let silenceDB: Float = -40.0
+    private static let speechStartDB: Float  = -25.0  // must reach this to arm silence tracking
+    private static let silenceDB: Float      = -40.0  // below this = silence; resets timer if above
+    private static let deepSilenceDB: Float  = -55.0  // near-zero signal: fire at 35% of timeout
+    private static let deepSilenceFactor: Double = 0.35
 
     private let engine = AVAudioEngine()
     private let recognizer = SFSpeechRecognizer(locale: Locale.current)
@@ -141,7 +143,8 @@ final class SpeechRecorder {
             throw FlowyError.message("No microphone input format is available")
         }
 
-        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self, weak request] buffer, _ in
+        // 512 frames ≈ 11 ms at 48 kHz — checks silence ~4× more often than 2048
+        input.installTap(onBus: 0, bufferSize: 512, format: format) { [weak self, weak request] buffer, _ in
             request?.append(buffer)
             self?.checkVAD(buffer)
         }
@@ -190,10 +193,16 @@ final class SpeechRecorder {
             vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
         } else if vadSpeakerDetected {
             if db > Self.silenceDB {
+                // Ambient noise — not yet silent, reset the clock
                 vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
             } else {
-                let elapsedSecs = Double(DispatchTime.now().uptimeNanoseconds - vadLastSpeechNs) / 1e9
-                if elapsedSecs >= vadSilenceTimeout {
+                let elapsed = Double(DispatchTime.now().uptimeNanoseconds - vadLastSpeechNs) / 1e9
+                // Deep silence (near-zero signal): use a fraction of the normal timeout
+                // so the recording stops almost immediately after the user finishes speaking.
+                let threshold = db < Self.deepSilenceDB
+                    ? vadSilenceTimeout * Self.deepSilenceFactor
+                    : vadSilenceTimeout
+                if elapsed >= threshold {
                     vadFired = true
                     DispatchQueue.main.async { vadCallback() }
                 }
