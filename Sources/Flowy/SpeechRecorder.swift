@@ -3,16 +3,10 @@ import AVFoundation
 import Speech
 
 final class SpeechRecorder {
-    // VAD uses adaptive thresholds relative to peak speaking volume so it works
-    // in both quiet rooms and noisy offices without manual tuning.
-    // speechStartDB is configurable per-recording via start(); default shown here.
-    private static let defaultSpeechStartDB: Float = -25.0
-    // After speech detected, silence = drop this many dB below peak speaking volume.
-    private static let silenceDropDB: Float  = 22.0   // e.g. peak -12 → silence threshold -34
-    private static let deepSilenceDropDB: Float = 35.0 // e.g. peak -12 → deep silence threshold -47
-    private static let silenceDBFloor: Float  = -52.0  // absolute floor for silence threshold
-    private static let deepSilenceDBFloor: Float = -65.0 // absolute floor for deep silence threshold
-    private static let deepSilenceFactor: Double = 0.18  // fire at 18% of timeout in deep silence
+    // Simple two-state VAD: speaking (db >= threshold) or silent (db < threshold).
+    // When silent, elapsed time accumulates immediately — no adaptive zone.
+    private static let deepSilenceDB: Float  = -50.0   // fire at reduced timeout in very quiet rooms
+    private static let deepSilenceFactor: Double = 0.18 // fire at 18% of timeout in deep silence
 
     private let engine = AVAudioEngine()
     private let recognizer = SFSpeechRecognizer(locale: Locale.current)
@@ -41,7 +35,6 @@ final class SpeechRecorder {
     private var vadLastSpeechNs: UInt64 = 0
     private var vadSpeakerDetected = false
     private var vadFired = false
-    private var vadPeakDB: Float = -160.0  // max dBFS observed during speech phase
 
     // MARK: – Warm-up
 
@@ -109,7 +102,6 @@ final class SpeechRecorder {
         vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
         vadSpeakerDetected = false
         vadFired = false
-        vadPeakDB = -160.0
 
         try configureInputDevice(uid: deviceUID)
 
@@ -199,34 +191,18 @@ final class SpeechRecorder {
         guard let vadCallback, !stopping, !vadFired else { return }
         let db = Self.rmsDB(buffer)
 
-        // Phase 1 — wait for the user to speak above the arm threshold.
-        // Once armed we never drop back into this phase, so background noise
-        // above vadSpeechStartDB can no longer reset the silence timer.
-        if !vadSpeakerDetected {
-            if db >= vadSpeechStartDB {
-                vadSpeakerDetected = true
-                vadPeakDB = db
-                vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
-            }
-            return
-        }
-
-        // Phase 2 — speech detected. Track peak and use adaptive silence threshold.
-        // vadSpeechStartDB is intentionally NOT used here; only the peak-relative
-        // thresholds matter, so background noise between vadSpeechStartDB and
-        // silenceThreshold no longer resets the clock.
-        if db > vadPeakDB { vadPeakDB = db }
-
-        let silenceThreshold = max(Self.silenceDBFloor, vadPeakDB - Self.silenceDropDB)
-        let deepThreshold    = max(Self.deepSilenceDBFloor, vadPeakDB - Self.deepSilenceDropDB)
-
-        if db > silenceThreshold {
+        if db >= vadSpeechStartDB {
+            // Speaking: arm detector and reset silence clock.
+            vadSpeakerDetected = true
             vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
             return
         }
 
+        guard vadSpeakerDetected else { return }
+
+        // Silent: accumulate elapsed time since last speech buffer.
         let elapsed = Double(DispatchTime.now().uptimeNanoseconds - vadLastSpeechNs) / 1e9
-        let timeout = db < deepThreshold
+        let timeout = db < Self.deepSilenceDB
             ? vadSilenceTimeout * Self.deepSilenceFactor
             : vadSilenceTimeout
         if elapsed >= timeout {

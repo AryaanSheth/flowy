@@ -1,4 +1,5 @@
 import AppKit
+import AVFoundation
 import SwiftUI
 
 // MARK: – Design tokens
@@ -304,6 +305,8 @@ struct SettingsView: View {
                             .frame(width: 44, alignment: .trailing)
                     }
                 }
+                RowDivider()
+                row("Mic level") { MicLevelMeter(thresholdDB: draft.vadSpeechThresholdDB) }
             }
         }
     }
@@ -1108,4 +1111,82 @@ private struct ToneRow: Identifiable {
     let id: String   // used as TonePreset.id
     var name: String
     var prompt: String
+}
+
+// MARK: – MicLevelMeter
+/// Live microphone level bar that samples AVAudioEngine so users can
+/// calibrate the VAD speech threshold to their environment.
+private struct MicLevelMeter: View {
+    let thresholdDB: Double
+
+    @State private var currentDB: Float = -80
+    @State private var engine: AVAudioEngine? = nil
+    @State private var timer: Timer? = nil
+
+    var body: some View {
+        HStack(spacing: 8) {
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(BD.border)
+                        .frame(height: 6)
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(levelColor)
+                        .frame(width: geo.size.width * levelFraction, height: 6)
+                    // Threshold marker
+                    let tx = geo.size.width * thresholdFraction
+                    Rectangle()
+                        .fill(BD.warn)
+                        .frame(width: 1.5, height: 10)
+                        .offset(x: tx - 0.75, y: -2)
+                }
+            }
+            .frame(height: 10)
+            Text(String(format: "%.0f dB", currentDB))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(BD.ink.opacity(0.6))
+                .frame(width: 44, alignment: .trailing)
+        }
+        .onAppear { startMonitor() }
+        .onDisappear { stopMonitor() }
+    }
+
+    // Map dBFS [-80, 0] to [0, 1]
+    private var levelFraction: CGFloat {
+        CGFloat(min(1, max(0, (currentDB + 80) / 80)))
+    }
+    private var thresholdFraction: CGFloat {
+        CGFloat(min(1, max(0, (Float(thresholdDB) + 80) / 80)))
+    }
+    private var levelColor: Color {
+        currentDB >= Float(thresholdDB) ? BD.teal : BD.muted.opacity(0.6)
+    }
+
+    private func startMonitor() {
+        let eng = AVAudioEngine()
+        self.engine = eng
+        let input = eng.inputNode
+        let format = input.outputFormat(forBus: 0)
+        guard format.sampleRate > 0 else { return }
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buf, _ in
+            let db = rmsDB(buf)
+            DispatchQueue.main.async { currentDB = db }
+        }
+        try? eng.start()
+    }
+
+    private func stopMonitor() {
+        engine?.inputNode.removeTap(onBus: 0)
+        engine?.stop()
+        engine = nil
+    }
+
+    private func rmsDB(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let data = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return -80 }
+        let n = Int(buffer.frameLength)
+        var sum: Float = 0
+        for i in 0..<n { sum += data[i] * data[i] }
+        let rms = sqrt(sum / Float(n))
+        return rms > 0 ? max(-80, 20 * log10(rms)) : -80
+    }
 }
