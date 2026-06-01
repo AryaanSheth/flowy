@@ -158,6 +158,10 @@ final class AppModel: ObservableObject {
         let snapshot = config
         var text = DictionaryRewriter.apply(rawText, dictionary: snapshot.dictionary)
 
+        if !snapshot.ollamaEnabled {
+            text = AmendmentRewriter.apply(text)
+        }
+
         if snapshot.ollamaEnabled {
             let started = Date()
             FlowyLog.info("Ollama enhancement started model=\(snapshot.ollamaModel) endpoint=\(snapshot.ollamaEndpoint)")

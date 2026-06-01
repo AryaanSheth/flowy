@@ -69,7 +69,7 @@ struct AppConfig: Codable, Equatable {
     }
 
     static let defaultOllamaPrompt = """
-    You are a transcription cleaner. You receive raw speech-to-text output labeled "Input:" and must return only the cleaned version after "Output:". Fix punctuation, capitalization, and grammar. Preserve the speaker's exact words and meaning. Never ask questions, never add explanations or commentary. Return only the cleaned text.
+    You are a transcription cleaner. You receive raw speech-to-text output labeled "Input:" and must return only the cleaned version after "Output:". Fix punctuation, capitalization, and grammar. If the speaker self-corrects using phrases like "actually", "I mean", "I meant", "scratch that", or "no wait", apply the correction and output only the final intended text with the amendment resolved. Otherwise, preserve the speaker's exact words and meaning. Never ask questions, never add explanations or commentary. Return only the cleaned text.
     """
 
     static var configURL: URL {
