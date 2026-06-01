@@ -3,7 +3,7 @@ VERSION  := 0.2.0
 APP_BUNDLE := target/release/bundle/macos/$(APP_NAME).app
 APPLICATIONS_BUNDLE := /Applications/$(APP_NAME).app
 
-.PHONY: help doctor dev build dmg launch relaunch install install-relaunch install-relaunch-reset uninstall reset-accessibility open-installed check test logs clear-logs clean
+.PHONY: help doctor dev build dmg launch relaunch install install-relaunch install-relaunch-reset uninstall reset-accessibility reset-permissions open-installed check test logs clear-logs clean
 
 help:
 	@printf "Flowy targets:\n"
@@ -23,6 +23,7 @@ help:
 	@printf "  make logs            Tail Flowy's log file\n"
 	@printf "  make clear-logs      Clear Flowy's log file\n"
 	@printf "  make uninstall       Kill and remove /Applications/Flowy.app\n"
+	@printf "  make reset-permissions Reset mic, speech, and accessibility permissions\n"
 	@printf "  make clean           Remove native build artifacts\n"
 
 doctor:
@@ -60,6 +61,12 @@ uninstall:
 
 reset-accessibility:
 	tccutil reset Accessibility com.flowy.app || true
+
+reset-permissions:
+	tccutil reset Accessibility com.flowy.app || true
+	tccutil reset Microphone com.flowy.app || true
+	tccutil reset SpeechRecognition com.flowy.app || true
+	@printf "All permissions reset — relaunch Flowy to re-grant them\n"
 
 open-installed:
 	open "$(APPLICATIONS_BUNDLE)"

@@ -30,11 +30,6 @@ final class AppModel: ObservableObject {
     }
 
     func requestInitialPermissions() {
-        // Warm up the audio engine now that the app is fully launched and the
-        // audio subsystem is ready. Calling engine.prepare() earlier (e.g. in
-        // init) crashes because AVAudioEngineGraph isn't initializable yet.
-        speechRecorder.warmUp(deviceUID: config.inputDevice)
-
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
             Task { @MainActor in
                 self?.refreshPermissions()
@@ -46,6 +41,13 @@ final class AppModel: ObservableObject {
 
         AVCaptureDevice.requestAccess(for: .audio) { [weak self] _ in
             Task { @MainActor in self?.refreshPermissions() }
+        }
+
+        // Warm up the engine after a short delay so the permission dialogs
+        // appear first and the main thread is not blocked by engine.prepare().
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
+            guard let self else { return }
+            self.speechRecorder.warmUp(deviceUID: self.config.inputDevice)
         }
     }
 
