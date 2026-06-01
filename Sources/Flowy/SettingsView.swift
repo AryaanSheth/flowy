@@ -67,6 +67,7 @@ private struct RowDivider: View {
 // MARK: – Main view
 struct SettingsView: View {
     @ObservedObject var model: AppModel
+    @StateObject private var ollamaManager = OllamaManager()
 
     @State private var draft: AppConfig
     @State private var selectedSection: SettingsSection = .shortcut
@@ -362,6 +363,12 @@ struct SettingsView: View {
     private var aiSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionTitle("AI")
+
+            // ── Ollama status ──────────────────────────────────────────
+            ollamaStatusBanner
+            RowDivider()
+
+            // ── Existing settings ──────────────────────────────────────
             row("Ollama enhancement") {
                 Toggle("", isOn: $draft.ollamaEnabled).labelsHidden().tint(BD.teal)
             }
@@ -406,7 +413,177 @@ struct SettingsView: View {
                     .frame(minHeight: 90)
                 RowDivider()
             }
+
+            // ── Recommended models ────────────────────────────────────
+            recommendedModelsSection
         }
+        .onAppear {
+            Task { await ollamaManager.checkStatus(endpoint: draft.ollamaEndpoint) }
+        }
+    }
+
+    // MARK: – Ollama status banner
+
+    @ViewBuilder
+    private var ollamaStatusBanner: some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(ollamaStatusColor)
+                .frame(width: 5, height: 5)
+            if ollamaManager.installStatus == .checking || ollamaManager.installStatus == .installing {
+                ProgressView()
+                    .scaleEffect(0.55)
+                    .frame(width: 14, height: 14)
+            }
+            Text(ollamaStatusLabel)
+                .font(.system(size: 12))
+                .foregroundStyle(BD.ink)
+            Spacer()
+            switch ollamaManager.installStatus {
+            case .notInstalled:
+                Button("Install via Homebrew") {
+                    Task { await ollamaManager.installOllama() }
+                }
+                .buttonStyle(TealBtn())
+            case .stopped:
+                Button("Start Ollama") {
+                    ollamaManager.startServer(endpoint: draft.ollamaEndpoint)
+                }
+                .buttonStyle(TealBtn())
+            case .running:
+                Button {
+                    Task { await ollamaManager.checkStatus(endpoint: draft.ollamaEndpoint) }
+                } label: {
+                    Image(systemName: "arrow.clockwise").font(.system(size: 11))
+                }
+                .buttonStyle(NudgeBtn())
+            case .checking, .installing:
+                EmptyView()
+            }
+        }
+        .padding(.vertical, 10)
+
+        if !ollamaManager.installMessage.isEmpty {
+            Text(ollamaManager.installMessage)
+                .font(.system(size: 11))
+                .foregroundStyle(BD.muted)
+                .padding(.bottom, 8)
+        }
+    }
+
+    private var ollamaStatusColor: Color {
+        switch ollamaManager.installStatus {
+        case .running:               return BD.teal
+        case .stopped, .notInstalled: return BD.danger.opacity(0.8)
+        case .checking, .installing: return BD.warn
+        }
+    }
+
+    private var ollamaStatusLabel: String {
+        switch ollamaManager.installStatus {
+        case .checking:    return "Checking…"
+        case .notInstalled: return "Ollama not installed"
+        case .stopped:     return "Ollama installed · server not running"
+        case .running:     return "Ollama running"
+        case .installing:  return "Installing Ollama…"
+        }
+    }
+
+    // MARK: – Recommended models
+
+    @ViewBuilder
+    private var recommendedModelsSection: some View {
+        Text("Recommended Models")
+            .font(.system(size: 11))
+            .foregroundStyle(BD.muted)
+            .padding(.top, 16)
+            .padding(.bottom, 6)
+
+        ForEach(Array(OllamaManager.recommendedModels.enumerated()), id: \.element.id) { i, model in
+            recommendedModelRow(model)
+            if i < OllamaManager.recommendedModels.count - 1 { RowDivider() }
+        }
+    }
+
+    @ViewBuilder
+    private func recommendedModelRow(_ model: RecommendedModel) -> some View {
+        let pullState   = ollamaManager.pullStates[model.name]
+        let isPulling   = pullState != nil && !(pullState?.done ?? false) && pullState?.error == nil
+        let isInstalled = pullState?.done == true || ollamaManager.isInstalled(model.name)
+
+        HStack(spacing: 12) {
+            // Label + tagline
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(model.label)
+                        .font(.system(size: 13))
+                        .foregroundStyle(BD.ink)
+                    if model.tagline == "Recommended" {
+                        Text("default")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(BD.teal)
+                            .padding(.horizontal, 5).padding(.vertical, 2)
+                            .background(BD.teal.opacity(0.15), in: Capsule())
+                    }
+                }
+                Text("\(model.tagline) · \(model.sizeLabel)")
+                    .font(.system(size: 11))
+                    .foregroundStyle(BD.muted)
+            }
+
+            Spacer()
+
+            // State area
+            if isPulling, let state = pullState {
+                HStack(spacing: 8) {
+                    if let pct = state.progress {
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(BD.border)
+                                .frame(width: 80, height: 4)
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(BD.teal)
+                                .frame(width: 80 * pct, height: 4)
+                        }
+                        Text("\(Int(pct * 100))%")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(BD.muted)
+                            .frame(width: 30, alignment: .leading)
+                    } else {
+                        ProgressView().scaleEffect(0.6).frame(width: 20, height: 20)
+                    }
+                    Button("Cancel") { ollamaManager.cancelPull(model.name) }
+                        .buttonStyle(NudgeBtn())
+                }
+            } else if let err = pullState?.error {
+                HStack(spacing: 6) {
+                    Text(String(err.prefix(28)) + "…")
+                        .font(.system(size: 10))
+                        .foregroundStyle(BD.danger)
+                    Button("Retry") {
+                        ollamaManager.pullModel(model.name, endpoint: draft.ollamaEndpoint)
+                    }
+                    .buttonStyle(NudgeBtn())
+                }
+            } else if isInstalled {
+                HStack(spacing: 8) {
+                    Text("installed")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(BD.teal.opacity(0.75))
+                    Button("Use") { draft.ollamaModel = model.name }
+                        .buttonStyle(NudgeBtn())
+                        .foregroundStyle(BD.teal)
+                }
+            } else {
+                Button("Install") {
+                    ollamaManager.pullModel(model.name, endpoint: draft.ollamaEndpoint)
+                }
+                .buttonStyle(TealBtn())
+                .disabled(ollamaManager.installStatus != .running)
+                .opacity(ollamaManager.installStatus == .running ? 1 : 0.4)
+            }
+        }
+        .padding(.vertical, 10)
     }
 
     private var historySection: some View {
