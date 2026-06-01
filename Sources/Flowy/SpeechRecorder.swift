@@ -54,6 +54,7 @@ final class SpeechRecorder {
 
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
+        request.taskHint = .dictation
         if recognizer?.supportsOnDeviceRecognition == true {
             request.requiresOnDeviceRecognition = true
         }
@@ -110,14 +111,25 @@ final class SpeechRecorder {
             tapInstalled = false
         }
         engine.stop()
-        recognitionRequest?.endAudio()
 
+        // If we already have a partial result, deliver it immediately.
+        // Waiting for isFinal adds 500 ms–3 s with no meaningful accuracy gain —
+        // partial results are accurate by the time the user stops recording.
+        if !bestText.isEmpty {
+            recognitionRequest?.endAudio()
+            finish(.success(bestText))
+            return
+        }
+
+        // No partial result yet (very short recording) — signal end and wait
+        // briefly for the first recognition callback to arrive.
+        recognitionRequest?.endAudio()
         let timeout = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.finish(.success(self.bestText))
         }
         finalTimeout = timeout
-        DispatchQueue.main.asyncAfter(deadline: .now() + .nanoseconds(Int(finalGraceNanoseconds)), execute: timeout)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150), execute: timeout)
     }
 
     // Called from the audio tap thread — intentionally avoids locks for performance.

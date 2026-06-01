@@ -44,7 +44,7 @@ enum TextOutput {
         if let capturedApp, !capturedApp.isTerminated {
             FlowyLog.info("Reactivating captured app name=\(capturedApp.localizedName ?? "unknown") pid=\(capturedApp.processIdentifier)")
             capturedApp.activate(options: [.activateIgnoringOtherApps])
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            try? await Task.sleep(nanoseconds: 80_000_000)
         } else {
             FlowyLog.warn("No captured app available for delivery")
         }
@@ -54,7 +54,7 @@ enum TextOutput {
             return false
         }
 
-        if await pasteClipboard() {
+        if pasteClipboard() {
             FlowyLog.info("Delivery attempted via Cmd+V")
             return true
         }
@@ -76,7 +76,7 @@ enum TextOutput {
         return false
     }
 
-    private static func pasteClipboard() async -> Bool {
+    private static func pasteClipboard() -> Bool {
         guard AXIsProcessTrusted() else {
             FlowyLog.warn("Cmd+V skipped: AXIsProcessTrusted=false, macOS will ignore synthetic paste events")
             return false
@@ -99,7 +99,6 @@ enum TextOutput {
         keyUp.flags = .maskCommand
         keyDown.post(tap: .cgSessionEventTap)
         keyUp.post(tap: .cgSessionEventTap)
-        try? await Task.sleep(nanoseconds: 80_000_000)
         return true
     }
 
