@@ -2,7 +2,7 @@
 set -euo pipefail
 
 APP_NAME="Flowy"
-VERSION="${1:-0.1.0}"
+VERSION="${1:-0.2.0}"
 
 REPO_ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 APP_BUNDLE="$REPO_ROOT/target/release/bundle/macos/$APP_NAME.app"
