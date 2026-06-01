@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class OverlayWindowController {
     private let panel: NSPanel
+    private let overlayModel = OverlayModel()
     private var hideWorkItem: DispatchWorkItem?
 
     init() {
@@ -19,7 +20,8 @@ final class OverlayWindowController {
         panel.hasShadow = false
         panel.ignoresMouseEvents = true
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
-        panel.contentView = NSHostingView(rootView: OverlayPill(status: .recording))
+        // Create the hosting view once and never replace it.
+        panel.contentView = NSHostingView(rootView: OverlayPill(model: overlayModel))
     }
 
     func update(status: AppStatus) {
@@ -28,7 +30,7 @@ final class OverlayWindowController {
 
         switch status {
         case .recording, .transcribing:
-            panel.contentView = NSHostingView(rootView: OverlayPill(status: status))
+            overlayModel.status = status   // single @Published update, no SwiftUI re-init
             positionPanel()
             panel.orderFrontRegardless()
 
@@ -51,17 +53,26 @@ final class OverlayWindowController {
     }
 }
 
+// MARK: – Observable model
+
+@MainActor
+private final class OverlayModel: ObservableObject {
+    @Published var status: AppStatus = .recording
+}
+
+// MARK: – Pill view
+
 private struct OverlayPill: View {
-    let status: AppStatus
+    @ObservedObject var model: OverlayModel
 
     var body: some View {
         HStack(spacing: 10) {
             Circle()
-                .fill(status == .recording ? Color.red : Color.accentColor)
+                .fill(model.status == .recording ? Color.red : Color.accentColor)
                 .frame(width: 10, height: 10)
-            Text(status == .recording ? "Recording..." : "Processing...")
+            Text(model.status == .recording ? "Recording..." : "Processing...")
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-            if status == .transcribing {
+            if model.status == .transcribing {
                 ProgressView()
                     .controlSize(.small)
                     .scaleEffect(0.7)

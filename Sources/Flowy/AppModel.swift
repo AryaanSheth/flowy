@@ -110,6 +110,9 @@ final class AppModel: ObservableObject {
     func stopRecording() {
         guard status == .recording else { return }
         FlowyLog.info("Recording stop requested")
+        // Pre-activate the target app now so the focus switch happens
+        // concurrently with transcription rather than after it.
+        capturedApp?.activate(options: [.activateIgnoringOtherApps])
         recordingTimeout?.cancel()
         recordingTimeout = nil
         setStatus(.transcribing)

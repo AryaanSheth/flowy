@@ -42,9 +42,13 @@ enum TextOutput {
 
     private static func typeText(_ text: String, capturedApp: NSRunningApplication?) async -> Bool {
         if let capturedApp, !capturedApp.isTerminated {
-            FlowyLog.info("Reactivating captured app name=\(capturedApp.localizedName ?? "unknown") pid=\(capturedApp.processIdentifier)")
-            capturedApp.activate(options: [.activateIgnoringOtherApps])
-            try? await Task.sleep(nanoseconds: 80_000_000)
+            let alreadyFront = NSWorkspace.shared.frontmostApplication?
+                .processIdentifier == capturedApp.processIdentifier
+            if !alreadyFront {
+                FlowyLog.info("Reactivating captured app name=\(capturedApp.localizedName ?? "unknown")")
+                capturedApp.activate(options: [.activateIgnoringOtherApps])
+                try? await Task.sleep(nanoseconds: 80_000_000)
+            }
         } else {
             FlowyLog.warn("No captured app available for delivery")
         }
