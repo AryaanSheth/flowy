@@ -285,6 +285,17 @@ struct SettingsView: View {
                             .labelsHidden()
                     }
                 }
+                RowDivider()
+                row("Speech threshold") {
+                    HStack(spacing: 8) {
+                        Text(String(format: "%.0f dB", draft.vadSpeechThresholdDB))
+                            .font(.system(size: 12))
+                            .foregroundStyle(BD.ink)
+                            .frame(width: 46, alignment: .trailing)
+                        Slider(value: $draft.vadSpeechThresholdDB, in: -50.0 ... -5.0, step: 1.0)
+                            .frame(width: 120)
+                    }
+                }
             }
         }
     }

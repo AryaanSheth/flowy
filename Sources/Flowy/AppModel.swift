@@ -106,7 +106,8 @@ final class AppModel: ObservableObject {
                 deviceUID: config.inputDevice,
                 maxSeconds: config.maxRecordingSecs,
                 onVADStop: vadStop,
-                vadSilenceSeconds: config.vadSilenceSeconds
+                vadSilenceSeconds: config.vadSilenceSeconds,
+                vadSpeechThresholdDB: Float(config.vadSpeechThresholdDB)
             ) { [weak self] result in
                 Task { @MainActor in self?.handleRecognition(result) }
             }

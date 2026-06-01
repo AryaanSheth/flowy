@@ -5,7 +5,8 @@ import Speech
 final class SpeechRecorder {
     // VAD uses adaptive thresholds relative to peak speaking volume so it works
     // in both quiet rooms and noisy offices without manual tuning.
-    private static let speechStartDB: Float  = -25.0  // must reach this to arm silence tracking
+    // speechStartDB is configurable per-recording via start(); default shown here.
+    private static let defaultSpeechStartDB: Float = -25.0
     // After speech detected, silence = drop this many dB below peak speaking volume.
     private static let silenceDropDB: Float  = 22.0   // e.g. peak -12 → silence threshold -34
     private static let deepSilenceDropDB: Float = 35.0 // e.g. peak -12 → deep silence threshold -47
@@ -36,6 +37,7 @@ final class SpeechRecorder {
     // VAD state — written only from the audio tap thread after initialisation
     private var vadCallback: (() -> Void)?
     private var vadSilenceTimeout: TimeInterval = 1.0
+    private var vadSpeechStartDB: Float = -25.0
     private var vadLastSpeechNs: UInt64 = 0
     private var vadSpeakerDetected = false
     private var vadFired = false
@@ -76,7 +78,8 @@ final class SpeechRecorder {
         deviceUID: String?,
         maxSeconds: Int,
         onVADStop: (() -> Void)? = nil,
-        vadSilenceSeconds: TimeInterval = 1.5,
+        vadSilenceSeconds: TimeInterval = 0.6,
+        vadSpeechThresholdDB: Float = -25.0,
         completion: @escaping (Result<String, Error>) -> Void
     ) throws {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
@@ -102,6 +105,7 @@ final class SpeechRecorder {
         finalTimeout = nil
         vadCallback = onVADStop
         vadSilenceTimeout = vadSilenceSeconds
+        vadSpeechStartDB = vadSpeechThresholdDB
         vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
         vadSpeakerDetected = false
         vadFired = false
@@ -195,7 +199,7 @@ final class SpeechRecorder {
         guard let vadCallback, !stopping, !vadFired else { return }
         let db = Self.rmsDB(buffer)
 
-        if db >= Self.speechStartDB {
+        if db >= vadSpeechStartDB {
             vadSpeakerDetected = true
             vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
             if db > vadPeakDB { vadPeakDB = db }

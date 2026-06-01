@@ -14,6 +14,7 @@ struct AppConfig: Codable, Equatable {
     var translationTargetLanguage: String
     var vadEnabled: Bool
     var vadSilenceSeconds: Double
+    var vadSpeechThresholdDB: Double
     var ollamaEnabled: Bool
     var ollamaEndpoint: String
     var ollamaModel: String
@@ -33,6 +34,7 @@ struct AppConfig: Codable, Equatable {
         translationTargetLanguage: String = "en",
         vadEnabled: Bool = true,
         vadSilenceSeconds: Double = 0.6,
+        vadSpeechThresholdDB: Double = -25.0,
         ollamaEnabled: Bool = false,
         ollamaEndpoint: String = "http://localhost:11434",
         ollamaModel: String = "llama3.2:3b",
@@ -51,6 +53,7 @@ struct AppConfig: Codable, Equatable {
         self.translationTargetLanguage = translationTargetLanguage
         self.vadEnabled = vadEnabled
         self.vadSilenceSeconds = vadSilenceSeconds
+        self.vadSpeechThresholdDB = vadSpeechThresholdDB
         self.ollamaEnabled = ollamaEnabled
         self.ollamaEndpoint = ollamaEndpoint
         self.ollamaModel = ollamaModel
@@ -71,6 +74,7 @@ struct AppConfig: Codable, Equatable {
         case translationTargetLanguage
         case vadEnabled
         case vadSilenceSeconds
+        case vadSpeechThresholdDB
         case ollamaEnabled
         case ollamaEndpoint
         case ollamaModel
@@ -92,6 +96,7 @@ struct AppConfig: Codable, Equatable {
         translationTargetLanguage = try c.decodeIfPresent(String.self, forKey: .translationTargetLanguage) ?? "en"
         vadEnabled = try c.decodeIfPresent(Bool.self, forKey: .vadEnabled) ?? true
         vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 0.6
+        vadSpeechThresholdDB = try c.decodeIfPresent(Double.self, forKey: .vadSpeechThresholdDB) ?? -25.0
         ollamaEnabled = try c.decodeIfPresent(Bool.self, forKey: .ollamaEnabled) ?? false
         ollamaEndpoint = try c.decodeIfPresent(String.self, forKey: .ollamaEndpoint) ?? "http://localhost:11434"
         ollamaModel = try c.decodeIfPresent(String.self, forKey: .ollamaModel) ?? "llama3.2:3b"
@@ -153,6 +158,7 @@ struct AppConfig: Codable, Equatable {
         next.maxRecordingSecs = min(300, max(5, next.maxRecordingSecs))
         next.historySize = min(200, max(1, next.historySize))
         next.vadSilenceSeconds = min(3.0, max(0.3, next.vadSilenceSeconds))
+        next.vadSpeechThresholdDB = min(-5.0, max(-50.0, next.vadSpeechThresholdDB))
 
         next.ollamaEndpoint = next.ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         if next.ollamaEndpoint.isEmpty {
