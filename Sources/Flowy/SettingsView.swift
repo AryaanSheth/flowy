@@ -37,7 +37,7 @@ private struct GhostBtn: ButtonStyle {
     }
 }
 
-private struct NudgeBtn: ButtonStyle {  // small inline action button
+private struct NudgeBtn: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 11, weight: .medium))
@@ -45,7 +45,6 @@ private struct NudgeBtn: ButtonStyle {  // small inline action button
     }
 }
 
-// MARK: – TextFieldStyle
 private struct BrandField: TextFieldStyle {
     // swiftlint:disable:next identifier_name
     func _body(configuration: TextField<Self._Label>) -> some View {
@@ -60,7 +59,6 @@ private struct BrandField: TextFieldStyle {
     }
 }
 
-// MARK: – Row-level helpers (flat layout, no card containers)
 private struct RowDivider: View {
     var body: some View { BD.border.frame(height: 1) }
 }
@@ -68,26 +66,19 @@ private struct RowDivider: View {
 // MARK: – Main view
 struct SettingsView: View {
     @ObservedObject var model: AppModel
-    @StateObject private var ollamaManager = OllamaManager()
 
     @State private var draft: AppConfig
-    @State private var selectedSection: SettingsSection = .shortcut
+    @State private var selectedSection: SettingsSection = .record
     @State private var devices: [AudioInputDevice] = []
     @State private var dictRows: [DictionaryRow]
     @State private var dictionaryTestInput = ""
     @State private var dictionaryTestOutput = "-"
     @State private var saveMessage = ""
-    @State private var ollamaMessage = ""
-    @State private var ollamaModels: [String] = []
-    @State private var customToneRows: [ToneRow] = []
 
     init(model: AppModel) {
         self.model = model
         _draft = State(initialValue: model.config)
         _dictRows = State(initialValue: Self.rows(from: model.config.dictionary))
-        _customToneRows = State(initialValue: model.config.customTones.map {
-            ToneRow(id: $0.id, name: $0.name, prompt: $0.prompt)
-        })
     }
 
     var body: some View {
@@ -107,7 +98,7 @@ struct SettingsView: View {
             }
             footer
         }
-        .frame(minWidth: 720, minHeight: 560)
+        .frame(minWidth: 600, minHeight: 440)
         .background(BD.bg)
         .environment(\.colorScheme, .dark)
         .onAppear { refreshDevices(); model.refreshPermissions() }
@@ -172,9 +163,7 @@ struct SettingsView: View {
                     }
                     .padding(.horizontal, 12).padding(.vertical, 8)
                     .overlay(alignment: .leading) {
-                        if active {
-                            BD.teal.frame(width: 2).padding(.vertical, 6)
-                        }
+                        if active { BD.teal.frame(width: 2).padding(.vertical, 6) }
                     }
                 }
                 .buttonStyle(.plain)
@@ -182,7 +171,7 @@ struct SettingsView: View {
             Spacer()
         }
         .padding(.top, 10)
-        .frame(width: 155)
+        .frame(width: 140)
         .background(BD.bg)
         .overlay(alignment: .trailing) { BD.border.frame(width: 1) }
     }
@@ -191,12 +180,10 @@ struct SettingsView: View {
     @ViewBuilder
     private var sectionContent: some View {
         switch selectedSection {
-        case .shortcut:   shortcutSection
+        case .record:     recordSection
         case .audio:      audioSection
         case .output:     outputSection
         case .dictionary: dictionarySection
-        case .ai:         aiSection
-        case .tone:       toneSection
         case .history:    historySection
         case .system:     systemSection
         }
@@ -220,14 +207,13 @@ struct SettingsView: View {
         .overlay(alignment: .top) { BD.border.frame(height: 1) }
     }
 
-    // MARK: – Sections ──────────────────────────────────────────────────────
+    // MARK: – Sections
 
-    private var shortcutSection: some View {
+    private var recordSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("Shortcut")
+            sectionTitle("Record")
             permissionBanners
 
-            // Record button — slightly featured
             VStack(alignment: .leading, spacing: 8) {
                 HoldRecordButton(
                     isRecording: model.status == .recording,
@@ -247,24 +233,20 @@ struct SettingsView: View {
                     Text("Global hotkey")
                         .font(.system(size: 13))
                         .foregroundStyle(BD.ink)
-                    Button("reset to default") {
-                        draft.hotkey = "CmdOrCtrl+Shift+Space"
-                    }
-                    .font(.system(size: 10))
-                    .foregroundStyle(BD.muted)
-                    .buttonStyle(.plain)
+                    Button("reset to default") { draft.hotkey = "CmdOrCtrl+Shift+Space" }
+                        .font(.system(size: 10))
+                        .foregroundStyle(BD.muted)
+                        .buttonStyle(.plain)
                 }
                 Spacer()
-                HotkeyRecorderView(hotkey: $draft.hotkey)
-                    .frame(height: 28)
+                HotkeyRecorderView(hotkey: $draft.hotkey).frame(height: 28)
             }
             .padding(.vertical, 10)
             RowDivider()
             row("Recording limit") {
                 HStack(spacing: 6) {
                     Text("\(draft.maxRecordingSecs) s")
-                        .font(.system(size: 12))
-                        .foregroundStyle(BD.ink)
+                        .font(.system(size: 12)).foregroundStyle(BD.ink)
                         .frame(width: 36, alignment: .trailing)
                     Stepper("", value: $draft.maxRecordingSecs, in: 5...300, step: 5)
                         .labelsHidden()
@@ -279,34 +261,12 @@ struct SettingsView: View {
                 row("Silence delay") {
                     HStack(spacing: 6) {
                         Text(String(format: "%.1f s", draft.vadSilenceSeconds))
-                            .font(.system(size: 12))
-                            .foregroundStyle(BD.ink)
+                            .font(.system(size: 12)).foregroundStyle(BD.ink)
                             .frame(width: 36, alignment: .trailing)
                         Stepper("", value: $draft.vadSilenceSeconds, in: 0.3...3.0, step: 0.3)
                             .labelsHidden()
                     }
                 }
-                RowDivider()
-                row("Mic sensitivity") {
-                    // Negate so slider right = more sensitive (lower dBFS threshold).
-                    // Range 10…45 maps to dBFS -10…-45.
-                    let sensitivityBinding = Binding<Double>(
-                        get: { -draft.vadSpeechThresholdDB },
-                        set: { draft.vadSpeechThresholdDB = -$0 }
-                    )
-                    HStack(spacing: 6) {
-                        Text("Low").font(.system(size: 10)).foregroundStyle(BD.ink.opacity(0.5))
-                        Slider(value: sensitivityBinding, in: 10...45, step: 5)
-                            .frame(width: 100)
-                        Text("High").font(.system(size: 10)).foregroundStyle(BD.ink.opacity(0.5))
-                        Text(String(format: "%.0f dB", draft.vadSpeechThresholdDB))
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(BD.ink.opacity(0.6))
-                            .frame(width: 44, alignment: .trailing)
-                    }
-                }
-                RowDivider()
-                row("Mic level") { MicLevelMeter(thresholdDB: draft.vadSpeechThresholdDB) }
             }
         }
     }
@@ -337,9 +297,8 @@ struct SettingsView: View {
                 Button { draft.outputMode = mode } label: {
                     HStack(alignment: .top, spacing: 11) {
                         ZStack {
-                            Circle().stroke(
-                                draft.outputMode == mode ? BD.teal : BD.border,
-                                lineWidth: 1.5)
+                            Circle()
+                                .stroke(draft.outputMode == mode ? BD.teal : BD.border, lineWidth: 1.5)
                                 .frame(width: 15, height: 15)
                             if draft.outputMode == mode {
                                 Circle().fill(BD.teal).frame(width: 7, height: 7)
@@ -347,12 +306,8 @@ struct SettingsView: View {
                         }
                         .padding(.top, 2)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text(mode.title)
-                                .font(.system(size: 13))
-                                .foregroundStyle(BD.ink)
-                            Text(mode.subtitle)
-                                .font(.system(size: 11))
-                                .foregroundStyle(BD.muted)
+                            Text(mode.title).font(.system(size: 13)).foregroundStyle(BD.ink)
+                            Text(mode.subtitle).font(.system(size: 11)).foregroundStyle(BD.muted)
                         }
                         Spacer()
                     }
@@ -361,45 +316,6 @@ struct SettingsView: View {
                 }
                 .buttonStyle(.plain)
                 if i < OutputMode.allCases.count - 1 { RowDivider() }
-            }
-
-            // ── Translation ──────────────────────────────────────────
-            RowDivider()
-            translationSection
-        }
-    }
-
-    @ViewBuilder
-    private var translationSection: some View {
-        if #available(macOS 15, *) {
-            row("Translate output") {
-                Toggle("", isOn: $draft.translationEnabled).labelsHidden().tint(BD.teal)
-            }
-            if draft.translationEnabled {
-                RowDivider()
-                row("Target language") {
-                    Picker("", selection: $draft.translationTargetLanguage) {
-                        ForEach(TranslationLanguage.supported) { lang in
-                            Text(lang.name).tag(lang.id)
-                        }
-                    }
-                    .labelsHidden()
-                    .frame(width: 200)
-                }
-                RowDivider()
-                HStack(spacing: 6) {
-                    Circle().fill(BD.teal).frame(width: 5, height: 5)
-                    Text("On-device · powered by Apple Translation")
-                        .font(.system(size: 11))
-                        .foregroundStyle(BD.muted)
-                }
-                .padding(.vertical, 8)
-            }
-        } else {
-            row("Translate output") {
-                Text("Requires macOS 15")
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(BD.muted)
             }
         }
     }
@@ -413,8 +329,7 @@ struct SettingsView: View {
                         TextField("word", text: $dictRows[i].key)
                             .textFieldStyle(BrandField())
                         Image(systemName: "arrow.right")
-                            .font(.system(size: 10))
-                            .foregroundStyle(BD.muted)
+                            .font(.system(size: 10)).foregroundStyle(BD.muted)
                         TextField("replacement", text: $dictRows[i].value)
                             .textFieldStyle(BrandField())
                         Button { dictRows.remove(at: i); runDictionaryTest() } label: {
@@ -431,8 +346,7 @@ struct SettingsView: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Preview")
-                    .font(.system(size: 11)).foregroundStyle(BD.muted)
+                Text("Preview").font(.system(size: 11)).foregroundStyle(BD.muted)
                 TextField("Type to test substitutions…", text: $dictionaryTestInput)
                     .textFieldStyle(BrandField())
                     .onChange(of: dictionaryTestInput) { _ in runDictionaryTest() }
@@ -440,377 +354,6 @@ struct SettingsView: View {
                     .font(.system(size: 11, design: .monospaced))
                     .foregroundStyle(BD.muted)
             }
-        }
-    }
-
-    private var aiSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("AI")
-
-            // ── Ollama status ──────────────────────────────────────────
-            ollamaStatusBanner
-            RowDivider()
-
-            // ── Existing settings ──────────────────────────────────────
-            row("Ollama enhancement") {
-                Toggle("", isOn: $draft.ollamaEnabled).labelsHidden().tint(BD.teal)
-            }
-            RowDivider()
-            row("Endpoint") {
-                HStack(spacing: 8) {
-                    TextField("http://localhost:11434", text: $draft.ollamaEndpoint)
-                        .textFieldStyle(BrandField())
-                        .frame(width: 200)
-                    Button("Test") { Task { await checkOllama() } }
-                        .buttonStyle(NudgeBtn())
-                }
-            }
-            RowDivider()
-            row("Model") {
-                if !ollamaModels.isEmpty {
-                    Picker("", selection: $draft.ollamaModel) {
-                        ForEach(ollamaModels, id: \.self) { Text($0).tag($0) }
-                    }
-                    .labelsHidden().frame(width: 200)
-                } else {
-                    TextField("llama3.2:3b", text: $draft.ollamaModel)
-                        .textFieldStyle(BrandField())
-                        .frame(width: 200)
-                }
-            }
-            if !ollamaMessage.isEmpty {
-                Text(ollamaMessage)
-                    .font(.system(size: 11)).foregroundStyle(BD.muted)
-                    .padding(.top, 8)
-            }
-            RowDivider().padding(.top, 14)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("System prompt")
-                    .font(.system(size: 11)).foregroundStyle(BD.muted)
-                    .padding(.top, 12).padding(.bottom, 6)
-                TextEditor(text: $draft.ollamaPrompt)
-                    .font(.system(size: 11, design: .monospaced))
-                    .foregroundStyle(BD.ink)
-                    .scrollContentBackground(.hidden)
-                    .background(Color.clear)
-                    .frame(minHeight: 90)
-                RowDivider()
-            }
-
-            // ── Recommended models ────────────────────────────────────
-            recommendedModelsSection
-        }
-        .onAppear {
-            Task { await ollamaManager.checkStatus(endpoint: draft.ollamaEndpoint) }
-        }
-    }
-
-    // MARK: – Ollama status banner
-
-    @ViewBuilder
-    private var ollamaStatusBanner: some View {
-        HStack(spacing: 8) {
-            Circle()
-                .fill(ollamaStatusColor)
-                .frame(width: 5, height: 5)
-            if ollamaManager.installStatus == .checking || ollamaManager.installStatus == .installing {
-                ProgressView()
-                    .scaleEffect(0.55)
-                    .frame(width: 14, height: 14)
-            }
-            Text(ollamaStatusLabel)
-                .font(.system(size: 12))
-                .foregroundStyle(BD.ink)
-            Spacer()
-            switch ollamaManager.installStatus {
-            case .notInstalled:
-                Button("Install via Homebrew") {
-                    Task { await ollamaManager.installOllama() }
-                }
-                .buttonStyle(TealBtn())
-            case .stopped:
-                Button("Start Ollama") {
-                    ollamaManager.startServer(endpoint: draft.ollamaEndpoint)
-                }
-                .buttonStyle(TealBtn())
-            case .running:
-                Button {
-                    Task { await ollamaManager.checkStatus(endpoint: draft.ollamaEndpoint) }
-                } label: {
-                    Image(systemName: "arrow.clockwise").font(.system(size: 11))
-                }
-                .buttonStyle(NudgeBtn())
-            case .checking, .installing:
-                EmptyView()
-            }
-        }
-        .padding(.vertical, 10)
-
-        if !ollamaManager.installMessage.isEmpty {
-            Text(ollamaManager.installMessage)
-                .font(.system(size: 11))
-                .foregroundStyle(BD.muted)
-                .padding(.bottom, 8)
-        }
-    }
-
-    private var ollamaStatusColor: Color {
-        switch ollamaManager.installStatus {
-        case .running:               return BD.teal
-        case .stopped, .notInstalled: return BD.danger.opacity(0.8)
-        case .checking, .installing: return BD.warn
-        }
-    }
-
-    private var ollamaStatusLabel: String {
-        switch ollamaManager.installStatus {
-        case .checking:    return "Checking…"
-        case .notInstalled: return "Ollama not installed"
-        case .stopped:     return "Ollama installed · server not running"
-        case .running:     return "Ollama running"
-        case .installing:  return "Installing Ollama…"
-        }
-    }
-
-    // MARK: – Recommended models
-
-    @ViewBuilder
-    private var recommendedModelsSection: some View {
-        Text("Recommended Models")
-            .font(.system(size: 11))
-            .foregroundStyle(BD.muted)
-            .padding(.top, 16)
-            .padding(.bottom, 6)
-
-        ForEach(Array(OllamaManager.recommendedModels.enumerated()), id: \.element.id) { i, model in
-            recommendedModelRow(model)
-            if i < OllamaManager.recommendedModels.count - 1 { RowDivider() }
-        }
-    }
-
-    @ViewBuilder
-    private func recommendedModelRow(_ model: RecommendedModel) -> some View {
-        let pullState   = ollamaManager.pullStates[model.name]
-        let isPulling   = pullState != nil && !(pullState?.done ?? false) && pullState?.error == nil
-        let isInstalled = pullState?.done == true || ollamaManager.isInstalled(model.name)
-
-        HStack(spacing: 12) {
-            // Label + tagline
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text(model.label)
-                        .font(.system(size: 13))
-                        .foregroundStyle(BD.ink)
-                    if model.tagline == "Recommended" {
-                        Text("default")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(BD.teal)
-                            .padding(.horizontal, 5).padding(.vertical, 2)
-                            .background(BD.teal.opacity(0.15), in: Capsule())
-                    }
-                }
-                Text("\(model.tagline) · \(model.sizeLabel)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(BD.muted)
-            }
-
-            Spacer()
-
-            // State area
-            if isPulling, let state = pullState {
-                HStack(spacing: 8) {
-                    if let pct = state.progress {
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(BD.border)
-                                .frame(width: 80, height: 4)
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(BD.teal)
-                                .frame(width: 80 * pct, height: 4)
-                        }
-                        Text("\(Int(pct * 100))%")
-                            .font(.system(size: 10, design: .monospaced))
-                            .foregroundStyle(BD.muted)
-                            .frame(width: 30, alignment: .leading)
-                    } else {
-                        ProgressView().scaleEffect(0.6).frame(width: 20, height: 20)
-                    }
-                    Button("Cancel") { ollamaManager.cancelPull(model.name) }
-                        .buttonStyle(NudgeBtn())
-                }
-            } else if let err = pullState?.error {
-                HStack(spacing: 6) {
-                    Text(String(err.prefix(28)) + "…")
-                        .font(.system(size: 10))
-                        .foregroundStyle(BD.danger)
-                    Button("Retry") {
-                        ollamaManager.pullModel(model.name, endpoint: draft.ollamaEndpoint)
-                    }
-                    .buttonStyle(NudgeBtn())
-                }
-            } else if isInstalled {
-                HStack(spacing: 8) {
-                    Text("installed")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(BD.teal.opacity(0.75))
-                    Button("Use") { draft.ollamaModel = model.name }
-                        .buttonStyle(NudgeBtn())
-                        .foregroundStyle(BD.teal)
-                }
-            } else {
-                Button("Install") {
-                    ollamaManager.pullModel(model.name, endpoint: draft.ollamaEndpoint)
-                }
-                .buttonStyle(TealBtn())
-                .disabled(ollamaManager.installStatus != .running)
-                .opacity(ollamaManager.installStatus == .running ? 1 : 0.4)
-            }
-        }
-        .padding(.vertical, 10)
-    }
-
-    // MARK: – Tone section
-
-    private var toneSection: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            sectionTitle("Tone")
-
-            // Ollama warning if no endpoint configured and a non-raw tone is selected
-            if draft.activeToneID != nil && draft.activeToneID != "raw" && !draft.ollamaEnabled {
-                inlineBanner("Tone requires Ollama — enable it in the AI tab.",
-                             action: { selectedSection = .ai }, actionLabel: "Go")
-                    .padding(.bottom, 4)
-            }
-
-            // ── Built-in tones ─────────────────────────────────────
-            Text("Built-in")
-                .font(.system(size: 11)).foregroundStyle(BD.muted)
-                .padding(.bottom, 6)
-
-            ForEach(Array(TonePreset.builtIns.enumerated()), id: \.element.id) { i, tone in
-                toneRow(tone, isBuiltIn: true)
-                RowDivider()
-            }
-
-            // ── Custom tones ───────────────────────────────────────
-            Text("Custom")
-                .font(.system(size: 11)).foregroundStyle(BD.muted)
-                .padding(.top, 16).padding(.bottom, 6)
-
-            ForEach($customToneRows) { $row in
-                customToneRow($row)
-                RowDivider()
-            }
-
-            Button {
-                let newID = UUID().uuidString
-                customToneRows.append(ToneRow(id: newID, name: "", prompt: ""))
-            } label: {
-                Label("New Tone", systemImage: "plus").font(.system(size: 11))
-            }
-            .buttonStyle(NudgeBtn())
-            .padding(.top, 8)
-        }
-    }
-
-    private func toneRow(_ tone: TonePreset, isBuiltIn: Bool) -> some View {
-        let selected = draft.activeToneID == tone.id
-        return Button {
-            draft.activeToneID = selected ? nil : tone.id
-        } label: {
-            HStack(alignment: .top, spacing: 11) {
-                ZStack {
-                    Circle()
-                        .stroke(selected ? BD.teal : BD.border, lineWidth: 1.5)
-                        .frame(width: 15, height: 15)
-                    if selected { Circle().fill(BD.teal).frame(width: 7, height: 7) }
-                }
-                .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack(spacing: 6) {
-                        Text(tone.name)
-                            .font(.system(size: 13))
-                            .foregroundStyle(BD.ink)
-                        if tone.id == "clean" {
-                            Text("default")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(BD.teal)
-                                .padding(.horizontal, 5).padding(.vertical, 2)
-                                .background(BD.teal.opacity(0.15), in: Capsule())
-                        }
-                        if tone.id == "raw" {
-                            Text("no AI")
-                                .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(BD.muted)
-                                .padding(.horizontal, 5).padding(.vertical, 2)
-                                .background(BD.border, in: Capsule())
-                        }
-                    }
-                    Text(toneSubtitle(tone))
-                        .font(.system(size: 11))
-                        .foregroundStyle(BD.muted)
-                }
-                Spacer()
-            }
-            .padding(.vertical, 10)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func customToneRow(_ row: Binding<ToneRow>) -> some View {
-        let isSelected = draft.activeToneID == row.id
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 11) {
-                Button {
-                    draft.activeToneID = isSelected ? nil : row.id
-                } label: {
-                    ZStack {
-                        Circle()
-                            .stroke(isSelected ? BD.teal : BD.border, lineWidth: 1.5)
-                            .frame(width: 15, height: 15)
-                        if isSelected { Circle().fill(BD.teal).frame(width: 7, height: 7) }
-                    }
-                }
-                .buttonStyle(.plain)
-                TextField("Tone name", text: row.name)
-                    .textFieldStyle(BrandField())
-                    .frame(maxWidth: 160)
-                Spacer()
-                Button {
-                    if draft.activeToneID == row.id { draft.activeToneID = nil }
-                    customToneRows.removeAll { $0.id == row.id }
-                } label: {
-                    Image(systemName: "xmark").font(.system(size: 10))
-                }
-                .buttonStyle(NudgeBtn())
-            }
-            .padding(.vertical, 8)
-
-            TextEditor(text: row.prompt)
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(BD.ink)
-                .scrollContentBackground(.hidden)
-                .background(BD.card)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .stroke(BD.border, lineWidth: 1)
-                )
-                .frame(minHeight: 70)
-                .padding(.bottom, 8)
-        }
-    }
-
-    private func toneSubtitle(_ tone: TonePreset) -> String {
-        switch tone.id {
-        case "raw":      return "Output the raw transcription unchanged"
-        case "clean":    return "Fix grammar, punctuation, and self-corrections"
-        case "formal":   return "Rewrite in formal professional English"
-        case "business": return "Rewrite in business casual — clear and workplace-ready"
-        case "concise":  return "Trim to essentials, remove filler"
-        case "bullets":  return "Convert to bullet points"
-        default:         return "Custom tone"
         }
     }
 
@@ -863,8 +406,6 @@ struct SettingsView: View {
                 Toggle("", isOn: $draft.autostart).labelsHidden().tint(BD.teal)
             }
             RowDivider()
-
-            // Permission rows
             permRow("Speech Recognition", granted: model.permissions.speechAuthorized)
             RowDivider()
             permRow("Microphone",         granted: model.permissions.microphoneAuthorized)
@@ -881,8 +422,6 @@ struct SettingsView: View {
             .buttonStyle(NudgeBtn())
             .padding(.vertical, 10)
             RowDivider()
-
-            // Config path
             row("Config") {
                 HStack(spacing: 8) {
                     Text(model.configPath)
@@ -894,8 +433,7 @@ struct SettingsView: View {
                         NSWorkspace.shared.selectFile(
                             AppConfig.configURL.path, inFileViewerRootedAtPath: "")
                     } label: {
-                        Image(systemName: "folder")
-                            .font(.system(size: 11))
+                        Image(systemName: "folder").font(.system(size: 11))
                     }
                     .buttonStyle(NudgeBtn())
                 }
@@ -903,33 +441,27 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: – Permission banners (minimal inline banners)
+    // MARK: – Shared sub-views
+
     @ViewBuilder
     private var permissionBanners: some View {
         if !model.permissions.accessibilityTrusted {
             inlineBanner(
-                "Accessibility required — if Flowy is already listed in System Settings, remove and re-add it.",
+                "Accessibility required — if Flowy is listed, remove and re-add it.",
                 action: { TextOutput.requestAccessibilityAccess(); TextOutput.openAccessibilitySettings() },
                 actionLabel: "Fix"
             )
         }
         if !model.permissions.speechAuthorized {
-            inlineBanner(
-                "Speech Recognition not authorized.",
-                action: model.requestInitialPermissions,
-                actionLabel: "Request"
-            )
+            inlineBanner("Speech Recognition not authorized.",
+                         action: model.requestInitialPermissions, actionLabel: "Request")
         }
         if !model.permissions.microphoneAuthorized {
-            inlineBanner(
-                "Microphone access required.",
-                action: model.requestInitialPermissions,
-                actionLabel: "Request"
-            )
+            inlineBanner("Microphone access required.",
+                         action: model.requestInitialPermissions, actionLabel: "Request")
         }
     }
 
-    // MARK: – Shared sub-views
     private func sectionTitle(_ text: String) -> some View {
         Text(text)
             .font(.system(size: 16, weight: .medium))
@@ -939,9 +471,7 @@ struct SettingsView: View {
 
     private func row<C: View>(_ label: String, @ViewBuilder control: () -> C) -> some View {
         HStack(spacing: 12) {
-            Text(label)
-                .font(.system(size: 13))
-                .foregroundStyle(BD.ink)
+            Text(label).font(.system(size: 13)).foregroundStyle(BD.ink)
             Spacer()
             control()
         }
@@ -953,9 +483,7 @@ struct SettingsView: View {
             Circle()
                 .fill(granted ? BD.teal : BD.danger.opacity(0.8))
                 .frame(width: 5, height: 5)
-            Text(title)
-                .font(.system(size: 13))
-                .foregroundStyle(BD.ink)
+            Text(title).font(.system(size: 13)).foregroundStyle(BD.ink)
             Spacer()
             Text(granted ? "granted" : "missing")
                 .font(.system(size: 11, design: .monospaced))
@@ -964,16 +492,11 @@ struct SettingsView: View {
         .padding(.vertical, 10)
     }
 
-    private func inlineBanner(
-        _ message: String,
-        action: @escaping () -> Void,
-        actionLabel: String
-    ) -> some View {
+    private func inlineBanner(_ message: String, action: @escaping () -> Void, actionLabel: String) -> some View {
         HStack(spacing: 10) {
             Circle().fill(BD.warn).frame(width: 5, height: 5)
             Text(message)
-                .font(.system(size: 11))
-                .foregroundStyle(BD.muted)
+                .font(.system(size: 11)).foregroundStyle(BD.muted)
                 .fixedSize(horizontal: false, vertical: true)
             Spacer()
             Button(actionLabel, action: action)
@@ -981,11 +504,11 @@ struct SettingsView: View {
                 .foregroundStyle(BD.warn)
                 .buttonStyle(.plain)
         }
-        .padding(.vertical, 8)
-        .padding(.bottom, 6)
+        .padding(.vertical, 8).padding(.bottom, 6)
     }
 
     // MARK: – Bindings & logic
+
     private var inputDeviceBinding: Binding<String> {
         Binding(
             get: { draft.inputDevice ?? "" },
@@ -1006,10 +529,6 @@ struct SettingsView: View {
     private func saveDraft() {
         var clean = draft
         clean.dictionary = collectedDictionary()
-        clean.customTones = customToneRows
-            .map { TonePreset(id: $0.id, name: $0.name.trimmingCharacters(in: .whitespacesAndNewlines),
-                              prompt: $0.prompt.trimmingCharacters(in: .whitespacesAndNewlines)) }
-            .filter { !$0.name.isEmpty }
         do {
             try model.saveConfig(clean)
             resetDraft()
@@ -1022,9 +541,6 @@ struct SettingsView: View {
     private func resetDraft() {
         draft = model.config
         dictRows = Self.rows(from: model.config.dictionary)
-        customToneRows = model.config.customTones.map {
-            ToneRow(id: $0.id, name: $0.name, prompt: $0.prompt)
-        }
         runDictionaryTest()
     }
 
@@ -1046,21 +562,6 @@ struct SettingsView: View {
             dictionaryTestInput, dictionary: collectedDictionary())
     }
 
-    private func checkOllama() async {
-        ollamaMessage = "Checking…"
-        let result = await OllamaClient.status(endpoint: draft.ollamaEndpoint)
-        if result.reachable {
-            ollamaModels = result.models
-            if draft.ollamaModel.isEmpty, let first = result.models.first {
-                draft.ollamaModel = first
-            }
-            ollamaMessage = "Connected · \(result.models.count) model\(result.models.count == 1 ? "" : "s") found."
-        } else {
-            ollamaModels = []
-            ollamaMessage = result.error ?? "Could not reach Ollama."
-        }
-    }
-
     private static func rows(from dict: [String: String]) -> [DictionaryRow] {
         dict.sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
             .map { DictionaryRow(key: $0.key, value: $0.value) }
@@ -1069,17 +570,15 @@ struct SettingsView: View {
 
 // MARK: – Section enum
 private enum SettingsSection: String, CaseIterable, Identifiable {
-    case shortcut, audio, output, dictionary, ai, tone, history, system
+    case record, audio, output, dictionary, history, system
     var id: String { rawValue }
 
     var title: String {
         switch self {
-        case .shortcut:   "Shortcut"
+        case .record:     "Record"
         case .audio:      "Audio"
         case .output:     "Output"
         case .dictionary: "Dictionary"
-        case .ai:         "AI"
-        case .tone:       "Tone"
         case .history:    "History"
         case .system:     "System"
         }
@@ -1087,12 +586,10 @@ private enum SettingsSection: String, CaseIterable, Identifiable {
 
     var symbol: String {
         switch self {
-        case .shortcut:   "keyboard"
+        case .record:     "keyboard"
         case .audio:      "waveform"
         case .output:     "text.cursor"
         case .dictionary: "book"
-        case .ai:         "sparkles"
-        case .tone:       "wand.and.sparkles"
         case .history:    "clock.arrow.circlepath"
         case .system:     "gearshape"
         }
@@ -1104,89 +601,4 @@ private struct DictionaryRow: Identifiable, Equatable {
     let id = UUID()
     var key:   String
     var value: String
-}
-
-// MARK: – ToneRow
-private struct ToneRow: Identifiable {
-    let id: String   // used as TonePreset.id
-    var name: String
-    var prompt: String
-}
-
-// MARK: – MicLevelMeter
-/// Live microphone level bar that samples AVAudioEngine so users can
-/// calibrate the VAD speech threshold to their environment.
-private struct MicLevelMeter: View {
-    let thresholdDB: Double
-
-    @State private var currentDB: Float = -80
-    @State private var engine: AVAudioEngine? = nil
-    @State private var timer: Timer? = nil
-
-    var body: some View {
-        HStack(spacing: 8) {
-            GeometryReader { geo in
-                ZStack(alignment: .leading) {
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(BD.border)
-                        .frame(height: 6)
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(levelColor)
-                        .frame(width: geo.size.width * levelFraction, height: 6)
-                    // Threshold marker
-                    let tx = geo.size.width * thresholdFraction
-                    Rectangle()
-                        .fill(BD.warn)
-                        .frame(width: 1.5, height: 10)
-                        .offset(x: tx - 0.75, y: -2)
-                }
-            }
-            .frame(height: 10)
-            Text(String(format: "%.0f dB", currentDB))
-                .font(.system(size: 11, design: .monospaced))
-                .foregroundStyle(BD.ink.opacity(0.6))
-                .frame(width: 44, alignment: .trailing)
-        }
-        .onAppear { startMonitor() }
-        .onDisappear { stopMonitor() }
-    }
-
-    // Map dBFS [-80, 0] to [0, 1]
-    private var levelFraction: CGFloat {
-        CGFloat(min(1, max(0, (currentDB + 80) / 80)))
-    }
-    private var thresholdFraction: CGFloat {
-        CGFloat(min(1, max(0, (Float(thresholdDB) + 80) / 80)))
-    }
-    private var levelColor: Color {
-        currentDB >= Float(thresholdDB) ? BD.teal : BD.muted.opacity(0.6)
-    }
-
-    private func startMonitor() {
-        let eng = AVAudioEngine()
-        self.engine = eng
-        let input = eng.inputNode
-        let format = input.outputFormat(forBus: 0)
-        guard format.sampleRate > 0 else { return }
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { buf, _ in
-            let db = rmsDB(buf)
-            DispatchQueue.main.async { currentDB = db }
-        }
-        try? eng.start()
-    }
-
-    private func stopMonitor() {
-        engine?.inputNode.removeTap(onBus: 0)
-        engine?.stop()
-        engine = nil
-    }
-
-    private func rmsDB(_ buffer: AVAudioPCMBuffer) -> Float {
-        guard let data = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return -80 }
-        let n = Int(buffer.frameLength)
-        var sum: Float = 0
-        for i in 0..<n { sum += data[i] * data[i] }
-        let rms = sqrt(sum / Float(n))
-        return rms > 0 ? max(-80, 20 * log10(rms)) : -80
-    }
 }
