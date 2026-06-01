@@ -3,15 +3,21 @@ import AVFoundation
 import Speech
 
 final class SpeechRecorder {
-    private let finalGraceNanoseconds: UInt64 = 450_000_000
-
-    // dBFS: must reach this level at least once before silence tracking begins
+    // dBFS thresholds for VAD
     private static let speechStartDB: Float = -25.0
-    // dBFS: below this is treated as silence
     private static let silenceDB: Float = -40.0
 
     private let engine = AVAudioEngine()
     private let recognizer = SFSpeechRecognizer(locale: Locale.current)
+
+    // Incremented on every start() — stale callbacks from the previous
+    // recording check their captured generation and early-return.
+    private var generation = 0
+
+    // Tracks whether engine.prepare() has been called since last stop().
+    private var isPrepared = false
+
+    // Per-recording state — reset at the top of start()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var completion: ((Result<String, Error>) -> Void)?
@@ -21,12 +27,43 @@ final class SpeechRecorder {
     private var tapInstalled = false
     private var finalTimeout: DispatchWorkItem?
 
-    // VAD state — written only from the audio tap thread after initialization
+    // VAD state — written only from the audio tap thread after initialisation
     private var vadCallback: (() -> Void)?
     private var vadSilenceTimeout: TimeInterval = 1.5
     private var vadLastSpeechNs: UInt64 = 0
     private var vadSpeakerDetected = false
     private var vadFired = false
+
+    // MARK: – Warm-up
+
+    /// Pre-prepare the audio engine so the next start() skips engine.prepare().
+    /// Call at launch and immediately after each recording finishes.
+    func warmUp(deviceUID: String?) {
+        guard !engine.isRunning else { return }
+        try? configureInputDevice(uid: deviceUID)
+        engine.prepare()
+        isPrepared = true
+        FlowyLog.info("SpeechRecorder engine warmed up")
+    }
+
+    /// Load the on-device speech model by running a brief dummy recognition task.
+    /// Call once after speech authorisation is granted.
+    func warmUpRecognizer() {
+        guard recognizer?.isAvailable == true,
+              SFSpeechRecognizer.authorizationStatus() == .authorized else { return }
+        let req = SFSpeechAudioBufferRecognitionRequest()
+        req.shouldReportPartialResults = false
+        req.taskHint = .dictation
+        if recognizer?.supportsOnDeviceRecognition == true {
+            req.requiresOnDeviceRecognition = true
+        }
+        let task = recognizer?.recognitionTask(with: req) { _, _ in }
+        req.endAudio()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { task?.cancel() }
+        FlowyLog.info("SpeechRecorder recognizer warm-up started")
+    }
+
+    // MARK: – Recording
 
     func start(
         deviceUID: String?,
@@ -45,10 +82,22 @@ final class SpeechRecorder {
             throw FlowyError.message("macOS Speech Recognition is unavailable. Enable Siri and Dictation in System Settings, then try again.")
         }
 
+        // Increment generation — any callbacks still in flight from the
+        // previous recording will see a generation mismatch and bail out.
+        generation &+= 1
+        let myGeneration = generation
+
+        // Reset per-recording state
         self.completion = completion
-        self.vadCallback = onVADStop
-        self.vadSilenceTimeout = vadSilenceSeconds
-        self.vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
+        bestText = ""
+        finished = false
+        stopping = false
+        finalTimeout = nil
+        vadCallback = onVADStop
+        vadSilenceTimeout = vadSilenceSeconds
+        vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
+        vadSpeakerDetected = false
+        vadFired = false
 
         try configureInputDevice(uid: deviceUID)
 
@@ -61,7 +110,7 @@ final class SpeechRecorder {
         recognitionRequest = request
 
         recognitionTask = recognizer?.recognitionTask(with: request) { [weak self] result, error in
-            guard let self else { return }
+            guard let self, self.generation == myGeneration else { return }
 
             if let text = result?.bestTranscription.formattedString, !text.isEmpty {
                 self.bestText = text
@@ -98,8 +147,10 @@ final class SpeechRecorder {
         }
         tapInstalled = true
 
-        engine.prepare()
+        // Only prepare if warmUp() hasn't already done so.
+        if !isPrepared { engine.prepare() }
         try engine.start()
+        isPrepared = false  // engine.stop() will de-prepare; track that we're now running
     }
 
     func stop() {
@@ -112,17 +163,14 @@ final class SpeechRecorder {
         }
         engine.stop()
 
-        // If we already have a partial result, deliver it immediately.
-        // Waiting for isFinal adds 500 ms–3 s with no meaningful accuracy gain —
-        // partial results are accurate by the time the user stops recording.
+        // Deliver bestText immediately — no need to wait for isFinal.
         if !bestText.isEmpty {
             recognitionRequest?.endAudio()
             finish(.success(bestText))
             return
         }
 
-        // No partial result yet (very short recording) — signal end and wait
-        // briefly for the first recognition callback to arrive.
+        // Very short recording with no partial result yet — wait briefly.
         recognitionRequest?.endAudio()
         let timeout = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -132,9 +180,8 @@ final class SpeechRecorder {
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150), execute: timeout)
     }
 
-    // Called from the audio tap thread — intentionally avoids locks for performance.
-    // Worst-case races (e.g. reading `stopping` a buffer late) resolve safely because
-    // stopRecording() is idempotent and vadFired prevents double-dispatch.
+    // MARK: – VAD (audio tap thread)
+
     private func checkVAD(_ buffer: AVAudioPCMBuffer) {
         guard let vadCallback, !stopping, !vadFired else { return }
         let db = Self.rmsDB(buffer)
@@ -143,7 +190,6 @@ final class SpeechRecorder {
             vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
         } else if vadSpeakerDetected {
             if db > Self.silenceDB {
-                // Soft sound resets the silence clock
                 vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
             } else {
                 let elapsedSecs = Double(DispatchTime.now().uptimeNanoseconds - vadLastSpeechNs) / 1e9
@@ -164,6 +210,31 @@ final class SpeechRecorder {
         return rms > 0 ? 20 * log10(rms) : -160
     }
 
+    // MARK: – Finish
+
+    private func finish(_ result: Result<String, Error>) {
+        guard !finished else { return }
+        finished = true
+
+        finalTimeout?.cancel()
+        finalTimeout = nil
+
+        if tapInstalled {
+            engine.inputNode.removeTap(onBus: 0)
+            tapInstalled = false
+        }
+        engine.stop()
+        isPrepared = false
+        recognitionTask?.cancel()
+        recognitionTask = nil
+        recognitionRequest = nil
+
+        completion?(result)
+        completion = nil
+    }
+
+    // MARK: – Device configuration
+
     private func configureInputDevice(uid: String?) throws {
         guard let uid, !uid.isEmpty else { return }
         guard var deviceID = AudioDeviceManager.audioDeviceID(forUID: uid) else {
@@ -181,36 +252,14 @@ final class SpeechRecorder {
             &deviceID,
             UInt32(MemoryLayout<AudioDeviceID>.size)
         )
-
         guard status == noErr else {
             throw FlowyError.message("Could not switch to the selected microphone")
         }
     }
 
-    private func finish(_ result: Result<String, Error>) {
-        guard !finished else { return }
-        finished = true
-
-        finalTimeout?.cancel()
-        finalTimeout = nil
-
-        if tapInstalled {
-            engine.inputNode.removeTap(onBus: 0)
-            tapInstalled = false
-        }
-        engine.stop()
-        recognitionTask?.cancel()
-        recognitionTask = nil
-        recognitionRequest = nil
-
-        completion?(result)
-        completion = nil
-    }
-
     private static func normalizedSpeechError(_ error: Error) -> Error {
-        let message = error.localizedDescription
-        let lower = message.lowercased()
-        if lower.contains("siri") || lower.contains("dictation") {
+        let msg = error.localizedDescription.lowercased()
+        if msg.contains("siri") || msg.contains("dictation") {
             return FlowyError.message("macOS says Siri and Dictation are disabled. Enable Dictation in System Settings > Keyboard > Dictation, then try again.")
         }
         return error

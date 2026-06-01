@@ -16,13 +16,15 @@ final class AppModel: ObservableObject {
     /// Set by AppDelegate on macOS 14+ to provide Apple Translation support.
     var translateText: ((String, String) async throws -> String)?
 
-    private var recorder: SpeechRecorder?
+    private let speechRecorder = SpeechRecorder()
     private var capturedApp: NSRunningApplication?
     private var recordingTimeout: DispatchWorkItem?
 
     init(config: AppConfig = .load()) {
         self.config = config
         refreshPermissions()
+        // Pre-warm the audio engine so the first recording skips engine.prepare().
+        speechRecorder.warmUp(deviceUID: config.inputDevice)
     }
 
     var configPath: String {
@@ -30,8 +32,15 @@ final class AppModel: ObservableObject {
     }
 
     func requestInitialPermissions() {
-        SFSpeechRecognizer.requestAuthorization { [weak self] _ in
-            Task { @MainActor in self?.refreshPermissions() }
+        SFSpeechRecognizer.requestAuthorization { [weak self] status in
+            Task { @MainActor in
+                self?.refreshPermissions()
+                if status == .authorized {
+                    // Load the on-device speech model now so the first recording
+                    // doesn't pay the cold-start penalty.
+                    self?.speechRecorder.warmUpRecognizer()
+                }
+            }
         }
 
         AVCaptureDevice.requestAccess(for: .audio) { [weak self] _ in
@@ -76,8 +85,6 @@ final class AppModel: ObservableObject {
         }
 
         capturedApp = NSWorkspace.shared.frontmostApplication
-        let recorder = SpeechRecorder()
-        self.recorder = recorder
 
         do {
             setStatus(.recording)
@@ -88,7 +95,7 @@ final class AppModel: ObservableObject {
                     self?.stopRecording()
                 }
             } : nil
-            try recorder.start(
+            try speechRecorder.start(
                 deviceUID: config.inputDevice,
                 maxSeconds: config.maxRecordingSecs,
                 onVADStop: vadStop,
@@ -98,7 +105,6 @@ final class AppModel: ObservableObject {
             }
             scheduleRecordingTimeout()
         } catch {
-            self.recorder = nil
             capturedApp = nil
             recordingTimeout?.cancel()
             setStatus(.idle)
@@ -116,7 +122,7 @@ final class AppModel: ObservableObject {
         recordingTimeout?.cancel()
         recordingTimeout = nil
         setStatus(.transcribing)
-        recorder?.stop()
+        speechRecorder.stop()
     }
 
     func clearHistory() {
@@ -138,7 +144,8 @@ final class AppModel: ObservableObject {
     private func handleRecognition(_ result: Result<String, Error>) {
         recordingTimeout?.cancel()
         recordingTimeout = nil
-        recorder = nil
+        // Re-warm the engine immediately so it's ready before the next recording.
+        speechRecorder.warmUp(deviceUID: config.inputDevice)
 
         Task { @MainActor in
             await processRecognition(result)
