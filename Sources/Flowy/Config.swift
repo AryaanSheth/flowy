@@ -8,6 +8,8 @@ struct AppConfig: Codable, Equatable {
     var outputMode: OutputMode
     var maxRecordingSecs: Int
     var historySize: Int
+    var vadEnabled: Bool
+    var vadSilenceSeconds: Double
     var ollamaEnabled: Bool
     var ollamaEndpoint: String
     var ollamaModel: String
@@ -21,6 +23,8 @@ struct AppConfig: Codable, Equatable {
         outputMode: OutputMode = .type,
         maxRecordingSecs: Int = 60,
         historySize: Int = 20,
+        vadEnabled: Bool = true,
+        vadSilenceSeconds: Double = 1.5,
         ollamaEnabled: Bool = false,
         ollamaEndpoint: String = "http://localhost:11434",
         ollamaModel: String = "llama3.2:3b",
@@ -33,6 +37,8 @@ struct AppConfig: Codable, Equatable {
         self.outputMode = outputMode
         self.maxRecordingSecs = maxRecordingSecs
         self.historySize = historySize
+        self.vadEnabled = vadEnabled
+        self.vadSilenceSeconds = vadSilenceSeconds
         self.ollamaEnabled = ollamaEnabled
         self.ollamaEndpoint = ollamaEndpoint
         self.ollamaModel = ollamaModel
@@ -47,6 +53,8 @@ struct AppConfig: Codable, Equatable {
         case outputMode
         case maxRecordingSecs
         case historySize
+        case vadEnabled
+        case vadSilenceSeconds
         case ollamaEnabled
         case ollamaEndpoint
         case ollamaModel
@@ -62,6 +70,8 @@ struct AppConfig: Codable, Equatable {
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .type
         maxRecordingSecs = try c.decodeIfPresent(Int.self, forKey: .maxRecordingSecs) ?? 60
         historySize = try c.decodeIfPresent(Int.self, forKey: .historySize) ?? 20
+        vadEnabled = try c.decodeIfPresent(Bool.self, forKey: .vadEnabled) ?? true
+        vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 1.5
         ollamaEnabled = try c.decodeIfPresent(Bool.self, forKey: .ollamaEnabled) ?? false
         ollamaEndpoint = try c.decodeIfPresent(String.self, forKey: .ollamaEndpoint) ?? "http://localhost:11434"
         ollamaModel = try c.decodeIfPresent(String.self, forKey: .ollamaModel) ?? "llama3.2:3b"
@@ -122,6 +132,7 @@ struct AppConfig: Codable, Equatable {
 
         next.maxRecordingSecs = min(300, max(5, next.maxRecordingSecs))
         next.historySize = min(200, max(1, next.historySize))
+        next.vadSilenceSeconds = min(5.0, max(0.5, next.vadSilenceSeconds))
 
         next.ollamaEndpoint = next.ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         if next.ollamaEndpoint.isEmpty {

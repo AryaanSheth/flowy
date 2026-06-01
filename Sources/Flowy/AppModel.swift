@@ -80,9 +80,17 @@ final class AppModel: ObservableObject {
         do {
             setStatus(.recording)
             FlowyLog.info("Recording started inputDevice=\(config.inputDevice ?? "default")")
+            let vadStop: (() -> Void)? = config.vadEnabled ? { [weak self] in
+                Task { @MainActor in
+                    FlowyLog.info("VAD silence detected — stopping recording")
+                    self?.stopRecording()
+                }
+            } : nil
             try recorder.start(
                 deviceUID: config.inputDevice,
-                maxSeconds: config.maxRecordingSecs
+                maxSeconds: config.maxRecordingSecs,
+                onVADStop: vadStop,
+                vadSilenceSeconds: config.vadSilenceSeconds
             ) { [weak self] result in
                 Task { @MainActor in self?.handleRecognition(result) }
             }

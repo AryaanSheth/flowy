@@ -264,6 +264,23 @@ struct SettingsView: View {
                         .labelsHidden()
                 }
             }
+            RowDivider()
+            row("Auto-stop on silence") {
+                Toggle("", isOn: $draft.vadEnabled).labelsHidden().tint(BD.teal)
+            }
+            if draft.vadEnabled {
+                RowDivider()
+                row("Silence delay") {
+                    HStack(spacing: 6) {
+                        Text(String(format: "%.1f s", draft.vadSilenceSeconds))
+                            .font(.system(size: 12))
+                            .foregroundStyle(BD.ink)
+                            .frame(width: 36, alignment: .trailing)
+                        Stepper("", value: $draft.vadSilenceSeconds, in: 0.5...5.0, step: 0.5)
+                            .labelsHidden()
+                    }
+                }
+            }
         }
     }
 

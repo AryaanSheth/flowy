@@ -5,6 +5,11 @@ import Speech
 final class SpeechRecorder {
     private let finalGraceNanoseconds: UInt64 = 450_000_000
 
+    // dBFS: must reach this level at least once before silence tracking begins
+    private static let speechStartDB: Float = -25.0
+    // dBFS: below this is treated as silence
+    private static let silenceDB: Float = -40.0
+
     private let engine = AVAudioEngine()
     private let recognizer = SFSpeechRecognizer(locale: Locale.current)
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -16,9 +21,18 @@ final class SpeechRecorder {
     private var tapInstalled = false
     private var finalTimeout: DispatchWorkItem?
 
+    // VAD state — written only from the audio tap thread after initialization
+    private var vadCallback: (() -> Void)?
+    private var vadSilenceTimeout: TimeInterval = 1.5
+    private var vadLastSpeechNs: UInt64 = 0
+    private var vadSpeakerDetected = false
+    private var vadFired = false
+
     func start(
         deviceUID: String?,
         maxSeconds: Int,
+        onVADStop: (() -> Void)? = nil,
+        vadSilenceSeconds: TimeInterval = 1.5,
         completion: @escaping (Result<String, Error>) -> Void
     ) throws {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
@@ -32,6 +46,9 @@ final class SpeechRecorder {
         }
 
         self.completion = completion
+        self.vadCallback = onVADStop
+        self.vadSilenceTimeout = vadSilenceSeconds
+        self.vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
 
         try configureInputDevice(uid: deviceUID)
 
@@ -74,8 +91,9 @@ final class SpeechRecorder {
             throw FlowyError.message("No microphone input format is available")
         }
 
-        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak request] buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 2048, format: format) { [weak self, weak request] buffer, _ in
             request?.append(buffer)
+            self?.checkVAD(buffer)
         }
         tapInstalled = true
 
@@ -100,6 +118,38 @@ final class SpeechRecorder {
         }
         finalTimeout = timeout
         DispatchQueue.main.asyncAfter(deadline: .now() + .nanoseconds(Int(finalGraceNanoseconds)), execute: timeout)
+    }
+
+    // Called from the audio tap thread — intentionally avoids locks for performance.
+    // Worst-case races (e.g. reading `stopping` a buffer late) resolve safely because
+    // stopRecording() is idempotent and vadFired prevents double-dispatch.
+    private func checkVAD(_ buffer: AVAudioPCMBuffer) {
+        guard let vadCallback, !stopping, !vadFired else { return }
+        let db = Self.rmsDB(buffer)
+        if db >= Self.speechStartDB {
+            vadSpeakerDetected = true
+            vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
+        } else if vadSpeakerDetected {
+            if db > Self.silenceDB {
+                // Soft sound resets the silence clock
+                vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
+            } else {
+                let elapsedSecs = Double(DispatchTime.now().uptimeNanoseconds - vadLastSpeechNs) / 1e9
+                if elapsedSecs >= vadSilenceTimeout {
+                    vadFired = true
+                    DispatchQueue.main.async { vadCallback() }
+                }
+            }
+        }
+    }
+
+    private static func rmsDB(_ buffer: AVAudioPCMBuffer) -> Float {
+        guard let data = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return -160 }
+        let n = Int(buffer.frameLength)
+        var sum: Float = 0
+        for i in 0..<n { sum += data[i] * data[i] }
+        let rms = sqrt(sum / Float(n))
+        return rms > 0 ? 20 * log10(rms) : -160
     }
 
     private func configureInputDevice(uid: String?) throws {
