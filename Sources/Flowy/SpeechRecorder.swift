@@ -3,22 +3,15 @@ import AVFoundation
 import Speech
 
 final class SpeechRecorder {
-    // Simple two-state VAD: speaking (db >= threshold) or silent (db < threshold).
-    // When silent, elapsed time accumulates immediately — no adaptive zone.
-    private static let deepSilenceDB: Float  = -50.0   // fire at reduced timeout in very quiet rooms
-    private static let deepSilenceFactor: Double = 0.18 // fire at 18% of timeout in deep silence
-
     private let engine = AVAudioEngine()
     private let recognizer = SFSpeechRecognizer(locale: Locale.current)
 
-    // Incremented on every start() — stale callbacks from the previous
-    // recording check their captured generation and early-return.
+    // Incremented on every start() — stale callbacks bail out on mismatch.
     private var generation = 0
 
-    // Tracks whether engine.prepare() has been called since last stop().
     private var isPrepared = false
 
-    // Per-recording state — reset at the top of start()
+    // Per-recording state
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var completion: ((Result<String, Error>) -> Void)?
@@ -28,18 +21,16 @@ final class SpeechRecorder {
     private var tapInstalled = false
     private var finalTimeout: DispatchWorkItem?
 
-    // VAD state — written only from the audio tap thread after initialisation
+    // VAD: fires when the recognizer produces no new text for vadSilenceTimeout seconds.
+    // This is transcription-stability based — the speech engine already knows when
+    // speech has stopped, so no microphone level calibration is needed.
     private var vadCallback: (() -> Void)?
-    private var vadSilenceTimeout: TimeInterval = 1.0
-    private var vadSpeechStartDB: Float = -25.0
-    private var vadLastSpeechNs: UInt64 = 0
-    private var vadSpeakerDetected = false
+    private var vadSilenceTimeout: TimeInterval = 0.6
+    private var vadWorkItem: DispatchWorkItem?
     private var vadFired = false
 
     // MARK: – Warm-up
 
-    /// Pre-prepare the audio engine so the next start() skips engine.prepare().
-    /// Call at launch and immediately after each recording finishes.
     func warmUp(deviceUID: String?) {
         guard !engine.isRunning else { return }
         try? configureInputDevice(uid: deviceUID)
@@ -48,8 +39,6 @@ final class SpeechRecorder {
         FlowyLog.info("SpeechRecorder engine warmed up")
     }
 
-    /// Load the on-device speech model by running a brief dummy recognition task.
-    /// Call once after speech authorisation is granted.
     func warmUpRecognizer() {
         guard recognizer?.isAvailable == true,
               SFSpeechRecognizer.authorizationStatus() == .authorized else { return }
@@ -85,12 +74,9 @@ final class SpeechRecorder {
             throw FlowyError.message("macOS Speech Recognition is unavailable. Enable Siri and Dictation in System Settings, then try again.")
         }
 
-        // Increment generation — any callbacks still in flight from the
-        // previous recording will see a generation mismatch and bail out.
         generation &+= 1
         let myGeneration = generation
 
-        // Reset per-recording state
         self.completion = completion
         bestText = ""
         finished = false
@@ -98,9 +84,8 @@ final class SpeechRecorder {
         finalTimeout = nil
         vadCallback = onVADStop
         vadSilenceTimeout = vadSilenceSeconds
-        vadSpeechStartDB = vadSpeechThresholdDB
-        vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
-        vadSpeakerDetected = false
+        vadWorkItem?.cancel()
+        vadWorkItem = nil
         vadFired = false
 
         try configureInputDevice(uid: deviceUID)
@@ -117,7 +102,14 @@ final class SpeechRecorder {
             guard let self, self.generation == myGeneration else { return }
 
             if let text = result?.bestTranscription.formattedString, !text.isEmpty {
+                let changed = text != self.bestText
                 self.bestText = text
+
+                // Reschedule VAD timer every time new text arrives.
+                // When text stops changing (user stopped talking), the timer fires.
+                if changed, let cb = self.vadCallback, !self.stopping, !self.vadFired {
+                    self.scheduleVAD(cb: cb, generation: myGeneration)
+                }
             }
 
             if result?.isFinal == true {
@@ -145,22 +137,21 @@ final class SpeechRecorder {
             throw FlowyError.message("No microphone input format is available")
         }
 
-        // 512 frames ≈ 11 ms at 48 kHz — checks silence ~4× more often than 2048
-        input.installTap(onBus: 0, bufferSize: 512, format: format) { [weak self, weak request] buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak request] buffer, _ in
             request?.append(buffer)
-            self?.checkVAD(buffer)
         }
         tapInstalled = true
 
-        // Only prepare if warmUp() hasn't already done so.
         if !isPrepared { engine.prepare() }
         try engine.start()
-        isPrepared = false  // engine.stop() will de-prepare; track that we're now running
+        isPrepared = false
     }
 
     func stop() {
         guard !stopping else { return }
         stopping = true
+        vadWorkItem?.cancel()
+        vadWorkItem = nil
 
         if tapInstalled {
             engine.inputNode.removeTap(onBus: 0)
@@ -168,14 +159,12 @@ final class SpeechRecorder {
         }
         engine.stop()
 
-        // Deliver bestText immediately — no need to wait for isFinal.
         if !bestText.isEmpty {
             recognitionRequest?.endAudio()
             finish(.success(bestText))
             return
         }
 
-        // Very short recording with no partial result yet — wait briefly.
         recognitionRequest?.endAudio()
         let timeout = DispatchWorkItem { [weak self] in
             guard let self else { return }
@@ -185,39 +174,19 @@ final class SpeechRecorder {
         DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150), execute: timeout)
     }
 
-    // MARK: – VAD (audio tap thread)
+    // MARK: – Transcription-stability VAD
 
-    private func checkVAD(_ buffer: AVAudioPCMBuffer) {
-        guard let vadCallback, !stopping, !vadFired else { return }
-        let db = Self.rmsDB(buffer)
-
-        if db >= vadSpeechStartDB {
-            // Speaking: arm detector and reset silence clock.
-            vadSpeakerDetected = true
-            vadLastSpeechNs = DispatchTime.now().uptimeNanoseconds
-            return
+    private func scheduleVAD(cb: @escaping () -> Void, generation: Int) {
+        vadWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.generation == generation,
+                  !self.stopping, !self.vadFired else { return }
+            self.vadFired = true
+            FlowyLog.info("VAD: silence detected after transcription stabilised")
+            cb()
         }
-
-        guard vadSpeakerDetected else { return }
-
-        // Silent: accumulate elapsed time since last speech buffer.
-        let elapsed = Double(DispatchTime.now().uptimeNanoseconds - vadLastSpeechNs) / 1e9
-        let timeout = db < Self.deepSilenceDB
-            ? vadSilenceTimeout * Self.deepSilenceFactor
-            : vadSilenceTimeout
-        if elapsed >= timeout {
-            vadFired = true
-            DispatchQueue.main.async { vadCallback() }
-        }
-    }
-
-    private static func rmsDB(_ buffer: AVAudioPCMBuffer) -> Float {
-        guard let data = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return -160 }
-        let n = Int(buffer.frameLength)
-        var sum: Float = 0
-        for i in 0..<n { sum += data[i] * data[i] }
-        let rms = sqrt(sum / Float(n))
-        return rms > 0 ? 20 * log10(rms) : -160
+        vadWorkItem = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + vadSilenceTimeout, execute: item)
     }
 
     // MARK: – Finish
@@ -226,6 +195,8 @@ final class SpeechRecorder {
         guard !finished else { return }
         finished = true
 
+        vadWorkItem?.cancel()
+        vadWorkItem = nil
         finalTimeout?.cancel()
         finalTimeout = nil
 
