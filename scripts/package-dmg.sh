@@ -31,3 +31,7 @@ hdiutil create \
 
 rm -rf "$STAGING"
 echo "Done: $DMG_OUT"
+
+# Unversioned alias so releases/latest/download/Flowy.dmg always resolves
+cp "$DMG_OUT" "$REPO_ROOT/target/release/Flowy.dmg"
+echo "Alias: $REPO_ROOT/target/release/Flowy.dmg"

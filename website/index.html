@@ -12,11 +12,6 @@
   <link rel="stylesheet" href="tokens.css">
 
   <style>
-    /* Hallmark · genre: atmospheric · macrostructure: Marquee Hero · theme: custom (bold ocean flow)
-     * vibe: deep ocean, heavy type, flowing teal · nav: N9 edge-aligned · footer: Ft2 inline
-     * pre-emit critique: P5 H5 E5 S5 R5 V5
-     */
-
     /* ── Reset ───────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { overflow-x: clip; }
@@ -32,7 +27,6 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    /* Deep ocean ambient glow — single fixed layer */
     body::before {
       content: "";
       position: fixed;
@@ -67,6 +61,7 @@
     .d2 { transition-delay: 0.14s; }
     .d3 { transition-delay: 0.21s; }
     .d4 { transition-delay: 0.28s; }
+    .d5 { transition-delay: 0.35s; }
 
     @media (prefers-reduced-motion: reduce) {
       .fade-up { opacity: 1; transform: none; transition: opacity 150ms linear; }
@@ -74,7 +69,7 @@
 
 
     /* ══════════════════════════════════════════════════
-       NAV — N9 Edge-aligned minimal
+       NAV
     ══════════════════════════════════════════════════ */
     .nav {
       position: fixed;
@@ -96,19 +91,10 @@
       align-items: center;
       gap: var(--space-2);
     }
-    .wordmark-wave {
-      width: 20px; height: 12px;
-      display: inline-block;
-      overflow: hidden;
-      flex-shrink: 0;
-    }
+    .wordmark-wave { width: 20px; height: 12px; display: inline-block; overflow: hidden; flex-shrink: 0; }
     .wordmark-wave svg { display: block; }
 
-    .nav-end {
-      display: flex;
-      align-items: center;
-      gap: var(--space-8);
-    }
+    .nav-end { display: flex; align-items: center; gap: var(--space-8); }
 
     .nav-link {
       font-size: var(--text-sm);
@@ -132,8 +118,7 @@
 
 
     /* ══════════════════════════════════════════════════
-       HERO — Marquee Hero
-       The heading IS the fold.
+       HERO
     ══════════════════════════════════════════════════ */
     .hero {
       position: relative;
@@ -145,9 +130,7 @@
       padding-top: 5rem;
     }
 
-    .hero-inner {
-      padding: 0 var(--space-8) 0;
-    }
+    .hero-inner { padding: 0 var(--space-8) 0; }
 
     .hero-eyebrow {
       font-family: var(--font-mono);
@@ -181,12 +164,61 @@
       color: var(--color-ink-2);
       max-width: 44ch;
       line-height: 1.58;
-      margin-bottom: var(--space-12);
+      margin-bottom: var(--space-10);
       overflow-wrap: anywhere;
       min-width: 0;
     }
 
-    /* ── Wave stage — bottom of hero ───────────────── */
+    /* ── Hero CTA row ───────────────────────────────── */
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: var(--space-6);
+      flex-wrap: wrap;
+      margin-bottom: var(--space-12);
+    }
+
+    .hero-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-3);
+      padding: var(--space-4) var(--space-8);
+      background: var(--color-accent);
+      color: oklch(10% 0.025 220);
+      font-family: var(--font-display);
+      font-size: var(--text-base);
+      font-weight: 800;
+      letter-spacing: -0.01em;
+      border-radius: var(--radius-sm);
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: transform var(--dur-slow) var(--ease-out),
+                  box-shadow var(--dur-slow) var(--ease-out),
+                  opacity var(--dur-base) var(--ease-out);
+      white-space: nowrap;
+    }
+    .hero-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 30px oklch(68% 0.113 193 / 0.3);
+    }
+    .hero-btn:active { transform: translateY(0); }
+    .hero-btn:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 4px; }
+
+    .hero-version {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--color-ink-3);
+      letter-spacing: 0.06em;
+    }
+
+    .hero-reqs {
+      font-size: var(--text-xs);
+      font-family: var(--font-mono);
+      color: var(--color-ink-3);
+      letter-spacing: 0.04em;
+    }
+
+    /* ── Wave stage ─────────────────────────────────── */
     .wave-stage {
       position: relative;
       width: 100%;
@@ -194,59 +226,31 @@
       overflow: hidden;
       flex-shrink: 0;
     }
-
     .wave-track {
       display: flex;
       width: 200%;
       animation: wave-scroll 10s linear infinite;
       will-change: transform;
     }
-
-    .wave-track svg {
-      flex: 1 0 50%;
-      display: block;
-      height: 80px;
-    }
-
-    .wave-path-a {
-      fill: none;
-      stroke: var(--color-accent);
-      stroke-width: 1.5;
-      opacity: 0.9;
-    }
-
-    .wave-path-b {
-      fill: none;
-      stroke: var(--color-accent);
-      stroke-width: 1;
-      opacity: 0.28;
-      transform: translateY(10px) scaleY(0.7);
-      transform-box: fill-box;
-    }
+    .wave-track svg { flex: 1 0 50%; display: block; height: 80px; }
+    .wave-path-a { fill: none; stroke: var(--color-accent); stroke-width: 1.5; opacity: 0.9; }
+    .wave-path-b { fill: none; stroke: var(--color-accent); stroke-width: 1; opacity: 0.28; transform: translateY(10px) scaleY(0.7); transform-box: fill-box; }
 
     @keyframes wave-scroll {
       from { transform: translateX(0); }
       to   { transform: translateX(-50%); }
     }
-
-    @media (prefers-reduced-motion: reduce) {
-      .wave-track { animation: none; }
-    }
+    @media (prefers-reduced-motion: reduce) { .wave-track { animation: none; } }
 
 
     /* ══════════════════════════════════════════════════
-       RULE — thick horizontal rule separating hero/body
+       RULE
     ══════════════════════════════════════════════════ */
-    .rule-thick {
-      border: none;
-      border-top: 1px solid var(--color-rule);
-      position: relative;
-      z-index: 1;
-    }
+    .rule-thick { border: none; border-top: 1px solid var(--color-rule); position: relative; z-index: 1; }
 
 
     /* ══════════════════════════════════════════════════
-       ASSERTIONS — bold 3-up grid
+       ASSERTIONS
     ══════════════════════════════════════════════════ */
     .assertions {
       position: relative;
@@ -254,50 +258,16 @@
       background: var(--color-paper-2);
       border-bottom: 1px solid var(--color-rule);
     }
-
-    .assertions-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-    }
-
-    .assertion {
-      padding: var(--space-12) var(--space-8);
-      border-right: 1px solid var(--color-rule);
-    }
+    .assertions-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
+    .assertion { padding: var(--space-12) var(--space-8); border-right: 1px solid var(--color-rule); }
     .assertion:last-child { border-right: none; }
-
-    .assertion-label {
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--color-accent);
-      display: block;
-      margin-bottom: var(--space-4);
-    }
-
-    .assertion-text {
-      font-family: var(--font-display);
-      font-size: var(--text-2xl);
-      font-weight: 800;
-      line-height: 1.08;
-      letter-spacing: -0.03em;
-      color: var(--color-ink);
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
-
-    .assertion-sub {
-      margin-top: var(--space-3);
-      font-size: var(--text-sm);
-      color: var(--color-ink-2);
-      font-weight: 300;
-      line-height: 1.55;
-    }
+    .assertion-label { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent); display: block; margin-bottom: var(--space-4); }
+    .assertion-text { font-family: var(--font-display); font-size: var(--text-2xl); font-weight: 800; line-height: 1.08; letter-spacing: -0.03em; color: var(--color-ink); overflow-wrap: anywhere; min-width: 0; }
+    .assertion-sub { margin-top: var(--space-3); font-size: var(--text-sm); color: var(--color-ink-2); font-weight: 300; line-height: 1.55; }
 
 
     /* ══════════════════════════════════════════════════
-       FEATURES — tabular list
+       FEATURES
     ══════════════════════════════════════════════════ */
     .features {
       position: relative;
@@ -306,85 +276,19 @@
       background: var(--color-paper);
       border-bottom: 1px solid var(--color-rule);
     }
-
-    .feat-header {
-      margin-bottom: var(--space-12);
-    }
-    .feat-eyebrow {
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--color-accent);
-      display: block;
-      margin-bottom: var(--space-4);
-    }
-    .feat-title {
-      font-family: var(--font-display);
-      font-size: var(--text-display-s);
-      font-weight: 900;
-      letter-spacing: -0.04em;
-      line-height: 1.04;
-      color: var(--color-ink);
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
-
-    .feat-list {
-      list-style: none;
-      border-top: 1px solid var(--color-rule);
-    }
-
-    .feat-item {
-      display: grid;
-      grid-template-columns: 14rem 1fr;
-      gap: var(--space-8);
-      align-items: baseline;
-      padding: var(--space-6) 0;
-      border-bottom: 1px solid var(--color-rule);
-      transition: background var(--dur-base) var(--ease-out);
-    }
-    .feat-item:hover {
-      background: oklch(68% 0.113 193 / 0.04);
-      margin: 0 calc(var(--space-6) * -1);
-      padding-left: var(--space-6);
-      padding-right: var(--space-6);
-    }
-
-    .feat-name {
-      font-family: var(--font-display);
-      font-size: var(--text-md);
-      font-weight: 700;
-      color: var(--color-ink);
-      letter-spacing: -0.02em;
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
-
-    .feat-desc {
-      font-size: var(--text-base);
-      color: var(--color-ink-2);
-      font-weight: 300;
-      line-height: 1.58;
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
-
-    .feat-tag {
-      display: inline-block;
-      margin-top: var(--space-2);
-      padding: 2px 8px;
-      border: 1px solid var(--color-rule-2);
-      border-radius: var(--radius-sm);
-      font-family: var(--font-mono);
-      font-size: calc(var(--text-xs) * 0.9);
-      letter-spacing: 0.06em;
-      color: var(--color-accent);
-    }
+    .feat-header { margin-bottom: var(--space-12); }
+    .feat-eyebrow { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent); display: block; margin-bottom: var(--space-4); }
+    .feat-title { font-family: var(--font-display); font-size: var(--text-display-s); font-weight: 900; letter-spacing: -0.04em; line-height: 1.04; color: var(--color-ink); overflow-wrap: anywhere; min-width: 0; }
+    .feat-list { list-style: none; border-top: 1px solid var(--color-rule); }
+    .feat-item { display: grid; grid-template-columns: 14rem 1fr; gap: var(--space-8); align-items: baseline; padding: var(--space-6) 0; border-bottom: 1px solid var(--color-rule); transition: background var(--dur-base) var(--ease-out); }
+    .feat-item:hover { background: oklch(68% 0.113 193 / 0.04); margin: 0 calc(var(--space-6) * -1); padding-left: var(--space-6); padding-right: var(--space-6); }
+    .feat-name { font-family: var(--font-display); font-size: var(--text-md); font-weight: 700; color: var(--color-ink); letter-spacing: -0.02em; overflow-wrap: anywhere; min-width: 0; }
+    .feat-desc { font-size: var(--text-base); color: var(--color-ink-2); font-weight: 300; line-height: 1.58; overflow-wrap: anywhere; min-width: 0; }
+    .feat-tag { display: inline-block; margin-top: var(--space-2); padding: 2px 8px; border: 1px solid var(--color-rule-2); border-radius: var(--radius-sm); font-family: var(--font-mono); font-size: calc(var(--text-xs) * 0.9); letter-spacing: 0.06em; color: var(--color-accent); }
 
 
     /* ══════════════════════════════════════════════════
-       STEPS — "How it works"
+       INSTALL STEPS — expanded 4-step install flow
     ══════════════════════════════════════════════════ */
     .steps {
       position: relative;
@@ -393,33 +297,13 @@
       background: var(--color-paper-2);
       border-bottom: 1px solid var(--color-rule);
     }
-
-    .steps-header {
-      margin-bottom: var(--space-12);
-    }
-    .steps-eyebrow {
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
-      letter-spacing: 0.14em;
-      text-transform: uppercase;
-      color: var(--color-accent);
-      display: block;
-      margin-bottom: var(--space-4);
-    }
-    .steps-title {
-      font-family: var(--font-display);
-      font-size: var(--text-display-s);
-      font-weight: 900;
-      letter-spacing: -0.04em;
-      line-height: 1.04;
-      color: var(--color-ink);
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
+    .steps-header { margin-bottom: var(--space-12); }
+    .steps-eyebrow { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.14em; text-transform: uppercase; color: var(--color-accent); display: block; margin-bottom: var(--space-4); }
+    .steps-title { font-family: var(--font-display); font-size: var(--text-display-s); font-weight: 900; letter-spacing: -0.04em; line-height: 1.04; color: var(--color-ink); overflow-wrap: anywhere; min-width: 0; }
 
     .steps-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: repeat(4, 1fr);
       gap: 1px;
       background: var(--color-rule);
       border: 1px solid var(--color-rule);
@@ -427,14 +311,11 @@
       overflow: hidden;
     }
 
-    .step {
-      background: var(--color-paper);
-      padding: var(--space-10) var(--space-8);
-    }
+    .step { background: var(--color-paper); padding: var(--space-10) var(--space-8); }
 
     .step-num {
       font-family: var(--font-display);
-      font-size: clamp(3.5rem, 8vw, 5.5rem);
+      font-size: clamp(3rem, 6vw, 4.5rem);
       font-weight: 900;
       line-height: 0.9;
       letter-spacing: -0.05em;
@@ -442,25 +323,8 @@
       margin-bottom: var(--space-8);
     }
 
-    .step h3 {
-      font-family: var(--font-display);
-      font-size: var(--text-md);
-      font-weight: 700;
-      color: var(--color-ink);
-      letter-spacing: -0.02em;
-      margin-bottom: var(--space-3);
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
-
-    .step p {
-      font-size: var(--text-sm);
-      color: var(--color-ink-2);
-      font-weight: 300;
-      line-height: 1.62;
-      overflow-wrap: anywhere;
-      min-width: 0;
-    }
+    .step h3 { font-family: var(--font-display); font-size: var(--text-md); font-weight: 700; color: var(--color-ink); letter-spacing: -0.02em; margin-bottom: var(--space-3); overflow-wrap: anywhere; min-width: 0; }
+    .step p { font-size: var(--text-sm); color: var(--color-ink-2); font-weight: 300; line-height: 1.62; overflow-wrap: anywhere; min-width: 0; }
 
     .step-badge {
       display: inline-flex;
@@ -475,9 +339,22 @@
       color: var(--color-accent);
     }
 
+    /* Gatekeeper callout inside step */
+    .step-callout {
+      margin-top: var(--space-6);
+      padding: var(--space-4) var(--space-5);
+      background: oklch(68% 0.113 193 / 0.07);
+      border: 1px solid oklch(68% 0.113 193 / 0.18);
+      border-radius: var(--radius-md);
+      font-size: var(--text-xs);
+      color: var(--color-ink-2);
+      line-height: 1.55;
+    }
+    .step-callout strong { color: var(--color-accent); font-weight: 500; }
+
 
     /* ══════════════════════════════════════════════════
-       CTA — full-bleed teal, Marquee Hero climax
+       CTA — full-bleed teal
     ══════════════════════════════════════════════════ */
     .cta {
       position: relative;
@@ -487,43 +364,15 @@
       overflow: hidden;
     }
 
-    /* Animated wave inside CTA block */
-    .cta-wave {
-      position: absolute;
-      bottom: 0; left: 0; right: 0;
-      height: 60px;
-      overflow: hidden;
-      opacity: 0.12;
-    }
-    .cta-wave-track {
-      display: flex;
-      width: 200%;
-      animation: wave-scroll 12s linear infinite reverse;
-    }
-    .cta-wave-track svg {
-      flex: 1 0 50%;
-      display: block;
-      height: 60px;
-    }
-    .cta-wave-path {
-      fill: var(--color-cta-ink);
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-      .cta-wave-track { animation: none; }
-    }
+    .cta-wave { position: absolute; bottom: 0; left: 0; right: 0; height: 60px; overflow: hidden; opacity: 0.12; }
+    .cta-wave-track { display: flex; width: 200%; animation: wave-scroll 12s linear infinite reverse; }
+    .cta-wave-track svg { flex: 1 0 50%; display: block; height: 60px; }
+    .cta-wave-path { fill: var(--color-cta-ink); }
+    @media (prefers-reduced-motion: reduce) { .cta-wave-track { animation: none; } }
 
     .cta-inner { position: relative; z-index: 1; }
 
-    .cta-eyebrow {
-      font-family: var(--font-mono);
-      font-size: var(--text-xs);
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: oklch(16% 0.025 220 / 0.5);
-      display: block;
-      margin-bottom: var(--space-4);
-    }
+    .cta-eyebrow { font-family: var(--font-mono); font-size: var(--text-xs); letter-spacing: 0.18em; text-transform: uppercase; color: oklch(16% 0.025 220 / 0.5); display: block; margin-bottom: var(--space-4); }
 
     .cta-head {
       font-family: var(--font-display);
@@ -533,19 +382,29 @@
       letter-spacing: -0.05em;
       text-transform: uppercase;
       color: var(--color-cta-ink);
-      margin-bottom: var(--space-10);
+      margin-bottom: var(--space-8);
       overflow-wrap: anywhere;
       min-width: 0;
     }
 
-    .cta-sub {
-      font-size: var(--text-base);
-      color: oklch(16% 0.025 220 / 0.62);
+    .cta-sub { font-size: var(--text-base); color: oklch(16% 0.025 220 / 0.62); margin-bottom: var(--space-8); font-weight: 400; overflow-wrap: anywhere; min-width: 0; }
+
+    /* Version badge in CTA */
+    .cta-version {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-2);
       margin-bottom: var(--space-10);
-      font-weight: 400;
-      overflow-wrap: anywhere;
-      min-width: 0;
+      padding: 5px 12px;
+      background: oklch(16% 0.025 220 / 0.12);
+      border: 1px solid oklch(16% 0.025 220 / 0.2);
+      border-radius: var(--radius-pill);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: oklch(16% 0.025 220 / 0.7);
+      letter-spacing: 0.06em;
     }
+    .cta-version-dot { width: 6px; height: 6px; border-radius: 50%; background: oklch(16% 0.025 220 / 0.5); flex-shrink: 0; }
 
     .cta-btn {
       display: inline-flex;
@@ -565,135 +424,74 @@
       transition: transform var(--dur-slow) var(--ease-out),
                   box-shadow var(--dur-slow) var(--ease-out);
     }
-    .cta-btn:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 14px 40px oklch(10% 0.025 220 / 0.35);
-    }
-    .cta-btn:focus-visible {
-      outline: 2px solid var(--color-cta-ink);
-      outline-offset: 4px;
-    }
+    .cta-btn:hover { transform: translateY(-3px); box-shadow: 0 14px 40px oklch(10% 0.025 220 / 0.35); }
+    .cta-btn:focus-visible { outline: 2px solid var(--color-cta-ink); outline-offset: 4px; }
     .cta-btn:active { transform: translateY(0); }
 
-    .cta-note {
-      display: block;
-      margin-top: var(--space-6);
-      font-size: var(--text-xs);
-      font-family: var(--font-mono);
-      color: oklch(16% 0.025 220 / 0.42);
-      letter-spacing: 0.06em;
+    .cta-actions { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; margin-bottom: var(--space-6); }
+
+    .cta-secondary {
+      font-size: var(--text-sm);
+      color: oklch(16% 0.025 220 / 0.55);
+      text-decoration: underline;
+      text-decoration-color: oklch(16% 0.025 220 / 0.25);
+      text-underline-offset: 3px;
+      transition: color var(--dur-base) var(--ease-out);
     }
+    .cta-secondary:hover { color: oklch(16% 0.025 220 / 0.8); }
+
+    .cta-note { display: block; font-size: var(--text-xs); font-family: var(--font-mono); color: oklch(16% 0.025 220 / 0.42); letter-spacing: 0.06em; }
 
 
     /* ══════════════════════════════════════════════════
-       FOOTER — Ft2 Inline single line
+       FOOTER
     ══════════════════════════════════════════════════ */
-    .foot {
-      position: relative;
-      z-index: 1;
-      background: var(--color-paper);
-      border-top: 1px solid var(--color-rule);
-      padding: var(--space-8) 0;
-    }
-
-    .foot-inner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      flex-wrap: wrap;
-      gap: var(--space-4);
-    }
-
-    .foot-left {
-      display: flex;
-      align-items: center;
-      gap: var(--space-6);
-      flex-wrap: wrap;
-    }
-
-    .foot-wordmark {
-      font-family: var(--font-display);
-      font-size: var(--text-sm);
-      font-weight: 800;
-      letter-spacing: -0.03em;
-      color: var(--color-ink-2);
-    }
-
-    .foot-tagline {
-      font-size: var(--text-xs);
-      color: var(--color-ink-3);
-      letter-spacing: 0.03em;
-    }
-
-    .foot-links {
-      display: flex;
-      gap: var(--space-6);
-      list-style: none;
-      flex-wrap: wrap;
-    }
-    .foot-links a {
-      font-size: var(--text-xs);
-      color: var(--color-ink-3);
-      letter-spacing: 0.03em;
-      transition: color var(--dur-base) var(--ease-out);
-    }
+    .foot { position: relative; z-index: 1; background: var(--color-paper); border-top: 1px solid var(--color-rule); padding: var(--space-8) 0; }
+    .foot-inner { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--space-4); }
+    .foot-left { display: flex; align-items: center; gap: var(--space-6); flex-wrap: wrap; }
+    .foot-wordmark { font-family: var(--font-display); font-size: var(--text-sm); font-weight: 800; letter-spacing: -0.03em; color: var(--color-ink-2); }
+    .foot-tagline { font-size: var(--text-xs); color: var(--color-ink-3); letter-spacing: 0.03em; }
+    .foot-links { display: flex; gap: var(--space-6); list-style: none; flex-wrap: wrap; }
+    .foot-links a { font-size: var(--text-xs); color: var(--color-ink-3); letter-spacing: 0.03em; transition: color var(--dur-base) var(--ease-out); }
     .foot-links a:hover { color: var(--color-ink-2); }
     .foot-links a:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; border-radius: 2px; }
 
 
     /* ══════════════════════════════════════════════════
-       RESPONSIVE — verified at 320 / 375 / 414 / 768 px
+       RESPONSIVE
     ══════════════════════════════════════════════════ */
+    @media (max-width: 1024px) {
+      .steps-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
     @media (max-width: 860px) {
-      .assertions-grid {
-        grid-template-columns: 1fr;
-      }
-      .assertion {
-        border-right: none;
-        border-bottom: 1px solid var(--color-rule);
-      }
+      .assertions-grid { grid-template-columns: 1fr; }
+      .assertion { border-right: none; border-bottom: 1px solid var(--color-rule); }
       .assertion:last-child { border-bottom: none; }
-
-      .feat-item {
-        grid-template-columns: 1fr;
-        gap: var(--space-3);
-      }
-
-      .steps-grid {
-        grid-template-columns: 1fr;
-      }
+      .feat-item { grid-template-columns: 1fr; gap: var(--space-3); }
+      .steps-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 640px) {
       .nav { padding: var(--space-4) var(--space-6); }
       .nav-link:not(.nav-cta) { display: none; }
-
       .hero-inner { padding: 0 var(--space-6) 0; }
       .hero-head { letter-spacing: -0.04em; }
-
-      .cta-btn {
-        width: 100%;
-        justify-content: center;
-        padding: var(--space-5) var(--space-6);
-      }
-
+      .hero-btn { width: 100%; justify-content: center; }
+      .cta-btn { width: 100%; justify-content: center; padding: var(--space-5) var(--space-6); }
       .foot-inner { flex-direction: column; align-items: flex-start; }
     }
 
     @media (max-width: 414px) {
-      .hero-head {
-        font-size: clamp(4rem, 25vw, 5rem);
-        letter-spacing: -0.035em;
-      }
-      .assertions-grid,
-      .steps-grid { grid-template-columns: 1fr; }
+      .hero-head { font-size: clamp(4rem, 25vw, 5rem); letter-spacing: -0.035em; }
+      .assertions-grid, .steps-grid { grid-template-columns: 1fr; }
     }
   </style>
 </head>
 
 <body>
 
-<!-- ══ NAV — N9 Edge-aligned minimal ════════════════ -->
+<!-- ══ NAV ════════════════════════════════════════════ -->
 <header role="banner">
   <nav class="nav" aria-label="Main navigation">
     <a href="#" class="wordmark" aria-label="Flowy home">
@@ -714,7 +512,7 @@
 </header>
 
 
-<!-- ══ HERO — Marquee Hero ═══════════════════════════ -->
+<!-- ══ HERO ═══════════════════════════════════════════ -->
 <section class="hero" aria-labelledby="hero-heading">
   <div class="hero-inner">
     <span class="hero-eyebrow fade-up">macOS · local · open source</span>
@@ -727,9 +525,20 @@
       Hold a hotkey. Speak. Release.<br>
       Your words appear — in any window, on your machine.
     </p>
+
+    <div class="hero-actions fade-up d3">
+      <a href="https://github.com/AryaanSheth/flowy/releases/latest/download/Flowy.dmg"
+         class="hero-btn"
+         aria-label="Download Flowy 0.4.0 — macOS disk image">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 3v13M5 16l7 7 7-7"/></svg>
+        Download .dmg
+      </a>
+      <span class="hero-version">v0.4.0 — free forever</span>
+    </div>
+
+    <p class="hero-reqs fade-up d4">macOS 13 Ventura or later · Apple Silicon</p>
   </div>
 
-  <!-- Animated sine wave flows across the hero base -->
   <div class="wave-stage" aria-hidden="true">
     <div class="wave-track">
       <svg viewBox="0 0 1440 80" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -745,37 +554,32 @@
 </section>
 
 
-<!-- ══ RULE ═══════════════════════════════════════════ -->
 <hr class="rule-thick">
 
 
-<!-- ══ ASSERTIONS — 3-up bold claims ════════════════ -->
+<!-- ══ ASSERTIONS ════════════════════════════════════ -->
 <section class="assertions" aria-label="Core claims">
   <div class="assertions-grid">
-
     <div class="assertion fade-up">
       <span class="assertion-label">privacy</span>
       <p class="assertion-text">No cloud.<br>Not ever.</p>
       <p class="assertion-sub">Every byte of audio stays on your machine. No API key, no account, no subscription.</p>
     </div>
-
     <div class="assertion fade-up d1">
       <span class="assertion-label">engine</span>
       <p class="assertion-text">Apple Neural.<br>Built in.</p>
       <p class="assertion-sub">Powered by macOS SFSpeechRecognizer. No model downloads, instant start, optimised for Apple Silicon.</p>
     </div>
-
     <div class="assertion fade-up d2">
       <span class="assertion-label">cost</span>
       <p class="assertion-text">Free.<br>Always.</p>
       <p class="assertion-sub">MIT license, open source. No tier that removes features. No catch.</p>
     </div>
-
   </div>
 </section>
 
 
-<!-- ══ FEATURES — tabular list ══════════════════════ -->
+<!-- ══ FEATURES ══════════════════════════════════════ -->
 <section class="features" id="what-it-does" aria-labelledby="feat-heading">
   <div class="container">
     <header class="feat-header fade-up">
@@ -784,7 +588,6 @@
     </header>
 
     <ul class="feat-list" role="list">
-
       <li class="feat-item fade-up">
         <span class="feat-name">Push-to-talk</span>
         <span class="feat-desc">
@@ -792,7 +595,6 @@
           Release to transcribe. Text injects directly into the focused window.
         </span>
       </li>
-
       <li class="feat-item fade-up d1">
         <span class="feat-name">Native recognition</span>
         <span class="feat-desc">
@@ -800,24 +602,21 @@
           <span class="feat-tag">on-device only</span>
         </span>
       </li>
-
       <li class="feat-item fade-up d2">
+        <span class="feat-name">Guided setup</span>
+        <span class="feat-desc">
+          First-launch wizard walks you through microphone, speech, and accessibility permissions step by step.
+          Done in under a minute.
+          <span class="feat-tag">new in 0.4.0</span>
+        </span>
+      </li>
+      <li class="feat-item fade-up d3">
         <span class="feat-name">Custom dictionary</span>
         <span class="feat-desc">
           Word substitutions applied after every transcription. Teach Flowy your names, abbreviations, and jargon.
           Test them live in the settings panel.
         </span>
       </li>
-
-      <li class="feat-item fade-up d3">
-        <span class="feat-name">Local AI polish</span>
-        <span class="feat-desc">
-          Optional pass through a local Ollama model to fix punctuation and grammar.
-          Still entirely offline — no cloud round-trips ever.
-          <span class="feat-tag">ollama required</span>
-        </span>
-      </li>
-
       <li class="feat-item fade-up d4">
         <span class="feat-name">Lightweight</span>
         <span class="feat-desc">
@@ -825,46 +624,58 @@
           Starts at login.
         </span>
       </li>
-
     </ul>
   </div>
 </section>
 
 
-<!-- ══ STEPS ══════════════════════════════════════════ -->
+<!-- ══ INSTALL STEPS ══════════════════════════════════ -->
 <section class="steps" id="install" aria-labelledby="steps-heading">
   <div class="container">
     <header class="steps-header fade-up">
       <span class="steps-eyebrow">getting started</span>
-      <h2 id="steps-heading" class="steps-title">Three steps, then you speak</h2>
+      <h2 id="steps-heading" class="steps-title">Up in four steps</h2>
     </header>
 
     <ol class="steps-grid fade-up d1" role="list">
+
       <li class="step">
         <div class="step-num" aria-hidden="true">01</div>
-        <h3>Install</h3>
-        <p>Download the .dmg, drag to Applications, open it. Grant microphone and speech recognition access when macOS prompts you.</p>
+        <h3>Download</h3>
+        <p>Click the download button. A <code style="font-family:var(--font-mono);font-size:0.85em;color:var(--color-accent)">.dmg</code> disk image opens. Drag Flowy into your Applications folder.</p>
       </li>
+
       <li class="step">
         <div class="step-num" aria-hidden="true">02</div>
-        <h3>Set your key</h3>
-        <p>Pick any global shortcut in Settings. The default works immediately.</p>
-        <span class="step-badge">⌘ Shift Space</span>
+        <h3>Open it</h3>
+        <p>Flowy isn't signed with an Apple Developer certificate yet, so macOS will block a regular double-click.</p>
+        <div class="step-callout">
+          <strong>Right-click Flowy → Open → Open</strong><br>
+          You only need to do this once. Every launch after that is normal.
+        </div>
       </li>
+
       <li class="step">
         <div class="step-num" aria-hidden="true">03</div>
-        <h3>Speak anywhere</h3>
-        <p>Focus any text field. Hold your hotkey. Speak. Release. Words appear — every time.</p>
+        <h3>Grant permissions</h3>
+        <p>The setup wizard walks you through three permissions: Microphone, Speech Recognition, and Accessibility. Each takes one click.</p>
+        <span class="step-badge">guided by Flowy</span>
       </li>
+
+      <li class="step">
+        <div class="step-num" aria-hidden="true">04</div>
+        <h3>Speak anywhere</h3>
+        <p>Focus any text field. Hold your hotkey. Speak. Release. Words appear.</p>
+        <span class="step-badge">⌥ Space</span>
+      </li>
+
     </ol>
   </div>
 </section>
 
 
-<!-- ══ CTA — full-bleed teal ════════════════════════ -->
+<!-- ══ CTA ════════════════════════════════════════════ -->
 <section class="cta" id="download" aria-labelledby="cta-heading">
-
-  <!-- Animated wave inside the CTA -->
   <div class="cta-wave" aria-hidden="true">
     <div class="cta-wave-track">
       <svg viewBox="0 0 1440 60" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
@@ -878,24 +689,40 @@
 
   <div class="container cta-inner">
     <span class="cta-eyebrow fade-up" aria-hidden="true">get it</span>
+
     <h2 id="cta-heading" class="cta-head fade-up d1">
       Get Flowy.<br>Free. Always.
     </h2>
+
     <p class="cta-sub fade-up d2">macOS 13 Ventura or later · Apple Silicon</p>
-    <a href="https://github.com/AryaanSheth/flowy/releases/latest/download/Flowy.dmg"
-       class="cta-btn fade-up d3"
-       aria-label="Download Flowy — macOS disk image">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 3v13M5 16l7 7 7-7"/></svg>
-      Download .dmg
-    </a>
-    <span class="cta-note fade-up d3">
+
+    <div class="cta-version fade-up d2">
+      <span class="cta-version-dot" aria-hidden="true"></span>
+      v0.4.0 — latest release
+    </div>
+
+    <div class="cta-actions fade-up d3">
+      <a href="https://github.com/AryaanSheth/flowy/releases/latest/download/Flowy.dmg"
+         class="cta-btn"
+         aria-label="Download Flowy 0.4.0 — macOS disk image">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M12 3v13M5 16l7 7 7-7"/></svg>
+        Download .dmg
+      </a>
+      <a href="https://github.com/AryaanSheth/flowy/releases/latest"
+         target="_blank" rel="noopener"
+         class="cta-secondary">
+        View release notes ↗
+      </a>
+    </div>
+
+    <span class="cta-note fade-up d4">
       MIT License · open source · no telemetry · no subscription
     </span>
   </div>
 </section>
 
 
-<!-- ══ FOOTER — Ft2 Inline single line ══════════════ -->
+<!-- ══ FOOTER ════════════════════════════════════════ -->
 <footer class="foot">
   <div class="container foot-inner">
     <div class="foot-left">
@@ -913,23 +740,16 @@
 
 
 <script>
-  // Scroll-reveal via IntersectionObserver
   const io = new IntersectionObserver(entries => {
     entries.forEach(e => {
-      if (e.isIntersecting) {
-        e.target.classList.add('visible');
-        io.unobserve(e.target);
-      }
+      if (e.isIntersecting) { e.target.classList.add('visible'); io.unobserve(e.target); }
     });
   }, { threshold: 0.05, rootMargin: '0px 0px -24px 0px' });
 
   document.querySelectorAll('.fade-up').forEach(el => io.observe(el));
 
-  // Hero elements fire immediately on load
   window.addEventListener('load', () => {
-    document.querySelectorAll('.hero .fade-up').forEach(el => {
-      el.classList.add('visible');
-    });
+    document.querySelectorAll('.hero .fade-up').forEach(el => el.classList.add('visible'));
   });
 </script>
 
