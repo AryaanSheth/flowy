@@ -40,15 +40,6 @@ private struct PrimaryBtn: ButtonStyle {
     }
 }
 
-private struct GhostBtn: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 12))
-            .foregroundStyle(G.dim)
-            .padding(.horizontal, 14).padding(.vertical, 7)
-    }
-}
-
 private struct NudgeBtn: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
@@ -85,6 +76,11 @@ struct SettingsView: View {
     @State private var testInput  = ""
     @State private var testOutput = "—"
     @State private var saveMsg    = ""
+    @State private var hoveredTab: Tab?   = nil
+    @State private var hoveredHistory: Int? = nil
+    @State private var autosaveTask: Task<Void, Never>? = nil
+
+    private let permissionTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
     init(model: AppModel) {
         self.model = model
@@ -95,6 +91,8 @@ struct SettingsView: View {
     var body: some View {
         ZStack {
             VisualEffect(material: .hudWindow, blending: .behindWindow)
+                .ignoresSafeArea()
+            Color(red: 0.08, green: 0.09, blue: 0.10).opacity(0.82)
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -108,6 +106,9 @@ struct SettingsView: View {
         }
         .environment(\.colorScheme, .dark)
         .onAppear { refreshDevices(); model.refreshPermissions() }
+        .onReceive(permissionTimer) { _ in model.refreshPermissions() }
+        .onChange(of: draft)    { _ in scheduleAutosave() }
+        .onChange(of: dictRows) { _ in scheduleAutosave() }
     }
 
     // MARK: – Header
@@ -154,11 +155,13 @@ struct SettingsView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 2) {
             ForEach(Tab.allCases) { t in
-                Button { tab = t } label: {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { tab = t }
+                } label: {
                     HStack(spacing: 8) {
                         Image(systemName: t.icon)
                             .font(.system(size: 11))
-                            .foregroundStyle(tab == t ? G.teal : G.faint)
+                            .foregroundStyle(tab == t ? G.teal : (hoveredTab == t ? G.dim : G.faint))
                             .frame(width: 14)
                         Text(t.label)
                             .font(.system(size: 12, weight: tab == t ? .medium : .regular))
@@ -166,8 +169,10 @@ struct SettingsView: View {
                         Spacer()
                     }
                     .padding(.horizontal, 12).padding(.vertical, 7)
-                    .background(tab == t ? G.fill : .clear,
-                                in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .background(
+                        tab == t ? G.fill : (hoveredTab == t ? G.fill.opacity(0.6) : .clear),
+                        in: RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    )
                     .overlay(alignment: .leading) {
                         if tab == t {
                             G.teal.frame(width: 2)
@@ -175,9 +180,15 @@ struct SettingsView: View {
                                 .padding(.vertical, 6)
                         }
                     }
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
                 .padding(.horizontal, 6)
+                .onHover { isHovered in
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        hoveredTab = isHovered ? t : nil
+                    }
+                }
             }
             Spacer()
         }
@@ -197,6 +208,8 @@ struct SettingsView: View {
                 case .system:     systemTab
                 }
             }
+            .id(tab)
+            .transition(.opacity)
             .padding(.horizontal, 24)
             .padding(.vertical, 20)
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -205,16 +218,17 @@ struct SettingsView: View {
 
     // MARK: – Footer
     private var footer: some View {
-        HStack {
-            Text(model.lastError ?? saveMsg)
-                .font(.system(size: 11))
-                .foregroundStyle(model.lastError == nil ? G.faint : G.danger)
-                .lineLimit(1)
+        HStack(spacing: 6) {
+            if let error = model.lastError ?? (saveMsg.isEmpty ? nil : saveMsg) {
+                Image(systemName: "exclamationmark.circle")
+                    .font(.system(size: 10))
+                    .foregroundStyle(G.danger)
+                Text(error)
+                    .font(.system(size: 11))
+                    .foregroundStyle(G.danger)
+                    .lineLimit(1)
+            }
             Spacer()
-            Button("Discard") { resetDraft() }.buttonStyle(GhostBtn())
-            Button("Save") { saveDraft() }
-                .buttonStyle(PrimaryBtn())
-                .keyboardShortcut(.defaultAction)
         }
         .padding(.horizontal, 18).padding(.vertical, 10)
         .background(G.fill)
@@ -247,7 +261,7 @@ struct SettingsView: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Hotkey").font(.system(size: 13)).foregroundStyle(G.text)
-                        Button("reset") { draft.hotkey = "CmdOrCtrl+Shift+Space" }
+                        Button("reset") { draft.hotkey = "Alt+Space" }
                             .font(.system(size: 10)).foregroundStyle(G.faint).buttonStyle(.plain)
                     }
                     Spacer()
@@ -375,7 +389,7 @@ struct SettingsView: View {
                 .frame(maxWidth: .infinity, minHeight: 160)
             } else {
                 VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(model.history.enumerated()), id: \.offset) { _, text in
+                    ForEach(Array(model.history.enumerated()), id: \.offset) { idx, text in
                         HStack(alignment: .top, spacing: 10) {
                             Text(text)
                                 .font(.system(size: 12)).foregroundStyle(G.text)
@@ -383,13 +397,28 @@ struct SettingsView: View {
                                 .frame(maxWidth: .infinity, alignment: .leading)
                             Button { TextOutput.copyToClipboard(text) } label: {
                                 Image(systemName: "doc.on.doc")
-                                    .font(.system(size: 11)).foregroundStyle(G.faint)
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(hoveredHistory == idx ? G.dim : G.faint)
                             }.buttonStyle(.plain)
                         }
                         .padding(.horizontal, 12).padding(.vertical, 9)
-                        .background(G.fill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .background(
+                            hoveredHistory == idx
+                                ? Color.white.opacity(0.07)
+                                : G.fill,
+                            in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        )
                         .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .strokeBorder(G.border, lineWidth: 1))
+                            .strokeBorder(
+                                hoveredHistory == idx ? G.border.opacity(2) : G.border,
+                                lineWidth: 1
+                            ))
+                        .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .onHover { isHovered in
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                hoveredHistory = isHovered ? idx : nil
+                            }
+                        }
                     }
                 }
             }
@@ -529,23 +558,32 @@ struct SettingsView: View {
 
     private func refreshDevices() { devices = AudioDeviceManager.inputDevices() }
 
-    private func saveDraft() {
-        var c = draft
-        c.dictionary = collectedDict()
-        c.outputMode = .typeAndClipboard  // always
-        do {
-            try model.saveConfig(c)
-            resetDraft()
-            saveMsg = "Saved"
-        } catch {
-            saveMsg = error.localizedDescription
+    private func scheduleAutosave() {
+        autosaveTask?.cancel()
+        autosaveTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard !Task.isCancelled else { return }
+            // Skip if nothing actually changed (e.g. post-save sync triggered this)
+            guard draft != model.config || collectedDict() != model.config.dictionary else { return }
+            saveDraft()
         }
     }
 
-    private func resetDraft() {
-        draft    = model.config
-        dictRows = Self.dictRows(from: model.config.dictionary)
-        runTest()
+    private func saveDraft() {
+        var c = draft
+        c.dictionary = collectedDict()
+        c.outputMode = .typeAndClipboard
+        do {
+            try model.saveConfig(c)
+            saveMsg = ""
+            // Sync draft to the sanitized saved config. This triggers onChange again,
+            // but scheduleAutosave's guard (draft == model.config) will no-op it.
+            draft    = model.config
+            dictRows = Self.dictRows(from: model.config.dictionary)
+            runTest()
+        } catch {
+            saveMsg = error.localizedDescription
+        }
     }
 
     private func collectedDict() -> [String: String] {

@@ -104,12 +104,18 @@ final class HotkeyMonitor {
                 &ref
             )
 
-            guard status == noErr, let ref else {
-                throw FlowyError.message("Could not register global hotkey '\(parsedHotkey.rawValue)'. It may already be used by macOS or another app.")
+            if status == noErr, let ref {
+                hotkeyRefs.append(ref)
+                registeredIDs.insert(id)
+            } else {
+                // Skip conflicting variant (e.g. Ctrl+Shift+Space taken by macOS input sources)
+                // rather than aborting the entire registration.
+                FlowyLog.warn("Hotkey variant skipped: status=\(status) modifiers=\(modifiers)")
             }
+        }
 
-            hotkeyRefs.append(ref)
-            registeredIDs.insert(id)
+        if hotkeyRefs.isEmpty {
+            throw FlowyError.message("Could not register global hotkey '\(parsedHotkey.rawValue)'. It may already be in use by macOS or another app.")
         }
     }
 

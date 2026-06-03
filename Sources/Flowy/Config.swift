@@ -21,7 +21,7 @@ struct AppConfig: Codable, Equatable {
     var ollamaPrompt: String
 
     init(
-        hotkey: String = "CmdOrCtrl+Shift+Space",
+        hotkey: String = "Alt+Space",
         autostart: Bool = false,
         dictionary: [String: String] = [:],
         inputDevice: String? = nil,
@@ -83,7 +83,7 @@ struct AppConfig: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
-        hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey) ?? "CmdOrCtrl+Shift+Space"
+        hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey) ?? "Alt+Space"
         autostart = try c.decodeIfPresent(Bool.self, forKey: .autostart) ?? false
         dictionary = try c.decodeIfPresent([String: String].self, forKey: .dictionary) ?? [:]
         inputDevice = try c.decodeIfPresent(String.self, forKey: .inputDevice)
