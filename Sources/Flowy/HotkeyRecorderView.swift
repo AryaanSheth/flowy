@@ -76,19 +76,30 @@ final class RecorderButton: NSView {
     override func draw(_ dirtyRect: NSRect) {
         let rect = bounds.insetBy(dx: 0.5, dy: 0.5)
         let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
-        let background = isRecording ? NSColor.controlAccentColor.withAlphaComponent(0.16) : NSColor.controlBackgroundColor
-        background.setFill()
+
+        // Match glass palette: teal tint when recording, dark fill otherwise
+        let bgColor = isRecording
+            ? NSColor(red: 0.10, green: 0.80, blue: 0.72, alpha: 0.18)
+            : NSColor.white.withAlphaComponent(0.055)
+        bgColor.setFill()
         path.fill()
-        NSColor.separatorColor.setStroke()
+
+        let strokeColor = isRecording
+            ? NSColor(red: 0.10, green: 0.80, blue: 0.72, alpha: 0.50)
+            : NSColor.white.withAlphaComponent(0.09)
+        strokeColor.setStroke()
         path.lineWidth = 1
         path.stroke()
 
         let display = title.isEmpty ? "Record shortcut" : title
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
+        let textColor = isRecording
+            ? NSColor(red: 0.10, green: 0.80, blue: 0.72, alpha: 1.0)
+            : NSColor.white
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .medium),
-            .foregroundColor: NSColor.labelColor,
+            .foregroundColor: textColor,
             .paragraphStyle: paragraph,
         ]
         let textRect = rect.insetBy(dx: 10, dy: 7)
@@ -102,16 +113,15 @@ enum HotkeyString {
 
         var parts: [String] = []
         let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if flags.contains(.command) || flags.contains(.control) {
-            parts.append("CmdOrCtrl")
-        }
-        if flags.contains(.option) {
-            parts.append("Alt")
-        }
-        if flags.contains(.shift) {
-            parts.append("Shift")
-        }
+        // Record the specific modifier pressed — not the CmdOrCtrl alias — so
+        // we register exactly one Carbon hotkey instead of two (one of which
+        // is often already taken by a macOS system shortcut like Ctrl+Shift+Space).
+        if flags.contains(.command) { parts.append("Cmd") }
+        if flags.contains(.control) { parts.append("Ctrl") }
+        if flags.contains(.option)  { parts.append("Alt") }
+        if flags.contains(.shift)   { parts.append("Shift") }
 
+        guard !parts.isEmpty else { return nil }
         parts.append(key)
         return parts.joined(separator: "+")
     }

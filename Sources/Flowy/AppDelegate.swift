@@ -9,11 +9,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var overlayController: OverlayWindowController?
     private var hotkeyMonitor: HotkeyMonitor?
     private var allowQuit = false
+    private var onboardingController: OnboardingWindowController?
     // Held alive so the SwiftUI translation task stays active (macOS 14+)
     private var translationBridge: AnyObject?
     private var translationWindow: NSWindow?
 
+    private static let setupCompletedKey = "hasCompletedSetup"
+    private static let hotkeySeededKey   = "hasSeededHotkey"
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Bootstrap Swift concurrency runtime before any UI interaction.
+        // On macOS 26 beta, MainActor.assumeIsolated (called by SwiftUI on every
+        // button press) crashes with EXC_BAD_ACCESS if the runtime hasn't been
+        // initialized — the executor ref reads as 0x1e instead of a valid pointer.
+        Task { @MainActor in }
+
         FlowyLog.info("App launched bundle=\(Bundle.main.bundlePath) pid=\(ProcessInfo.processInfo.processIdentifier)")
         NSApp.setActivationPolicy(.accessory)
 
@@ -29,10 +39,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         setupTranslation()
+        observeSystemSettings()
 
         model.requestInitialPermissions()
-        installHotkey(model.config.hotkey)
-        settingsController?.show()
+
+        // Defer hotkey installation to the next run loop cycle.
+        // RegisterEventHotKey called during applicationDidFinishLaunching (before
+        // the run loop's first iteration) produces a silent no-op on macOS 26 —
+        // the registration returns noErr but events are never delivered. Dispatching
+        // async ensures Carbon's event infrastructure is live before we register.
+        let initialHotkey = model.config.hotkey
+        DispatchQueue.main.async { [weak self] in
+            self?.installHotkey(initialHotkey)
+        }
+
+        // First-launch hotkey seed: re-register via update() 500 ms after the
+        // initial start() call. On macOS 26 the first-ever registration doesn't
+        // deliver events; the update() path (unregister → re-register) does.
+        // Guarded by a UserDefaults flag so it only runs once per install.
+        if !UserDefaults.standard.bool(forKey: Self.hotkeySeededKey) {
+            UserDefaults.standard.set(true, forKey: Self.hotkeySeededKey)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+                guard let self else { return }
+                self.installHotkey(self.model.config.hotkey)
+            }
+        }
+
+        if UserDefaults.standard.bool(forKey: Self.setupCompletedKey) {
+            settingsController?.show()
+        } else {
+            showOnboarding()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -71,6 +108,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return try await bridge.translate(text, targetLanguageBCP47: targetBCP47)
         }
         FlowyLog.info("Translation bridge installed")
+    }
+
+    private func showOnboarding() {
+        onboardingController = OnboardingWindowController(model: model) { [weak self] in
+            UserDefaults.standard.set(true, forKey: Self.setupCompletedKey)
+            self?.onboardingController?.close()
+            self?.onboardingController = nil
+            self?.settingsController?.show()
+        }
+        onboardingController?.show()
+    }
+
+    private func observeSystemSettings() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(systemSettingsDeactivated(_:)),
+            name: NSWorkspace.didDeactivateApplicationNotification,
+            object: nil
+        )
+    }
+
+    @objc private func systemSettingsDeactivated(_ notification: Notification) {
+        guard
+            let app = notification.userInfo?[NSWorkspace.applicationUserInfoKey] as? NSRunningApplication,
+            app.bundleIdentifier == "com.apple.systempreferences"
+        else { return }
+
+        if let onboardingController {
+            onboardingController.bringToFront()
+        } else {
+            settingsController?.show()
+        }
     }
 
     private func buildStatusItem() {

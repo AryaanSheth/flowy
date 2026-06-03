@@ -38,7 +38,7 @@ final class AppModel: ObservableObject {
         }
 
         SFSpeechRecognizer.requestAuthorization { [weak self] status in
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 self?.refreshPermissions()
                 if status == .authorized {
                     self?.speechRecorder.warmUpRecognizer()
@@ -47,7 +47,7 @@ final class AppModel: ObservableObject {
         }
 
         AVCaptureDevice.requestAccess(for: .audio) { [weak self] granted in
-            Task { @MainActor in
+            DispatchQueue.main.async {
                 self?.refreshPermissions()
                 // Warm up only once the system confirms mic access.
                 if granted { self?.speechRecorder.warmUp(deviceUID: self?.config.inputDevice) }
@@ -84,6 +84,12 @@ final class AppModel: ObservableObject {
         lastError = nil
         FlowyLog.info("Recording start requested")
         refreshPermissions()
+        guard permissions.microphoneAuthorized else {
+            lastError = "Microphone access is not authorized."
+            FlowyLog.warn("Recording blocked: microphone is not authorized")
+            requestInitialPermissions()
+            return
+        }
         guard permissions.speechAuthorized else {
             lastError = "Speech Recognition is not authorized."
             FlowyLog.warn("Recording blocked: speech recognition is not authorized")
