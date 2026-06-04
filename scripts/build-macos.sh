@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="Flowy"
 BUNDLE_ID="com.flowy.app"
-VERSION="0.4.0"
+VERSION="0.5.0"
 MIN_MACOS="13.0"
 
 REPO_ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd)"
