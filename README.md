@@ -1,7 +1,7 @@
 # Flowy
 
 Minimal local speech-to-text for **macOS**.  
-Hold a global hotkey → speak → release → text appears at the cursor.  
+Hold a global hotkey → speak → words appear at the cursor as you talk.  
 Fully offline. No telemetry. No account. No subscription.
 
 ---
@@ -24,7 +24,8 @@ Fully offline. No telemetry. No account. No subscription.
 | Feature | Detail |
 |---|---|
 | **Local only** | Uses macOS on-device Speech Recognition — no API keys, no cloud |
-| **Push-to-talk** | Hold a global hotkey while speaking; text injects on release |
+| **Live push-to-talk** | Hold a global hotkey while speaking; text streams into the focused window from partial recognition results |
+| **Voice punctuation** | Say "period", "comma", "new line", "new paragraph", and related commands to insert punctuation and line breaks |
 | **Guided onboarding** | First-launch wizard walks through all required permissions |
 | **Autosave settings** | Changes save automatically — no Save button |
 | **Custom dictionary** | Word-substitution map applied after every transcription |
@@ -103,12 +104,16 @@ Global hotkey (Carbon RegisterEventHotKey)
        │
    AppModel (@MainActor)
        │
-   AVAudioEngine + SFSpeechRecognizer (on-device)
+   AVAudioEngine + SFSpeechRecognizer partials (on-device)
        │
-   dictionary substitution
+   dictionary substitution + spoken punctuation
        │
-   CGEvent keystroke injection ──► focused app
+   StreamingInjector partial reconciliation ──► focused app
    (fallback: NSPasteboard)
+       │
+   final pass: amendments / optional local rewrite / translation
+       │
+   final reconciliation or clipboard fallback
 ```
 
 ---

@@ -250,7 +250,7 @@ struct SettingsView: View {
                     onRelease: model.stopRecording
                 )
                 .frame(maxWidth: .infinity, minHeight: 34)
-                Text("Hold to record · release to transcribe")
+                Text("Hold to record · text appears live")
                     .font(.system(size: 11))
                     .foregroundStyle(G.faint)
             }
