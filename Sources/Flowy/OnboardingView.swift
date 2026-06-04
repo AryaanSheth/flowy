@@ -187,7 +187,7 @@ struct OnboardingView: View {
                 .tracking(-0.4)
                 .padding(.bottom, 10)
 
-            Text("Hold your hotkey, speak, then release.\nText appears at the cursor.")
+            Text("Press your hotkey and speak.\nText appears at the cursor as you talk.")
                 .font(.system(size: 13))
                 .foregroundStyle(G.dim)
                 .multilineTextAlignment(.center)

@@ -59,6 +59,7 @@ final class SpeechRecorder {
     func start(
         deviceUID: String?,
         maxSeconds: Int,
+        onPartial: ((String) -> Void)? = nil,
         onVADStop: (() -> Void)? = nil,
         vadSilenceSeconds: TimeInterval = 0.6,
         vadSpeechThresholdDB: Float = -25.0,
@@ -104,6 +105,10 @@ final class SpeechRecorder {
             if let text = result?.bestTranscription.formattedString, !text.isEmpty {
                 let changed = text != self.bestText
                 self.bestText = text
+
+                if changed {
+                    onPartial?(text)
+                }
 
                 // Reschedule VAD timer every time new text arrives.
                 // When text stops changing (user stopped talking), the timer fires.

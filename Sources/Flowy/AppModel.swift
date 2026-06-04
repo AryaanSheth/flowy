@@ -17,8 +17,10 @@ final class AppModel: ObservableObject {
     var translateText: ((String, String) async throws -> String)?
 
     private let speechRecorder = SpeechRecorder()
+    private let streamingInjector = StreamingInjector()
     private var capturedApp: NSRunningApplication?
     private var recordingTimeout: DispatchWorkItem?
+    private var streamingEnabledForRecording = false
 
     init(config: AppConfig = .load()) {
         self.config = config
@@ -98,6 +100,8 @@ final class AppModel: ObservableObject {
         }
 
         capturedApp = NSWorkspace.shared.frontmostApplication
+        streamingInjector.reset()
+        streamingEnabledForRecording = config.outputMode != .clipboard && AXIsProcessTrusted()
 
         do {
             setStatus(.recording)
@@ -111,6 +115,9 @@ final class AppModel: ObservableObject {
             try speechRecorder.start(
                 deviceUID: config.inputDevice,
                 maxSeconds: config.maxRecordingSecs,
+                onPartial: { [weak self] text in
+                    Task { @MainActor in self?.handlePartialRecognition(text) }
+                },
                 onVADStop: vadStop,
                 vadSilenceSeconds: config.vadSilenceSeconds,
                 vadSpeechThresholdDB: Float(config.vadSpeechThresholdDB)
@@ -166,9 +173,23 @@ final class AppModel: ObservableObject {
         }
     }
 
+    private func handlePartialRecognition(_ rawText: String) {
+        guard streamingEnabledForRecording, status == .recording else { return }
+
+        let text = prepareRecognizedText(
+            rawText,
+            config: config
+        )
+        guard !text.isEmpty else { return }
+
+        streamingInjector.update(to: text)
+    }
+
     private func processRecognition(_ result: Result<String, Error>) async {
         defer {
             capturedApp = nil
+            streamingEnabledForRecording = false
+            streamingInjector.reset()
             setStatus(.idle)
         }
 
@@ -190,7 +211,10 @@ final class AppModel: ObservableObject {
         }
 
         let snapshot = config
-        var text = DictionaryRewriter.apply(rawText, dictionary: snapshot.dictionary)
+        var text = prepareRecognizedText(
+            rawText,
+            config: snapshot
+        )
 
         // Resolve the effective Ollama prompt: active tone overrides ollamaPrompt.
         // An empty prompt (Raw tone) means skip Ollama entirely.
@@ -245,12 +269,33 @@ final class AppModel: ObservableObject {
             history.removeLast(history.count - snapshot.historySize)
         }
 
-        let delivered = await TextOutput.deliver(text, mode: snapshot.outputMode, capturedApp: capturedApp)
+        let delivered: Bool
+        if streamingInjector.isActive {
+            if snapshot.outputMode == .typeAndClipboard {
+                TextOutput.copyToClipboard(text)
+            }
+            delivered = streamingInjector.update(to: text)
+            if !delivered {
+                TextOutput.copyToClipboard(text)
+            }
+        } else {
+            delivered = await TextOutput.deliver(text, mode: snapshot.outputMode, capturedApp: capturedApp)
+        }
         FlowyLog.info("Delivery finished ok=\(delivered) mode=\(snapshot.outputMode.rawValue)")
         if !delivered, snapshot.outputMode != .clipboard {
             lastError = "Auto-paste failed — text is in your clipboard. Open Settings › System › Permissions and re-grant Accessibility access. If Flowy is already listed, remove it and re-add it (each rebuild resets the trust)."
             FlowyLog.error(lastError ?? "Delivery failed")
         }
+    }
+
+    private func prepareRecognizedText(
+        _ rawText: String,
+        config: AppConfig
+    ) -> String {
+        var text = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+        text = DictionaryRewriter.apply(text, dictionary: config.dictionary)
+        text = PunctuationRewriter.apply(text)
+        return text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private func setStatus(_ nextStatus: AppStatus) {
