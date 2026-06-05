@@ -9,8 +9,6 @@ final class SpeechRecorder {
     // Incremented on every start() — stale callbacks bail out on mismatch.
     private var generation = 0
 
-    private var isPrepared = false
-
     // Per-recording state
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
@@ -30,14 +28,6 @@ final class SpeechRecorder {
     private var vadFired = false
 
     // MARK: – Warm-up
-
-    func warmUp(deviceUID: String?) {
-        guard !engine.isRunning else { return }
-        try? configureInputDevice(uid: deviceUID)
-        engine.prepare()
-        isPrepared = true
-        FlowyLog.info("SpeechRecorder engine warmed up")
-    }
 
     func warmUpRecognizer() {
         guard recognizer?.isAvailable == true,
@@ -147,9 +137,7 @@ final class SpeechRecorder {
         }
         tapInstalled = true
 
-        if !isPrepared { engine.prepare() }
         try engine.start()
-        isPrepared = false
     }
 
     func stop() {
@@ -210,7 +198,6 @@ final class SpeechRecorder {
             tapInstalled = false
         }
         engine.stop()
-        isPrepared = false
         recognitionTask?.cancel()
         recognitionTask = nil
         recognitionRequest = nil
