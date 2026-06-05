@@ -41,8 +41,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupTranslation()
         observeSystemSettings()
 
-        model.requestInitialPermissions()
-
         // Defer hotkey installation to the next run loop cycle.
         // RegisterEventHotKey called during applicationDidFinishLaunching (before
         // the run loop's first iteration) produces a silent no-op on macOS 26 —
@@ -66,8 +64,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if UserDefaults.standard.bool(forKey: Self.setupCompletedKey) {
+            // Returning user — permissions were granted in a prior session. Warm
+            // the audio/speech engines on the next run-loop cycle. Requesting
+            // authorization synchronously inside applicationDidFinishLaunching
+            // (before the run loop's first iteration) makes TCC abort the process
+            // with a privacy violation even though Info.plist carries the usage
+            // strings — the same early-init hazard that breaks hotkey registration.
+            DispatchQueue.main.async { [weak self] in
+                self?.model.requestInitialPermissions()
+            }
             settingsController?.show()
         } else {
+            // First run — the onboarding wizard requests Speech, Microphone and
+            // Accessibility one at a time, in context, on user tap. Requesting them
+            // eagerly here double-prompts and crashes TCC at launch.
             showOnboarding()
         }
     }
@@ -116,8 +126,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.onboardingController?.close()
             self?.onboardingController = nil
             self?.settingsController?.show()
+            // Surface the menu bar item by name so first-time users can spot
+            // where Flowy lives — the #1 onboarding confusion was "it vanished."
+            self?.flashStatusItemLabel()
         }
         onboardingController?.show()
+    }
+
+    /// Temporarily show "Flowy" beside the menu bar icon, then collapse to the
+    /// icon alone. Helps a new user locate the app in the top-right status area.
+    private func flashStatusItemLabel() {
+        guard let button = statusItem?.button else { return }
+        button.imagePosition = .imageLeading
+        button.title = " Flowy"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { [weak button] in
+            button?.title = ""
+            button?.imagePosition = .imageOnly
+        }
     }
 
     private func observeSystemSettings() {

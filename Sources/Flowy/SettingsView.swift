@@ -261,11 +261,13 @@ struct SettingsView: View {
                 HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text("Hotkey").font(.system(size: 13)).foregroundStyle(G.text)
-                        Button("reset") { draft.hotkey = "Alt+Space" }
+                        Text("Click, then press your keys")
+                            .font(.system(size: 10)).foregroundStyle(G.faint)
+                        Button("reset to ⌥Space") { draft.hotkey = "Alt+Space" }
                             .font(.system(size: 10)).foregroundStyle(G.faint).buttonStyle(.plain)
                     }
                     Spacer()
-                    HotkeyRecorderView(hotkey: $draft.hotkey).frame(height: 28)
+                    HotkeyRecorderView(hotkey: $draft.hotkey).frame(width: 180, height: 28)
                 }
                 .padding(.vertical, 10).padding(.horizontal, 14)
 
@@ -312,7 +314,7 @@ struct SettingsView: View {
                             Text(String(format: "%.1f s", draft.vadSilenceSeconds))
                                 .font(.system(size: 12)).foregroundStyle(G.text)
                                 .frame(width: 36, alignment: .trailing)
-                            Stepper("", value: $draft.vadSilenceSeconds, in: 0.3...3.0, step: 0.3)
+                            Stepper("", value: $draft.vadSilenceSeconds, in: 0.5...5.0, step: 0.5)
                                 .labelsHidden()
                         }
                     }
