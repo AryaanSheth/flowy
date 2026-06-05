@@ -177,32 +177,46 @@ struct OnboardingView: View {
             Spacer()
 
             Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 46, weight: .thin))
+                .font(.system(size: 38, weight: .thin))
                 .foregroundStyle(G.teal)
-                .padding(.bottom, 20)
+                .padding(.bottom, 14)
 
             Text("You're all set!")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(G.text)
                 .tracking(-0.4)
-                .padding(.bottom, 10)
+                .padding(.bottom, 18)
 
-            Text("Press your hotkey and speak.\nText appears at the cursor as you talk.")
-                .font(.system(size: 13))
-                .foregroundStyle(G.dim)
-                .multilineTextAlignment(.center)
-                .lineSpacing(4)
-                .padding(.bottom, 32)
+            // Where to find Flowy — it has no dock icon and no window.
+            menuBarHint
+                .padding(.bottom, 18)
 
-            hotkeyDisplay
-                .padding(.bottom, 40)
+            // How to dictate, as numbered steps.
+            VStack(alignment: .leading, spacing: 12) {
+                usageStep(1) {
+                    HStack(spacing: 6) {
+                        Text("Press").foregroundStyle(G.dim)
+                        hotkeyDisplay
+                    }
+                }
+                usageStep(2) {
+                    Text("Speak — text appears at your cursor")
+                        .foregroundStyle(G.dim)
+                }
+                usageStep(3) {
+                    Text("Press again to stop (or hold, then release)")
+                        .foregroundStyle(G.dim)
+                }
+            }
+            .font(.system(size: 12))
+            .padding(.bottom, 26)
 
             Button("Open Settings") { onComplete() }
                 .buttonStyle(PrimaryBtn())
 
             Spacer()
         }
-        .padding(.horizontal, 48)
+        .padding(.horizontal, 40)
     }
 
     // MARK: – Reusable bits
@@ -258,6 +272,54 @@ struct OnboardingView: View {
                     .overlay(RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .strokeBorder(G.border, lineWidth: 1))
             }
+        }
+    }
+
+    // Shows a faux menu bar so the user knows Flowy lives in the top-right
+    // status area — there is no dock icon and no main window.
+    private var menuBarHint: some View {
+        VStack(spacing: 12) {
+            ZStack(alignment: .topTrailing) {
+                RoundedRectangle(cornerRadius: 7, style: .continuous)
+                    .fill(G.fill)
+                    .overlay(RoundedRectangle(cornerRadius: 7, style: .continuous)
+                        .strokeBorder(G.border, lineWidth: 1))
+                    .frame(height: 28)
+                    .overlay(alignment: .trailing) {
+                        HStack(spacing: 14) {
+                            Image(systemName: "wifi")
+                            Image(systemName: "battery.75")
+                            Image(systemName: "magnifyingglass")
+                            // Flowy's icon, ringed to draw the eye.
+                            waveLogo
+                                .frame(width: 18, height: 11)
+                                .padding(5)
+                                .background(G.teal.opacity(0.14), in: Circle())
+                                .overlay(Circle().strokeBorder(G.teal.opacity(0.5), lineWidth: 1))
+                        }
+                        .font(.system(size: 11))
+                        .foregroundStyle(G.faint)
+                        .padding(.trailing, 8)
+                    }
+            }
+
+            Text("Flowy lives in your menu bar — top-right.\nNo dock icon; it runs quietly in the background.")
+                .font(.system(size: 12))
+                .foregroundStyle(G.dim)
+                .multilineTextAlignment(.center)
+                .lineSpacing(3)
+        }
+    }
+
+    private func usageStep<C: View>(_ n: Int, @ViewBuilder _ content: () -> C) -> some View {
+        HStack(spacing: 10) {
+            Text("\(n)")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(G.teal)
+                .frame(width: 20, height: 20)
+                .background(G.teal.opacity(0.12), in: Circle())
+            content()
+            Spacer(minLength: 0)
         }
     }
 

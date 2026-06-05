@@ -11,6 +11,11 @@ final class SettingsWindowController: NSObject, NSWindowDelegate {
 
         let content = SettingsView(model: model)
         let hostingView = NSHostingView(rootView: content)
+        // Keep the window at its fixed contentRect. Without this, NSHostingView's
+        // default sizing options let SwiftUI's content drive the window size, so a
+        // tab containing a rigid-width NSView (the hotkey recorder) grows the window
+        // each time it's shown.
+        hostingView.sizingOptions = []
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 580, height: 540),
             styleMask: [.titled, .closable, .miniaturizable, .fullSizeContentView],

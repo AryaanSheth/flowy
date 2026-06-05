@@ -14,7 +14,11 @@ struct HotkeyRecorderView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: RecorderButton, context: Context) {
-        nsView.title = nsView.isRecording ? "Press shortcut..." : hotkey
+        // draw() renders the live "Press keys…" label while recording; here we
+        // only keep the stored combo in sync with the binding.
+        if !nsView.isRecording {
+            nsView.title = hotkey
+        }
     }
 }
 
@@ -29,6 +33,9 @@ final class RecorderButton: NSView {
         }
     }
     var title = "" {
+        didSet { needsDisplay = true }
+    }
+    private var isHovered = false {
         didSet { needsDisplay = true }
     }
 
@@ -46,7 +53,29 @@ final class RecorderButton: NSView {
     }
 
     override var intrinsicContentSize: NSSize {
-        NSSize(width: 250, height: 32)
+        // Let SwiftUI's frame dictate the width; only the height is fixed. A rigid
+        // intrinsic width would force the hosting window to grow to fit it.
+        NSSize(width: NSView.noIntrinsicMetric, height: 32)
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach(removeTrackingArea)
+        addTrackingArea(NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeInActiveApp],
+            owner: self
+        ))
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        NSCursor.pointingHand.set()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        NSCursor.arrow.set()
     }
 
     override func mouseDown(with event: NSEvent) {
@@ -74,36 +103,79 @@ final class RecorderButton: NSView {
     }
 
     override func draw(_ dirtyRect: NSRect) {
+        let teal = NSColor(red: 0.10, green: 0.80, blue: 0.72, alpha: 1.0)
         let rect = bounds.insetBy(dx: 0.5, dy: 0.5)
         let path = NSBezierPath(roundedRect: rect, xRadius: 6, yRadius: 6)
 
-        // Match glass palette: teal tint when recording, dark fill otherwise
-        let bgColor = isRecording
-            ? NSColor(red: 0.10, green: 0.80, blue: 0.72, alpha: 0.18)
-            : NSColor.white.withAlphaComponent(0.055)
+        // Match glass palette: teal tint when recording, brightening on hover.
+        let bgColor: NSColor
+        if isRecording {
+            bgColor = teal.withAlphaComponent(0.18)
+        } else if isHovered {
+            bgColor = NSColor.white.withAlphaComponent(0.10)
+        } else {
+            bgColor = NSColor.white.withAlphaComponent(0.055)
+        }
         bgColor.setFill()
         path.fill()
 
-        let strokeColor = isRecording
-            ? NSColor(red: 0.10, green: 0.80, blue: 0.72, alpha: 0.50)
-            : NSColor.white.withAlphaComponent(0.09)
+        let strokeColor: NSColor
+        if isRecording {
+            strokeColor = teal.withAlphaComponent(0.50)
+        } else if isHovered {
+            strokeColor = teal.withAlphaComponent(0.35)
+        } else {
+            strokeColor = NSColor.white.withAlphaComponent(0.09)
+        }
         strokeColor.setStroke()
         path.lineWidth = 1
         path.stroke()
 
-        let display = title.isEmpty ? "Record shortcut" : title
+        // Idle empty state reads as a call to action; otherwise show the combo.
+        let display: String
+        if isRecording {
+            display = "Press keys…"
+        } else if title.isEmpty {
+            display = "Click, then press keys"
+        } else {
+            display = title
+        }
+
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = .center
-        let textColor = isRecording
-            ? NSColor(red: 0.10, green: 0.80, blue: 0.72, alpha: 1.0)
-            : NSColor.white
+        let textColor = isRecording ? teal : NSColor.white
         let attrs: [NSAttributedString.Key: Any] = [
             .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .medium),
             .foregroundColor: textColor,
             .paragraphStyle: paragraph,
         ]
-        let textRect = rect.insetBy(dx: 10, dy: 7)
+        let textRect = rect.insetBy(dx: 24, dy: 7)
         display.draw(in: textRect, withAttributes: attrs)
+
+        // Pencil affordance on the right edge signals the field is editable.
+        if !isRecording, let pencil = tintedSymbol(
+            "pencil",
+            color: NSColor.white.withAlphaComponent(isHovered ? 0.55 : 0.30),
+            pointSize: 11
+        ) {
+            let size = pencil.size
+            let origin = NSPoint(x: rect.maxX - size.width - 9, y: rect.midY - size.height / 2)
+            pencil.draw(at: origin, from: .zero, operation: .sourceOver, fraction: 1)
+        }
+    }
+
+    private func tintedSymbol(_ name: String, color: NSColor, pointSize: CGFloat) -> NSImage? {
+        let config = NSImage.SymbolConfiguration(pointSize: pointSize, weight: .regular)
+        guard let base = NSImage(systemSymbolName: name, accessibilityDescription: nil)?
+            .withSymbolConfiguration(config) else { return nil }
+        let img = NSImage(size: base.size)
+        img.lockFocus()
+        color.set()
+        let rect = NSRect(origin: .zero, size: base.size)
+        base.draw(in: rect)
+        rect.fill(using: .sourceAtop)
+        img.unlockFocus()
+        return img
     }
 }
 

@@ -33,7 +33,7 @@ struct AppConfig: Codable, Equatable {
         translationEnabled: Bool = false,
         translationTargetLanguage: String = "en",
         vadEnabled: Bool = true,
-        vadSilenceSeconds: Double = 0.6,
+        vadSilenceSeconds: Double = 1.5,
         vadSpeechThresholdDB: Double = -25.0,
         ollamaEnabled: Bool = false,
         ollamaEndpoint: String = "http://localhost:11434",
@@ -95,7 +95,7 @@ struct AppConfig: Codable, Equatable {
         translationEnabled = try c.decodeIfPresent(Bool.self, forKey: .translationEnabled) ?? false
         translationTargetLanguage = try c.decodeIfPresent(String.self, forKey: .translationTargetLanguage) ?? "en"
         vadEnabled = try c.decodeIfPresent(Bool.self, forKey: .vadEnabled) ?? true
-        vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 0.6
+        vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 1.5
         let rawThreshold = try c.decodeIfPresent(Double.self, forKey: .vadSpeechThresholdDB) ?? -25.0
         vadSpeechThresholdDB = min(-10.0, max(-45.0, rawThreshold))
         ollamaEnabled = try c.decodeIfPresent(Bool.self, forKey: .ollamaEnabled) ?? false
@@ -158,7 +158,7 @@ struct AppConfig: Codable, Equatable {
 
         next.maxRecordingSecs = min(300, max(5, next.maxRecordingSecs))
         next.historySize = min(200, max(1, next.historySize))
-        next.vadSilenceSeconds = min(3.0, max(0.3, next.vadSilenceSeconds))
+        next.vadSilenceSeconds = min(5.0, max(0.5, next.vadSilenceSeconds))
         next.vadSpeechThresholdDB = min(-10.0, max(-45.0, next.vadSpeechThresholdDB))
 
         next.ollamaEndpoint = next.ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
