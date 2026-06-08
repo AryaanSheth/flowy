@@ -62,3 +62,52 @@ struct PermissionState: Equatable {
     var microphoneAuthorized: Bool = false
     var accessibilityTrusted: Bool = false
 }
+
+struct DictationStats: Equatable {
+    var totalWords: Int = 0
+    var totalDurationSeconds: Double = 0
+    var lastWordCount: Int = 0
+    var lastWPM: Int = 0
+    var lastDurationSeconds: Double = 0
+
+    private static let totalWordsKey = "stats.totalWords"
+    private static let totalDurationSecondsKey = "stats.totalDurationSeconds"
+    private static let lastWordCountKey = "stats.lastWordCount"
+    private static let lastWPMKey = "stats.lastWPM"
+    private static let lastDurationSecondsKey = "stats.lastDurationSeconds"
+
+    var overallWPM: Int {
+        guard totalWords > 0, totalDurationSeconds > 0 else { return 0 }
+        return max(1, Int((Double(totalWords) / (totalDurationSeconds / 60)).rounded()))
+    }
+
+    static func load(defaults: UserDefaults = .standard) -> DictationStats {
+        DictationStats(
+            totalWords: defaults.integer(forKey: totalWordsKey),
+            totalDurationSeconds: defaults.double(forKey: totalDurationSecondsKey),
+            lastWordCount: defaults.integer(forKey: lastWordCountKey),
+            lastWPM: defaults.integer(forKey: lastWPMKey),
+            lastDurationSeconds: defaults.double(forKey: lastDurationSecondsKey)
+        )
+    }
+
+    func save(defaults: UserDefaults = .standard) {
+        defaults.set(totalWords, forKey: Self.totalWordsKey)
+        defaults.set(totalDurationSeconds, forKey: Self.totalDurationSecondsKey)
+        defaults.set(lastWordCount, forKey: Self.lastWordCountKey)
+        defaults.set(lastWPM, forKey: Self.lastWPMKey)
+        defaults.set(lastDurationSeconds, forKey: Self.lastDurationSecondsKey)
+    }
+
+    func addingRecording(words: Int, durationSeconds: Double) -> DictationStats {
+        let safeDuration = max(1, durationSeconds)
+        let wpm = max(1, Int((Double(words) / (safeDuration / 60)).rounded()))
+        return DictationStats(
+            totalWords: totalWords + words,
+            totalDurationSeconds: totalDurationSeconds + safeDuration,
+            lastWordCount: words,
+            lastWPM: wpm,
+            lastDurationSeconds: safeDuration
+        )
+    }
+}

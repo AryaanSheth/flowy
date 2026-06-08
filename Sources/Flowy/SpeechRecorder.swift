@@ -50,6 +50,7 @@ final class SpeechRecorder {
         deviceUID: String?,
         maxSeconds: Int,
         onPartial: ((String) -> Void)? = nil,
+        onLevel: ((Double) -> Void)? = nil,
         onVADStop: (() -> Void)? = nil,
         vadSilenceSeconds: TimeInterval = 0.6,
         vadSpeechThresholdDB: Float = -25.0,
@@ -134,6 +135,9 @@ final class SpeechRecorder {
 
         input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak request] buffer, _ in
             request?.append(buffer)
+            if let onLevel {
+                onLevel(Self.normalizedLevel(from: buffer))
+            }
         }
         tapInstalled = true
 
@@ -236,5 +240,31 @@ final class SpeechRecorder {
             return FlowyError.message("macOS says Siri and Dictation are disabled. Enable Dictation in System Settings > Keyboard > Dictation, then try again.")
         }
         return error
+    }
+
+    private static func normalizedLevel(from buffer: AVAudioPCMBuffer) -> Double {
+        guard let channelData = buffer.floatChannelData else { return 0 }
+        let channelCount = max(1, Int(buffer.format.channelCount))
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return 0 }
+
+        var sum: Float = 0
+        for channel in 0..<channelCount {
+            let samples = channelData[channel]
+            for frame in 0..<frameLength {
+                let sample = samples[frame]
+                sum += sample * sample
+            }
+        }
+
+        let meanSquare = sum / Float(frameLength * channelCount)
+        let rms = sqrt(meanSquare)
+        guard rms.isFinite, rms > 0 else { return 0 }
+
+        let db = 20 * log10(rms)
+        // Map quiet speech around -45 dB to low movement and strong speech around
+        // -12 dB to full movement, with a slight curve so normal speech feels lively.
+        let normalized = min(1, max(0, (Double(db) + 45) / 33))
+        return pow(normalized, 0.72)
     }
 }

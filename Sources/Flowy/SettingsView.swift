@@ -241,6 +241,8 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 0) {
             tabTitle("Record")
             permBanners
+            statsSummary
+                .padding(.bottom, 16)
 
             // Hold-to-record button
             VStack(alignment: .leading, spacing: 6) {
@@ -320,6 +322,25 @@ struct SettingsView: View {
                     }
                 }
             }
+        }
+    }
+
+    private var statsSummary: some View {
+        glassCard {
+            HStack(spacing: 0) {
+                statCell("Words", formatCount(model.stats.totalWords))
+                statDivider
+                statCell("Avg", model.stats.overallWPM > 0 ? "\(model.stats.overallWPM) WPM" : "—")
+                statDivider
+                statCell("Time", formatDuration(model.stats.totalDurationSeconds))
+                statDivider
+                if model.status == .recording {
+                    statCell("Now", model.liveWPM > 0 ? "\(model.liveWPM) WPM" : "—")
+                } else {
+                    statCell("Last", model.stats.lastWPM > 0 ? "\(model.stats.lastWPM) WPM" : "—")
+                }
+            }
+            .padding(.vertical, 10)
         }
     }
 
@@ -518,6 +539,25 @@ struct SettingsView: View {
         .padding(.vertical, 10).padding(.horizontal, 14)
     }
 
+    private var statDivider: some View {
+        G.border.frame(width: 1, height: 30)
+    }
+
+    private func statCell(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(G.faint)
+            Text(value)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(G.text)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 14)
+    }
+
     private func permRow(_ title: String, ok: Bool) -> some View {
         HStack {
             Circle().fill(ok ? G.teal : G.danger.opacity(0.8)).frame(width: 5, height: 5)
@@ -541,6 +581,27 @@ struct SettingsView: View {
                 .foregroundStyle(G.warn).buttonStyle(.plain)
         }
         .padding(.vertical, 7).padding(.bottom, 4)
+    }
+
+    private func formatCount(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
+    }
+
+    private func formatDuration(_ seconds: Double) -> String {
+        let total = max(0, Int(seconds.rounded(.down)))
+        let hours = total / 3600
+        let minutes = (total % 3600) / 60
+        let secs = total % 60
+
+        if hours > 0 {
+            return minutes > 0 ? "\(hours)h \(minutes)m" : "\(hours)h"
+        }
+        if minutes > 0 {
+            return secs > 0 ? "\(minutes)m \(secs)s" : "\(minutes)m"
+        }
+        return "\(secs)s"
     }
 
     // MARK: – Logic

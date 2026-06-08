@@ -9,10 +9,24 @@ final class AppModel: ObservableObject {
     @Published private(set) var config: AppConfig
     @Published private(set) var history: [String] = []
     @Published private(set) var permissions = PermissionState()
-    @Published var lastError: String?
+    @Published private(set) var stats: DictationStats {
+        didSet {
+            stats.save()
+            onStatsChanged?(stats)
+        }
+    }
+    @Published private(set) var liveWordCount: Int = 0
+    @Published private(set) var liveWPM: Int = 0
+    @Published private(set) var liveDurationSeconds: Double = 0
+    @Published var lastError: String? {
+        didSet { onLastErrorChanged?(lastError) }
+    }
 
     var onStatusChanged: ((AppStatus) -> Void)?
     var onHotkeyChanged: ((String) -> Void)?
+    var onAudioLevelChanged: ((Double) -> Void)?
+    var onLastErrorChanged: ((String?) -> Void)?
+    var onStatsChanged: ((DictationStats) -> Void)?
     /// Set by AppDelegate on macOS 14+ to provide Apple Translation support.
     var translateText: ((String, String) async throws -> String)?
 
@@ -20,10 +34,15 @@ final class AppModel: ObservableObject {
     private let streamingInjector = StreamingInjector()
     private var capturedApp: NSRunningApplication?
     private var recordingTimeout: DispatchWorkItem?
+    private var statsTick: DispatchWorkItem?
+    private var recordingStartedAt: Date?
+    private var recordingStoppedAt: Date?
+    private var latestPartialText = ""
     private var streamingEnabledForRecording = false
 
     init(config: AppConfig = .load()) {
         self.config = config
+        self.stats = .load()
         refreshPermissions()
     }
 
@@ -94,6 +113,12 @@ final class AppModel: ObservableObject {
         }
 
         capturedApp = NSWorkspace.shared.frontmostApplication
+        recordingStartedAt = Date()
+        recordingStoppedAt = nil
+        latestPartialText = ""
+        liveWordCount = 0
+        liveWPM = 0
+        liveDurationSeconds = 0
         streamingInjector.reset()
         streamingEnabledForRecording = config.outputMode != .clipboard && AXIsProcessTrusted()
 
@@ -110,7 +135,16 @@ final class AppModel: ObservableObject {
                 deviceUID: config.inputDevice,
                 maxSeconds: config.maxRecordingSecs,
                 onPartial: { [weak self] text in
-                    Task { @MainActor in self?.handlePartialRecognition(text) }
+                    Task { @MainActor in
+                        self?.updateLiveStats(partialText: text)
+                        self?.handlePartialRecognition(text)
+                    }
+                },
+                onLevel: { [weak self] level in
+                    DispatchQueue.main.async {
+                        guard self?.status == .recording else { return }
+                        self?.onAudioLevelChanged?(level)
+                    }
                 },
                 onVADStop: vadStop,
                 vadSilenceSeconds: config.vadSilenceSeconds,
@@ -119,11 +153,18 @@ final class AppModel: ObservableObject {
                 Task { @MainActor in self?.handleRecognition(result) }
             }
             scheduleRecordingTimeout()
+            scheduleStatsTick()
         } catch {
             capturedApp = nil
+            recordingStartedAt = nil
+            recordingStoppedAt = nil
+            latestPartialText = ""
+            statsTick?.cancel()
+            statsTick = nil
             recordingTimeout?.cancel()
-            setStatus(.idle)
+            onAudioLevelChanged?(0)
             lastError = error.localizedDescription
+            setStatus(.idle)
             FlowyLog.error("Recording start failed: \(error.localizedDescription)")
         }
     }
@@ -134,9 +175,13 @@ final class AppModel: ObservableObject {
         // Pre-activate the target app now so the focus switch happens
         // concurrently with transcription rather than after it.
         capturedApp?.activate(options: [.activateIgnoringOtherApps])
+        recordingStoppedAt = Date()
         recordingTimeout?.cancel()
         recordingTimeout = nil
+        statsTick?.cancel()
+        statsTick = nil
         setStatus(.transcribing)
+        onAudioLevelChanged?(0)
         speechRecorder.stop()
     }
 
@@ -154,6 +199,19 @@ final class AppModel: ObservableObject {
             deadline: .now() + .seconds(config.maxRecordingSecs),
             execute: item
         )
+    }
+
+    private func scheduleStatsTick() {
+        statsTick?.cancel()
+        guard status == .recording else { return }
+
+        let item = DispatchWorkItem { [weak self] in
+            guard let self, self.status == .recording else { return }
+            self.refreshLiveStats()
+            self.scheduleStatsTick()
+        }
+        statsTick = item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: item)
     }
 
     private func handleRecognition(_ result: Result<String, Error>) {
@@ -180,8 +238,14 @@ final class AppModel: ObservableObject {
     private func processRecognition(_ result: Result<String, Error>) async {
         defer {
             capturedApp = nil
+            recordingStartedAt = nil
+            recordingStoppedAt = nil
+            latestPartialText = ""
+            statsTick?.cancel()
+            statsTick = nil
             streamingEnabledForRecording = false
             streamingInjector.reset()
+            onAudioLevelChanged?(0)
             setStatus(.idle)
         }
 
@@ -255,6 +319,7 @@ final class AppModel: ObservableObject {
             }
             FlowyLog.info(String(format: "Translation latency %.2fs", Date().timeIntervalSince(started)))
         }
+        updateDictationStats(finalText: text)
 
         history.insert(text, at: 0)
         if history.count > snapshot.historySize {
@@ -288,6 +353,52 @@ final class AppModel: ObservableObject {
         text = DictionaryRewriter.apply(text, dictionary: config.dictionary)
         text = PunctuationRewriter.apply(text)
         return text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private func updateLiveStats(partialText: String) {
+        latestPartialText = partialText
+        refreshLiveStats()
+    }
+
+    private func refreshLiveStats() {
+        liveDurationSeconds = currentRecordingDuration()
+        liveWordCount = wordCount(in: latestPartialText)
+        guard liveWordCount > 0, liveDurationSeconds > 0 else {
+            liveWPM = 0
+            return
+        }
+        liveWPM = max(1, Int((Double(liveWordCount) / (liveDurationSeconds / 60)).rounded()))
+    }
+
+    private func currentRecordingDuration() -> Double {
+        guard let recordingStartedAt else { return 0 }
+        return max(1, Date().timeIntervalSince(recordingStartedAt))
+    }
+
+    private func finalRecordingDuration() -> Double {
+        let end = recordingStoppedAt ?? Date()
+        let start = recordingStartedAt ?? end
+        return max(1, end.timeIntervalSince(start))
+    }
+
+    private func updateDictationStats(finalText: String) {
+        let words = wordCount(in: finalText)
+        guard words > 0 else { return }
+
+        let duration = finalRecordingDuration()
+        let nextStats = stats.addingRecording(words: words, durationSeconds: duration)
+        stats = nextStats
+        liveWordCount = words
+        liveWPM = nextStats.lastWPM
+        liveDurationSeconds = duration
+
+        FlowyLog.info("Stats updated words=\(words) wpm=\(nextStats.lastWPM) totalWords=\(stats.totalWords)")
+    }
+
+    private func wordCount(in text: String) -> Int {
+        text.unicodeScalars.split { scalar in
+            !CharacterSet.alphanumerics.contains(scalar)
+        }.count
     }
 
     private func setStatus(_ nextStatus: AppStatus) {

@@ -8,6 +8,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsController: SettingsWindowController?
     private var overlayController: OverlayWindowController?
     private var hotkeyMonitor: HotkeyMonitor?
+    private var menuStatusItem: NSMenuItem?
+    private var menuOutputItem: NSMenuItem?
+    private var menuTotalWordsItem: NSMenuItem?
+    private var menuLastWPMItem: NSMenuItem?
+    private var menuErrorItem: NSMenuItem?
+    private var startRecordingItem: NSMenuItem?
+    private var stopRecordingItem: NSMenuItem?
     private var allowQuit = false
     private var onboardingController: OnboardingWindowController?
     // Held alive so the SwiftUI translation task stays active (macOS 14+)
@@ -36,6 +43,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         model.onHotkeyChanged = { [weak self] hotkey in
             self?.installHotkey(hotkey)
+        }
+        model.onAudioLevelChanged = { [weak self] level in
+            self?.overlayController?.update(level: level)
+        }
+        model.onLastErrorChanged = { [weak self] error in
+            self?.updateMenuError(error)
+        }
+        model.onStatsChanged = { [weak self] stats in
+            self?.updateMenuStats(stats)
         }
 
         setupTranslation()
@@ -176,9 +192,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         item.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
 
         let menu = NSMenu()
+        let statusRow = NSMenuItem(title: "Status: Ready", action: nil, keyEquivalent: "")
+        statusRow.isEnabled = false
+        menuStatusItem = statusRow
+        menu.addItem(statusRow)
+
+        let outputRow = NSMenuItem(title: "Output: \(model.config.outputMode.title)", action: nil, keyEquivalent: "")
+        outputRow.isEnabled = false
+        menuOutputItem = outputRow
+        menu.addItem(outputRow)
+
+        let totalWordsRow = NSMenuItem(title: "Words: \(formatCount(model.stats.totalWords))", action: nil, keyEquivalent: "")
+        totalWordsRow.isEnabled = false
+        menuTotalWordsItem = totalWordsRow
+        menu.addItem(totalWordsRow)
+
+        let lastWPMRow = NSMenuItem(title: wpmTitle(model.stats), action: nil, keyEquivalent: "")
+        lastWPMRow.isEnabled = false
+        menuLastWPMItem = lastWPMRow
+        menu.addItem(lastWPMRow)
+
+        let errorRow = NSMenuItem(title: "Last error: None", action: nil, keyEquivalent: "")
+        errorRow.isEnabled = false
+        errorRow.isHidden = true
+        menuErrorItem = errorRow
+        menu.addItem(errorRow)
+
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Settings", action: #selector(openSettings), keyEquivalent: ","))
-        menu.addItem(NSMenuItem(title: "Start Recording", action: #selector(startRecording), keyEquivalent: ""))
-        menu.addItem(NSMenuItem(title: "Stop Recording", action: #selector(stopRecording), keyEquivalent: ""))
+        let startItem = NSMenuItem(title: "Start Recording", action: #selector(startRecording), keyEquivalent: "")
+        let stopItem = NSMenuItem(title: "Stop Recording", action: #selector(stopRecording), keyEquivalent: "")
+        startRecordingItem = startItem
+        stopRecordingItem = stopItem
+        menu.addItem(startItem)
+        menu.addItem(stopItem)
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Flowy", action: #selector(quit), keyEquivalent: "q"))
         for item in menu.items {
@@ -210,8 +257,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let image = NSImage(systemSymbolName: status.systemImageName, accessibilityDescription: status.label)
         image?.isTemplate = status != .recording
         statusItem?.button?.image = image
-        statusItem?.button?.toolTip = "Flowy - \(status.label)"
+        statusItem?.button?.imagePosition = .imageOnly
+        statusItem?.button?.title = status.menuBarTitle
+        statusItem?.button?.toolTip = status.toolTip
+        menuStatusItem?.title = "Status: \(status.menuTitle)"
+        menuOutputItem?.title = "Output: \(model.config.outputMode.title)"
+        startRecordingItem?.isEnabled = status == .idle
+        stopRecordingItem?.isEnabled = status == .recording
+        updateMenuError(model.lastError)
+        updateMenuStats(model.stats)
         overlayController?.update(status: status)
+    }
+
+    private func updateMenuError(_ error: String?) {
+        if let error, !error.isEmpty {
+            menuErrorItem?.title = "Last error: \(error)"
+            menuErrorItem?.isHidden = false
+        } else {
+            menuErrorItem?.title = "Last error: None"
+            menuErrorItem?.isHidden = true
+        }
+    }
+
+    private func updateMenuStats(_ stats: DictationStats) {
+        menuTotalWordsItem?.title = "Words: \(formatCount(stats.totalWords))"
+        menuLastWPMItem?.title = wpmTitle(stats)
+    }
+
+    private func wpmTitle(_ stats: DictationStats) -> String {
+        guard stats.overallWPM > 0 else { return "Avg: -- WPM" }
+        return "Avg: \(stats.overallWPM) WPM"
+    }
+
+    private func formatCount(_ value: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        return formatter.string(from: NSNumber(value: value)) ?? "\(value)"
     }
 
     @objc private func openSettings() {
@@ -229,5 +310,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @objc private func quit() {
         allowQuit = true
         NSApp.terminate(nil)
+    }
+}
+
+private extension AppStatus {
+    var menuBarTitle: String {
+        switch self {
+        case .idle, .recording, .transcribing: return ""
+        }
+    }
+
+    var menuTitle: String {
+        switch self {
+        case .idle: return "Ready"
+        case .recording: return "Rec"
+        case .transcribing: return "Writing"
+        }
+    }
+
+    var toolTip: String {
+        switch self {
+        case .idle: return "Flowy is ready"
+        case .recording: return "Flowy is recording. Press the hotkey again to stop."
+        case .transcribing: return "Flowy is transcribing and inserting text."
+        }
     }
 }
