@@ -351,11 +351,11 @@ struct SettingsView: View {
                 VStack(alignment: .leading, spacing: 0) {
                     ForEach(dictRows.indices, id: \.self) { i in
                         HStack(spacing: 6) {
-                            TextField("word", text: $dictRows[i].key)
+                            TextField("heard word or phrase", text: $dictRows[i].key)
                                 .textFieldStyle(GlassField())
                             Image(systemName: "arrow.right")
                                 .font(.system(size: 10)).foregroundStyle(G.faint)
-                            TextField("replacement", text: $dictRows[i].value)
+                            TextField("type as", text: $dictRows[i].value)
                                 .textFieldStyle(GlassField())
                             Button { dictRows.remove(at: i); runTest() } label: {
                                 Image(systemName: "xmark").font(.system(size: 10))
@@ -372,7 +372,7 @@ struct SettingsView: View {
                     }
                     Divider().padding(.horizontal, 14)
                     Button { dictRows.append(DictRow(key: "", value: "")) } label: {
-                        Label("Add word", systemImage: "plus").font(.system(size: 11))
+                        Label("Add term", systemImage: "plus").font(.system(size: 11))
                     }
                     .buttonStyle(NudgeBtn())
                     .padding(.horizontal, 14).padding(.vertical, 10)

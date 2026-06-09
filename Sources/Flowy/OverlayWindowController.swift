@@ -9,7 +9,7 @@ final class OverlayWindowController {
 
     init() {
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 104, height: 52),
+            contentRect: NSRect(x: 0, y: 0, width: 112, height: 58),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -71,7 +71,7 @@ private final class OverlayModel: ObservableObject {
 
     func updateLevel(_ rawLevel: Double) {
         let clamped = min(1, max(0, rawLevel))
-        targetLevel = clamped < 0.035 ? 0 : pow((clamped - 0.035) / 0.965, 0.62)
+        targetLevel = clamped < 0.025 ? 0 : pow((clamped - 0.025) / 0.975, 0.58)
         scheduleSmoothingTickIfNeeded()
     }
 
@@ -88,11 +88,11 @@ private final class OverlayModel: ObservableObject {
             }
         }
         smoothingWorkItem = item
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 24.0, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0 / 30.0, execute: item)
     }
 
     private func stepSmoothedLevel() {
-        let smoothing = targetLevel > audioLevel ? 0.12 : 0.04
+        let smoothing = targetLevel > audioLevel ? 0.22 : 0.085
         let next = audioLevel + (targetLevel - audioLevel) * smoothing
         audioLevel = next < 0.006 && targetLevel == 0 ? 0 : next
     }
@@ -108,40 +108,41 @@ private struct OverlayPill: View {
     var body: some View {
         ZStack {
             Capsule(style: .continuous)
-                .fill(statusColor.opacity(glowOpacity))
-                .frame(width: 68 + level * 10, height: 28 + level * 3)
-                .blur(radius: 10)
+                .fill(statusColor.opacity(glowOpacity * 0.72))
+                .frame(width: 72 + level * 6, height: 26 + level * 2)
+                .blur(radius: 7)
 
-            WaveMark(
-                level: level,
-                color: statusColor,
-                isTranscribing: model.status == .transcribing,
-                pulse: transcribingPulse
-            )
-            .frame(width: 64, height: 24)
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 9)
-        .background(
-            Capsule(style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(white: 0.08),
-                            Color(red: 0.02, green: 0.09, blue: 0.10)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
+            ZStack {
+                Capsule(style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(white: 0.13),
+                                Color(red: 0.03, green: 0.13, blue: 0.13)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
                     )
+
+                WaveMark(
+                    level: level,
+                    color: statusColor,
+                    isTranscribing: model.status == .transcribing,
+                    pulse: transcribingPulse
                 )
-                .overlay(
-                    Capsule(style: .continuous)
-                        .strokeBorder(statusColor.opacity(model.status == .recording ? 0.38 : 0.18), lineWidth: 0.8)
-                )
-        )
-        .shadow(color: statusColor.opacity(model.status == .recording ? 0.28 : 0.10), radius: 12, x: 0, y: 0)
-        .shadow(color: .black.opacity(0.45), radius: 8, x: 0, y: 2)
-        .padding(8)
+                .frame(width: 86, height: 28)
+
+                Capsule(style: .continuous)
+                    .strokeBorder(statusColor.opacity(model.status == .recording ? 0.32 : 0.16), lineWidth: 0.7)
+            }
+            .frame(width: 86, height: 30)
+            .clipShape(Capsule(style: .continuous))
+        }
+        .compositingGroup()
+        .shadow(color: statusColor.opacity(model.status == .recording ? 0.18 : 0.08), radius: 7, x: 0, y: 0)
+        .shadow(color: .black.opacity(0.38), radius: 6, x: 0, y: 2)
+        .padding(12)
         .animation(.easeInOut(duration: 0.22), value: model.status)
         .onAppear { updatePulse(for: model.status) }
         .onChange(of: model.status) { updatePulse(for: $0) }
@@ -170,7 +171,7 @@ private struct OverlayPill: View {
     private func updatePulse(for status: AppStatus) {
         switch status {
         case .transcribing:
-            withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
+            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
                 transcribingPulse = true
             }
         case .idle, .recording:
@@ -198,9 +199,9 @@ private struct WaveMark: View {
     }
 
     private let strokes: [Stroke] = [
-        Stroke(y: 0.28, thickness: 2.0, amplitude: 2.8, opacity: 0.46, drift: 0.30),
-        Stroke(y: 0.50, thickness: 3.6, amplitude: 4.6, opacity: 0.94, drift: 0.38),
-        Stroke(y: 0.72, thickness: 1.6, amplitude: 2.2, opacity: 0.38, drift: 0.24),
+        Stroke(y: 0.28, thickness: 1.8, amplitude: 2.6, opacity: 0.46, drift: 0.34),
+        Stroke(y: 0.50, thickness: 3.2, amplitude: 4.0, opacity: 0.94, drift: 0.44),
+        Stroke(y: 0.72, thickness: 1.4, amplitude: 2.0, opacity: 0.38, drift: 0.28),
     ]
 
     var body: some View {
@@ -210,23 +211,28 @@ private struct WaveMark: View {
                 let reactiveLevel = min(1, max(0, level))
                 let transcribingLevel: CGFloat = pulse ? 0.44 : 0.18
                 let drawLevel = isTranscribing ? transcribingLevel : max(0.06, reactiveLevel)
-                let driftRate: CGFloat = isTranscribing ? 0.020 : (reactiveLevel > 0.025 ? 0.018 : 0)
+                let voiceMotion = isTranscribing ? 0.18 : max(0, reactiveLevel - 0.02)
+                let driftRate: CGFloat = isTranscribing ? 0.055 : (voiceMotion > 0 ? 0.16 + voiceMotion * 0.28 : 0)
 
                 for (index, stroke) in strokes.enumerated() {
                     var path = Path()
                     let midY = size.height * stroke.y
-                    let breath = sin(CGFloat(elapsed) * 0.10 + CGFloat(index) * 1.2)
-                    let amplitude = stroke.amplitude * (0.24 + drawLevel * 1.45) * (0.94 + breath * 0.06)
+                    let breath = sin(CGFloat(elapsed) * 0.24 + CGFloat(index) * 1.2)
+                    let amplitude = stroke.amplitude * (0.20 + drawLevel * 1.65) * (0.92 + breath * 0.08)
                     let phase = CGFloat(elapsed) * driftRate * stroke.drift + CGFloat(index) * 0.9
                     let step: CGFloat = 2
 
-                    path.move(to: CGPoint(x: 0, y: midY))
-                    var x: CGFloat = 0
-                    while x <= size.width {
-                        let progress = x / max(1, size.width)
+                    let horizontalBleed: CGFloat = 4
+                    let drawableWidth = max(1, size.width + horizontalBleed * 2)
+
+                    path.move(to: CGPoint(x: -horizontalBleed, y: midY))
+                    var x: CGFloat = -horizontalBleed
+                    while x <= drawableWidth {
+                        let progress = (x + horizontalBleed) / drawableWidth
                         let wave = sin(progress * .pi * 2.0 + phase)
                         let smallerWave = sin(progress * .pi * 3.0 + phase * 0.6) * 0.08
-                        let y = midY + (wave + smallerWave) * amplitude
+                        let voiceRipple = sin(progress * .pi * 5.0 + CGFloat(elapsed) * 2.6 + CGFloat(index)) * voiceMotion * 0.16
+                        let y = midY + (wave + smallerWave + voiceRipple) * amplitude
                         path.addLine(to: CGPoint(x: x, y: y))
                         x += step
                     }

@@ -4,29 +4,45 @@ enum DictionaryRewriter {
     static func apply(_ text: String, dictionary: [String: String]) -> String {
         guard !text.isEmpty, !dictionary.isEmpty else { return text }
 
-        let lowered = Dictionary(uniqueKeysWithValues: dictionary.map { ($0.key.lowercased(), $0.value) })
-        return text
-            .split(separator: " ", omittingEmptySubsequences: false)
-            .map { substitute(String($0), dictionary: lowered) }
-            .joined(separator: " ")
+        let entries = dictionary
+            .map { (spoken: $0.key.trimmingCharacters(in: .whitespacesAndNewlines), replacement: $0.value) }
+            .filter { !$0.spoken.isEmpty && !$0.replacement.isEmpty }
+            .sorted {
+                if $0.spoken.count == $1.spoken.count {
+                    return $0.spoken < $1.spoken
+                }
+                return $0.spoken.count > $1.spoken.count
+            }
+
+        var result = text
+        for entry in entries {
+            result = replace(entry.spoken, with: entry.replacement, in: result)
+        }
+        return result
     }
 
-    private static func substitute(_ token: String, dictionary: [String: String]) -> String {
-        guard let start = token.firstIndex(where: { $0.isLetter || $0.isNumber }) else {
-            return token
-        }
-        guard let end = token.lastIndex(where: { $0.isLetter || $0.isNumber }) else {
-            return token
-        }
+    private static func replace(_ spoken: String, with replacement: String, in text: String) -> String {
+        let escapedParts = spoken
+            .split(whereSeparator: { $0.isWhitespace })
+            .map { NSRegularExpression.escapedPattern(for: String($0)) }
 
-        let coreEnd = token.index(after: end)
-        let prefix = String(token[..<start])
-        let core = String(token[start..<coreEnd])
-        let suffix = String(token[coreEnd...])
+        guard !escapedParts.isEmpty else { return text }
 
-        if let replacement = dictionary[core.lowercased()] {
-            return prefix + replacement + suffix
+        let phrasePattern = escapedParts.joined(separator: #"\s+"#)
+        let pattern = #"(?i)(^|[^\p{L}\p{N}])("# + phrasePattern + #")(?=$|[^\p{L}\p{N}])"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+
+        let nsText = text as NSString
+        let matches = regex.matches(
+            in: text,
+            range: NSRange(location: 0, length: nsText.length)
+        )
+        guard !matches.isEmpty else { return text }
+
+        let mutable = NSMutableString(string: text)
+        for match in matches.reversed() {
+            mutable.replaceCharacters(in: match.range(at: 2), with: replacement)
         }
-        return token
+        return mutable as String
     }
 }

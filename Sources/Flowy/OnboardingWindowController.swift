@@ -6,9 +6,6 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
     private let window: NSWindow
 
     init(model: AppModel, onComplete: @escaping () -> Void) {
-        let content = OnboardingView(model: model, onComplete: onComplete)
-        let hostingView = NSHostingView(rootView: content)
-
         window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 440, height: 480),
             styleMask: [.titled, .fullSizeContentView],
@@ -21,12 +18,18 @@ final class OnboardingWindowController: NSObject, NSWindowDelegate {
         window.isMovableByWindowBackground = true
         window.backgroundColor = .clear
         window.isOpaque = false
-        window.contentView = hostingView
         window.center()
         window.isReleasedWhenClosed = false
         window.appearance = NSAppearance(named: .darkAqua)
 
         super.init()
+
+        let content = OnboardingView(
+            model: model,
+            onComplete: onComplete,
+            onPermissionPromptClosed: { [weak self] in self?.bringToFront() }
+        )
+        window.contentView = NSHostingView(rootView: content)
         window.delegate = self
     }
 

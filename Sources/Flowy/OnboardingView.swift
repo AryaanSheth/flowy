@@ -45,6 +45,7 @@ private struct PrimaryBtn: ButtonStyle {
 struct OnboardingView: View {
     @ObservedObject var model: AppModel
     var onComplete: () -> Void
+    var onPermissionPromptClosed: () -> Void = {}
 
     @State private var stepIndex = 0
     // steps: 0=welcome, 1=speech, 2=microphone, 3=accessibility, 4=done
@@ -369,17 +370,30 @@ struct OnboardingView: View {
         switch step {
         case 1:
             SFSpeechRecognizer.requestAuthorization { _ in
-                DispatchQueue.main.async { model.refreshPermissions() }
+                DispatchQueue.main.async {
+                    model.refreshPermissions()
+                    refocusAfterPermissionPrompt()
+                }
             }
         case 2:
             AVCaptureDevice.requestAccess(for: .audio) { _ in
-                DispatchQueue.main.async { model.refreshPermissions() }
+                DispatchQueue.main.async {
+                    model.refreshPermissions()
+                    refocusAfterPermissionPrompt()
+                }
             }
         case 3:
             TextOutput.requestAccessibilityAccess()
             TextOutput.openAccessibilitySettings()
         default:
             break
+        }
+    }
+
+    private func refocusAfterPermissionPrompt() {
+        onPermissionPromptClosed()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+            onPermissionPromptClosed()
         }
     }
 
