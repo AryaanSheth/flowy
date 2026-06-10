@@ -5,11 +5,11 @@ import Foundation
 /// Types transcribed text into the focused app incrementally as partial
 /// results arrive, so words appear live instead of all at once on release.
 ///
-/// The speech recogniser revises the whole transcription on every update
-/// (it can rewrite earlier words), so each update is reconciled against what
-/// was already typed: the common prefix is kept, the diverging tail is
-/// backspaced, and the new tail is typed. Because we only ever delete as many
-/// characters as we ourselves typed, we never touch the user's own text.
+/// The speech recogniser usually revises the whole transcription on every
+/// update, but it can occasionally restart and emit only the latest phrase.
+/// Small revisions are reconciled with backspaces; large rollbacks are treated
+/// as recogniser resets and handled append-only so a bad partial cannot wipe a
+/// long dictation.
 ///
 /// Requires Accessibility (synthetic key events). When it is not granted,
 /// callers should fall back to clipboard delivery instead.
@@ -19,6 +19,7 @@ final class StreamingInjector {
 
     private let backspaceKey: CGKeyCode = 0x33  // kVK_Delete (delete to the left)
     private let returnKey:    CGKeyCode = 0x24  // kVK_Return
+    private let maxLiveRollbackCharacters = 48
 
     /// True once any text has been typed for the current recording.
     var isActive: Bool { !committed.isEmpty }
@@ -46,6 +47,24 @@ final class StreamingInjector {
         while common < limit && old[common] == new[common] { common += 1 }
 
         let deletions = old.count - common
+        if isUnsafeRollback(deletions: deletions, oldCount: old.count, newCount: new.count, commonPrefix: common) {
+            guard isLikelyContinuationReset(committed: committed, target: target) else {
+                FlowyLog.warn("StreamingInjector ignored unsafe rollback old=\(old.count) new=\(new.count) common=\(common)")
+                return true
+            }
+
+            let continuation = continuationText(from: committed, resetTarget: target)
+            guard !continuation.isEmpty else {
+                FlowyLog.warn("StreamingInjector ignored reset-like partial old=\(old.count) new=\(new.count) common=\(common)")
+                return true
+            }
+
+            typeRun(continuation, source: source)
+            committed += continuation
+            FlowyLog.warn("StreamingInjector converted reset-like partial to append old=\(old.count) new=\(new.count) appended=\(Array(continuation).count)")
+            return true
+        }
+
         if deletions > 0 {
             sendBackspaces(deletions, source: source)
         }
@@ -56,6 +75,80 @@ final class StreamingInjector {
 
         committed = target
         return true
+    }
+
+    private func isUnsafeRollback(
+        deletions: Int,
+        oldCount: Int,
+        newCount: Int,
+        commonPrefix: Int
+    ) -> Bool {
+        guard deletions > maxLiveRollbackCharacters else { return false }
+
+        let oldIsLong = oldCount > maxLiveRollbackCharacters * 2
+        let lostMostOfTypedText = newCount < oldCount - maxLiveRollbackCharacters
+        let weakSharedPrefix = commonPrefix < min(24, oldCount / 4)
+
+        return oldIsLong && (lostMostOfTypedText || weakSharedPrefix)
+    }
+
+    private func isLikelyContinuationReset(committed: String, target: String) -> Bool {
+        let trimmedTarget = target.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTarget.isEmpty else { return false }
+
+        let committedLower = committed.lowercased()
+        let targetLower = trimmedTarget.lowercased()
+
+        if committedLower.hasPrefix(targetLower) {
+            return false
+        }
+
+        return Array(targetLower).count < Array(committedLower).count - maxLiveRollbackCharacters
+    }
+
+    private func continuationText(from committed: String, resetTarget: String) -> String {
+        let target = resetTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !target.isEmpty else { return "" }
+
+        let overlap = suffixPrefixOverlap(committed, target)
+        let start = target.index(target.startIndex, offsetBy: overlap)
+        let tail = String(target[start...])
+        guard !tail.isEmpty else { return "" }
+
+        return separator(beforeAppending: tail, to: committed) + tail
+    }
+
+    private func suffixPrefixOverlap(_ lhs: String, _ rhs: String) -> Int {
+        let left = Array(lhs.lowercased())
+        let right = Array(rhs.lowercased())
+        guard !left.isEmpty, !right.isEmpty else { return 0 }
+
+        let maxOverlap = min(left.count, right.count, 160)
+        guard maxOverlap > 0 else { return 0 }
+
+        for length in stride(from: maxOverlap, through: 1, by: -1) {
+            let leftStart = left.count - length
+            var matches = true
+            for i in 0..<length where left[leftStart + i] != right[i] {
+                matches = false
+                break
+            }
+            if matches { return length }
+        }
+        return 0
+    }
+
+    private func separator(beforeAppending tail: String, to committed: String) -> String {
+        guard let last = committed.unicodeScalars.last else { return "" }
+        guard let first = tail.unicodeScalars.first else { return "" }
+
+        if CharacterSet.whitespacesAndNewlines.contains(last) {
+            return ""
+        }
+        if CharacterSet.punctuationCharacters.contains(first) {
+            return ""
+        }
+        return " "
     }
 
     // MARK: – Low-level posting
