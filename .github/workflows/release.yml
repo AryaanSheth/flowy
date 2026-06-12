@@ -59,6 +59,9 @@ jobs:
       - name: Package DMG
         run: scripts/package-dmg.sh "${{ steps.ver.outputs.version }}"
 
+      - name: Generate release notes page
+        run: scripts/generate-release-notes.sh "${{ steps.ver.outputs.version }}" "target/release/release-notes.html"
+
       - name: Generate Sparkle appcast
         env:
           FLOWY_SPARKLE_PRIVATE_ED_KEY: ${{ secrets.FLOWY_SPARKLE_PRIVATE_ED_KEY }}
@@ -83,6 +86,9 @@ jobs:
           ASSETS=("$DMG_VERSIONED" "$DMG")
           if [[ -f "target/release/appcast.xml" ]]; then
             ASSETS+=("target/release/appcast.xml")
+          fi
+          if [[ -f "target/release/release-notes.html" ]]; then
+            ASSETS+=("target/release/release-notes.html")
           fi
 
           NOTES="## Flowy ${VERSION}

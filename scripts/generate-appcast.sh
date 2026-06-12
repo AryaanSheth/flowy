@@ -39,6 +39,7 @@ RELEASE_BASE_URL="${FLOWY_RELEASE_BASE_URL:-https://github.com/AryaanSheth/flowy
 DMG_NAME="$(basename "$DMG_PATH")"
 DMG_URL="$RELEASE_BASE_URL/$DMG_NAME"
 RELEASE_URL="https://github.com/AryaanSheth/flowy/releases/tag/v$VERSION"
+RELEASE_NOTES_URL="${FLOWY_RELEASE_NOTES_URL:-https://cdn.jsdelivr.net/gh/AryaanSheth/flowy@v$VERSION/website/releases/$VERSION.html}"
 
 if [[ -z "$PRIVATE_KEY" ]]; then
   echo "FLOWY_SPARKLE_PRIVATE_ED_KEY is required to generate a signed Sparkle appcast" >&2
@@ -72,7 +73,7 @@ cat > "$OUT" <<EOF
       <link>$RELEASE_URL</link>
       <sparkle:version>$BUILD_VERSION</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
-      <sparkle:releaseNotesLink>$RELEASE_URL</sparkle:releaseNotesLink>
+      <sparkle:releaseNotesLink>$RELEASE_NOTES_URL</sparkle:releaseNotesLink>
       <pubDate>$PUB_DATE</pubDate>
       <enclosure url="$DMG_URL" $SIGNATURE_ATTRS type="application/x-apple-diskimage" />
       <sparkle:minimumSystemVersion>$MIN_MACOS</sparkle:minimumSystemVersion>

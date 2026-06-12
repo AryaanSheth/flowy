@@ -1,5 +1,5 @@
 APP_NAME := Flowy
-VERSION  := 0.7.4
+VERSION  := 0.7.5
 APP_BUNDLE := target/release/bundle/macos/$(APP_NAME).app
 APPLICATIONS_BUNDLE := /Applications/$(APP_NAME).app
 
