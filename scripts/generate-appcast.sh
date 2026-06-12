@@ -39,8 +39,6 @@ RELEASE_BASE_URL="${FLOWY_RELEASE_BASE_URL:-https://github.com/AryaanSheth/flowy
 DMG_NAME="$(basename "$DMG_PATH")"
 DMG_URL="$RELEASE_BASE_URL/$DMG_NAME"
 RELEASE_URL="https://github.com/AryaanSheth/flowy/releases/tag/v$VERSION"
-RELEASE_NOTES_URL="${FLOWY_RELEASE_NOTES_URL:-https://cdn.jsdelivr.net/gh/AryaanSheth/flowy@v$VERSION/website/releases/$VERSION.html}"
-
 if [[ -z "$PRIVATE_KEY" ]]; then
   echo "FLOWY_SPARKLE_PRIVATE_ED_KEY is required to generate a signed Sparkle appcast" >&2
   exit 1
@@ -73,7 +71,25 @@ cat > "$OUT" <<EOF
       <link>$RELEASE_URL</link>
       <sparkle:version>$BUILD_VERSION</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
-      <sparkle:releaseNotesLink>$RELEASE_NOTES_URL</sparkle:releaseNotesLink>
+      <description>
+        <![CDATA[
+          <style>
+            body { font: -apple-system-body; }
+            h3 { margin: 0 0 0.65em; font: -apple-system-headline; }
+            p { margin: 0 0 0.8em; color: #d7dddc; }
+            ul { margin: 0; padding-left: 1.2em; }
+            li { margin: 0 0 0.45em; }
+            strong { color: #57d9cf; font-weight: 700; }
+          </style>
+          <h3>Flowy $VERSION</h3>
+          <p>A small cleanup release for the updater itself.</p>
+          <ul>
+            <li><strong>Cleaner update notes:</strong> Sparkle now renders this compact changelog directly instead of embedding GitHub.</li>
+            <li><strong>Reliable update checks:</strong> Keeps the corrected numeric Sparkle versioning path.</li>
+            <li><strong>Website refresh:</strong> Latest download and release notes now point at $VERSION.</li>
+          </ul>
+        ]]>
+      </description>
       <pubDate>$PUB_DATE</pubDate>
       <enclosure url="$DMG_URL" $SIGNATURE_ATTRS type="application/x-apple-diskimage" />
       <sparkle:minimumSystemVersion>$MIN_MACOS</sparkle:minimumSystemVersion>

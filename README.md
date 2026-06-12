@@ -82,9 +82,8 @@ release builds enable it when the Sparkle key material is configured.
 
 Tagged releases upload `appcast.xml` when the private key is present. The app
 uses `https://github.com/AryaanSheth/flowy/releases/latest/download/appcast.xml`
-as its update feed. Sparkle release notes point at the versioned static page in
-`website/releases/` so the updater shows a small Flowy-branded changelog instead
-of embedding GitHub.
+as its update feed. Sparkle release notes are embedded directly in `appcast.xml`
+so the updater shows a small Flowy-branded changelog instead of embedding GitHub.
 
 ---
 
