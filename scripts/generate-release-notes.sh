@@ -169,11 +169,12 @@ cat > "$OUT" <<EOF
     </header>
 
     <section class="body" aria-label="Release notes">
-      <p class="lead">A small release focused on making Flowy's updater feel like Flowy, not a cramped browser window.</p>
+      <p class="lead">$APP_NAME $VERSION adds the v1 foundations: safer app rules, language selection, toggle dictation, schema migrations, and test coverage.</p>
       <ul>
-        <li>Fixes Sparkle's release notes panel so it shows this clean changelog instead of the GitHub release page.</li>
-        <li>Keeps the updater on the correct internal versioning path introduced in 0.7.4.</li>
-        <li>Refreshes the website version references for the latest download.</li>
+        <li>Adds a language picker so dictation no longer depends only on the system locale.</li>
+        <li>Adds hold or toggle hotkey modes for short commands and long-form dictation.</li>
+        <li>Adds per-app safety rules, including disabled apps, clipboard-only apps, and secure-field avoidance.</li>
+        <li>Adds schema-versioned config migration plus focused logic tests for the risky text-rewrite paths.</li>
       </ul>
       <p class="foot">Local speech-to-text for macOS. No telemetry. No account. No subscription.</p>
     </section>
