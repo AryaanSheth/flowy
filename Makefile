@@ -3,7 +3,7 @@ VERSION  := 0.7.1
 APP_BUNDLE := target/release/bundle/macos/$(APP_NAME).app
 APPLICATIONS_BUNDLE := /Applications/$(APP_NAME).app
 
-.PHONY: help doctor dev build dmg launch relaunch install install-relaunch install-relaunch-reset uninstall reset-accessibility reset-permissions open-installed check test logs clear-logs clean
+.PHONY: help doctor dev build dmg sparkle-install appcast launch relaunch install install-relaunch install-relaunch-reset uninstall reset-accessibility reset-permissions open-installed check test logs clear-logs clean
 
 help:
 	@printf "Flowy targets:\n"
@@ -11,6 +11,8 @@ help:
 	@printf "  make dev             Build a debug native macOS app\n"
 	@printf "  make build           Build the release native macOS app bundle\n"
 	@printf "  make dmg             Build and package a distributable .dmg\n"
+	@printf "  make sparkle-install Download Sparkle.framework into vendor/Sparkle\n"
+	@printf "  make appcast         Generate signed Sparkle appcast for the current DMG\n"
 	@printf "  make launch          Open the packaged app from target/release\n"
 	@printf "  make relaunch        Rebuild, kill old app, launch target app\n"
 	@printf "  make install         Copy the packaged app to /Applications\n"
@@ -37,6 +39,12 @@ build:
 
 dmg: build
 	./scripts/package-dmg.sh $(VERSION)
+
+sparkle-install:
+	./scripts/install-sparkle.sh
+
+appcast: dmg
+	./scripts/generate-appcast.sh $(VERSION) "target/release/$(APP_NAME)-$(VERSION).dmg"
 
 launch: build
 	open "$(APP_BUNDLE)"
