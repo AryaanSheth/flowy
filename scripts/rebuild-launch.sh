@@ -17,9 +17,9 @@ Usage: scripts/rebuild-launch.sh [--install] [--reset-accessibility] [--no-clean
 Build and launch a fresh native Flowy app bundle.
 
 Options:
-  --install    Copy the rebuilt app to /Applications and launch that copy.
+  --install    Reset Accessibility, copy the rebuilt app to /Applications, and launch that copy.
   --reset-accessibility
-               Reset Flowy's Accessibility permission before launching.
+               Open Accessibility settings after launch. --install already resets Accessibility.
   --no-clean   Kept for compatibility; native builds are incremental by default.
   -h, --help   Show this help.
 EOF
@@ -66,13 +66,15 @@ echo "Building packaged app..."
 
 APP_TO_OPEN="$TARGET_APP"
 if [[ "$INSTALL" -eq 1 ]]; then
+  echo "Resetting stale Accessibility permission for com.flowy.app..."
+  tccutil reset Accessibility com.flowy.app >/dev/null 2>&1 || true
   echo "Installing rebuilt app to /Applications..."
   rm -rf "$INSTALLED_APP"
   cp -R "$TARGET_APP" /Applications/
   APP_TO_OPEN="$INSTALLED_APP"
 fi
 
-if [[ "$RESET_ACCESSIBILITY" -eq 1 ]]; then
+if [[ "$RESET_ACCESSIBILITY" -eq 1 && "$INSTALL" -ne 1 ]]; then
   echo "Resetting Accessibility permission for com.flowy.app..."
   tccutil reset Accessibility com.flowy.app >/dev/null 2>&1 || true
 fi

@@ -15,9 +15,9 @@ help:
 	@printf "  make appcast         Generate signed Sparkle appcast for the current DMG\n"
 	@printf "  make launch          Open the packaged app from target/release\n"
 	@printf "  make relaunch        Rebuild, kill old app, launch target app\n"
-	@printf "  make install         Copy the packaged app to /Applications\n"
-	@printf "  make install-relaunch Clean, rebuild, install, and launch /Applications app\n"
-	@printf "  make install-relaunch-reset Same as install-relaunch, but reset Accessibility first\n"
+	@printf "  make install         Reset Accessibility and copy app to /Applications\n"
+	@printf "  make install-relaunch Clean, rebuild, reset Accessibility, install, and launch\n"
+	@printf "  make install-relaunch-reset Same as install-relaunch, then open Accessibility settings\n"
 	@printf "  make reset-accessibility Reset Flowy's Accessibility permission entry\n"
 	@printf "  make open-installed  Open /Applications/flowy.app\n"
 	@printf "  make check           Compile-check the native Swift app\n"
@@ -53,6 +53,7 @@ relaunch:
 	./scripts/rebuild-launch.sh
 
 install: build
+	tccutil reset Accessibility com.flowy.app || true
 	rm -rf "$(APPLICATIONS_BUNDLE)"
 	cp -R "$(APP_BUNDLE)" /Applications/
 
