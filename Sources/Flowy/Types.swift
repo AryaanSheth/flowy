@@ -57,6 +57,27 @@ enum OutputMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum HotkeyMode: String, Codable, CaseIterable, Identifiable {
+    case hold
+    case toggle
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .hold: return "Hold"
+        case .toggle: return "Toggle"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .hold: return "Hold the hotkey to record, release to stop"
+        case .toggle: return "Tap once to start, tap again to stop"
+        }
+    }
+}
+
 struct PermissionState: Equatable {
     var speechAuthorized: Bool = false
     var microphoneAuthorized: Bool = false

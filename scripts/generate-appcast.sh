@@ -82,11 +82,12 @@ cat > "$OUT" <<EOF
             strong { color: #57d9cf; font-weight: 700; }
           </style>
           <h3>Flowy $VERSION</h3>
-          <p>A small cleanup release for the updater itself.</p>
+          <p>v0.8 adds the foundations Flowy needs before a stable v1.</p>
           <ul>
-            <li><strong>Cleaner update notes:</strong> Sparkle now renders this compact changelog directly instead of embedding GitHub.</li>
-            <li><strong>Reliable update checks:</strong> Keeps the corrected numeric Sparkle versioning path.</li>
-            <li><strong>Website refresh:</strong> Latest download and release notes now point at $VERSION.</li>
+            <li><strong>Language picker:</strong> Choose a dictation locale instead of relying only on the system locale.</li>
+            <li><strong>Toggle dictation:</strong> Use the hotkey as hold-to-talk or tap-to-start/tap-to-stop.</li>
+            <li><strong>Per-app safety:</strong> Disable Flowy or force clipboard-only behavior for specific apps, with secure-field avoidance.</li>
+            <li><strong>v1 groundwork:</strong> Schema-versioned config migration, experimental AI gating, and focused logic tests.</li>
           </ul>
         ]]>
       </description>

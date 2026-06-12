@@ -6,6 +6,7 @@ final class HotkeyMonitor {
     var onStop: (() -> Void)?
 
     private var parsedHotkey: ParsedHotkey
+    private var mode: HotkeyMode
     private var hotkeyRefs: [EventHotKeyRef] = []
     private var handlerRef: EventHandlerRef?
     private var registeredIDs = Set<UInt32>()
@@ -22,12 +23,14 @@ final class HotkeyMonitor {
             | UInt32(Character("y").asciiValue!)
     )
 
-    init(hotkey: String) throws {
+    init(hotkey: String, mode: HotkeyMode) throws {
         parsedHotkey = try ParsedHotkey.parse(hotkey)
+        self.mode = mode
     }
 
-    func update(hotkey: String) throws {
+    func update(hotkey: String, mode: HotkeyMode) throws {
         parsedHotkey = try ParsedHotkey.parse(hotkey)
+        self.mode = mode
         try registerCurrentHotkey()
     }
 
@@ -149,6 +152,15 @@ final class HotkeyMonitor {
         guard !keyHeld else { return }
         keyHeld = true
 
+        if mode == .toggle {
+            tapLatched.toggle()
+            pressStartedAt = nil
+            DispatchQueue.main.async {
+                self.tapLatched ? self.onStart?() : self.onStop?()
+            }
+            return
+        }
+
         if tapLatched {
             tapLatched = false
             pressStartedAt = nil
@@ -163,6 +175,8 @@ final class HotkeyMonitor {
     private func handleReleased() {
         guard keyHeld else { return }
         keyHeld = false
+
+        guard mode == .hold else { return }
 
         let elapsed = pressStartedAt.map { Date().timeIntervalSince($0) } ?? tapLatchThreshold
         pressStartedAt = nil

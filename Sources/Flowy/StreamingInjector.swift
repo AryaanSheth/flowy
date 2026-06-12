@@ -47,14 +47,18 @@ final class StreamingInjector {
         while common < limit && old[common] == new[common] { common += 1 }
 
         let deletions = old.count - common
-        if isUnsafeRollback(deletions: deletions, oldCount: old.count, newCount: new.count, commonPrefix: common) {
-            guard isLikelyContinuationReset(committed: committed, target: target) else {
-                FlowyLog.warn("StreamingInjector ignored unsafe rollback old=\(old.count) new=\(new.count) common=\(common)")
-                return true
-            }
-
-            let continuation = continuationText(from: committed, resetTarget: target)
-            guard !continuation.isEmpty else {
+        if StreamingContinuationPlanner.isUnsafeRollback(
+            deletions: deletions,
+            oldCount: old.count,
+            newCount: new.count,
+            commonPrefix: common,
+            maxLiveRollbackCharacters: maxLiveRollbackCharacters
+        ) {
+            guard let continuation = StreamingContinuationPlanner.continuationText(
+                committed: committed,
+                resetTarget: target,
+                maxLiveRollbackCharacters: maxLiveRollbackCharacters
+            ) else {
                 FlowyLog.warn("StreamingInjector ignored reset-like partial old=\(old.count) new=\(new.count) common=\(common)")
                 return true
             }
@@ -75,80 +79,6 @@ final class StreamingInjector {
 
         committed = target
         return true
-    }
-
-    private func isUnsafeRollback(
-        deletions: Int,
-        oldCount: Int,
-        newCount: Int,
-        commonPrefix: Int
-    ) -> Bool {
-        guard deletions > maxLiveRollbackCharacters else { return false }
-
-        let oldIsLong = oldCount > maxLiveRollbackCharacters * 2
-        let lostMostOfTypedText = newCount < oldCount - maxLiveRollbackCharacters
-        let weakSharedPrefix = commonPrefix < min(24, oldCount / 4)
-
-        return oldIsLong && (lostMostOfTypedText || weakSharedPrefix)
-    }
-
-    private func isLikelyContinuationReset(committed: String, target: String) -> Bool {
-        let trimmedTarget = target.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedTarget.isEmpty else { return false }
-
-        let committedLower = committed.lowercased()
-        let targetLower = trimmedTarget.lowercased()
-
-        if committedLower.hasPrefix(targetLower) {
-            return false
-        }
-
-        return Array(targetLower).count < Array(committedLower).count - maxLiveRollbackCharacters
-    }
-
-    private func continuationText(from committed: String, resetTarget: String) -> String {
-        let target = resetTarget.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !target.isEmpty else { return "" }
-
-        let overlap = suffixPrefixOverlap(committed, target)
-        let start = target.index(target.startIndex, offsetBy: overlap)
-        let tail = String(target[start...])
-        guard !tail.isEmpty else { return "" }
-
-        return separator(beforeAppending: tail, to: committed) + tail
-    }
-
-    private func suffixPrefixOverlap(_ lhs: String, _ rhs: String) -> Int {
-        let left = Array(lhs.lowercased())
-        let right = Array(rhs.lowercased())
-        guard !left.isEmpty, !right.isEmpty else { return 0 }
-
-        let maxOverlap = min(left.count, right.count, 160)
-        guard maxOverlap > 0 else { return 0 }
-
-        for length in stride(from: maxOverlap, through: 1, by: -1) {
-            let leftStart = left.count - length
-            var matches = true
-            for i in 0..<length where left[leftStart + i] != right[i] {
-                matches = false
-                break
-            }
-            if matches { return length }
-        }
-        return 0
-    }
-
-    private func separator(beforeAppending tail: String, to committed: String) -> String {
-        guard let last = committed.unicodeScalars.last else { return "" }
-        guard let first = tail.unicodeScalars.first else { return "" }
-
-        if CharacterSet.whitespacesAndNewlines.contains(last) {
-            return ""
-        }
-        if CharacterSet.punctuationCharacters.contains(first) {
-            return ""
-        }
-        return " "
     }
 
     // MARK: – Low-level posting
@@ -204,5 +134,83 @@ final class StreamingInjector {
             offset += chunkLength
             Thread.sleep(forTimeInterval: 0.0006)
         }
+    }
+}
+
+enum StreamingContinuationPlanner {
+    static func isUnsafeRollback(
+        deletions: Int,
+        oldCount: Int,
+        newCount: Int,
+        commonPrefix: Int,
+        maxLiveRollbackCharacters: Int
+    ) -> Bool {
+        guard deletions > maxLiveRollbackCharacters else { return false }
+
+        let oldIsLong = oldCount > maxLiveRollbackCharacters * 2
+        let lostMostOfTypedText = newCount < oldCount - maxLiveRollbackCharacters
+        let weakSharedPrefix = commonPrefix < min(24, oldCount / 4)
+
+        return oldIsLong && (lostMostOfTypedText || weakSharedPrefix)
+    }
+
+    static func continuationText(
+        committed: String,
+        resetTarget: String,
+        maxLiveRollbackCharacters: Int
+    ) -> String? {
+        let target = resetTarget.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !target.isEmpty else { return nil }
+
+        let committedLower = committed.lowercased()
+        let targetLower = target.lowercased()
+
+        if committedLower.hasPrefix(targetLower) {
+            return nil
+        }
+
+        guard Array(targetLower).count < Array(committedLower).count - maxLiveRollbackCharacters else {
+            return nil
+        }
+
+        let overlap = suffixPrefixOverlap(committed, target)
+        let start = target.index(target.startIndex, offsetBy: overlap)
+        let tail = String(target[start...])
+        guard !tail.isEmpty else { return nil }
+
+        return separator(beforeAppending: tail, to: committed) + tail
+    }
+
+    private static func suffixPrefixOverlap(_ lhs: String, _ rhs: String) -> Int {
+        let left = Array(lhs.lowercased())
+        let right = Array(rhs.lowercased())
+        guard !left.isEmpty, !right.isEmpty else { return 0 }
+
+        let maxOverlap = min(left.count, right.count, 160)
+        guard maxOverlap > 0 else { return 0 }
+
+        for length in stride(from: maxOverlap, through: 1, by: -1) {
+            let leftStart = left.count - length
+            var matches = true
+            for i in 0..<length where left[leftStart + i] != right[i] {
+                matches = false
+                break
+            }
+            if matches { return length }
+        }
+        return 0
+    }
+
+    private static func separator(beforeAppending tail: String, to committed: String) -> String {
+        guard let last = committed.unicodeScalars.last else { return "" }
+        guard let first = tail.unicodeScalars.first else { return "" }
+
+        if CharacterSet.whitespacesAndNewlines.contains(last) {
+            return ""
+        }
+        if CharacterSet.punctuationCharacters.contains(first) {
+            return ""
+        }
+        return " "
     }
 }

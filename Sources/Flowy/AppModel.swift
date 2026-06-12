@@ -56,7 +56,7 @@ final class AppModel: ObservableObject {
             DispatchQueue.main.async {
                 self?.refreshPermissions()
                 if status == .authorized {
-                    self?.speechRecorder.warmUpRecognizer()
+                    self?.speechRecorder.warmUpRecognizer(localeIdentifier: self?.config.recognitionLocaleIdentifier)
                 }
             }
         }
@@ -86,8 +86,12 @@ final class AppModel: ObservableObject {
         config = clean
         onConfigChanged?(clean)
 
-        if oldConfig.hotkey != clean.hotkey {
+        if oldConfig.hotkey != clean.hotkey || oldConfig.hotkeyMode != clean.hotkeyMode {
             onHotkeyChanged?(clean.hotkey)
+        }
+
+        if oldConfig.recognitionLocaleIdentifier != clean.recognitionLocaleIdentifier {
+            speechRecorder.warmUpRecognizer(localeIdentifier: clean.recognitionLocaleIdentifier)
         }
 
         if oldConfig.autostart != clean.autostart {
@@ -114,7 +118,26 @@ final class AppModel: ObservableObject {
             return
         }
 
-        capturedApp = NSWorkspace.shared.frontmostApplication
+        if config.outputMode != .clipboard && !permissions.accessibilityTrusted {
+            lastError = "Accessibility is missing, so this recording will copy to clipboard only."
+            FlowyLog.warn("Recording fallback: accessibility is not trusted; clipboard-only delivery expected")
+        }
+
+        let frontmostApp = NSWorkspace.shared.frontmostApplication
+        if let bundleID = frontmostApp?.bundleIdentifier,
+           config.disabledAppBundleIDs.contains(bundleID) {
+            lastError = "Flowy is disabled in \(frontmostApp?.localizedName ?? bundleID)."
+            FlowyLog.warn("Recording blocked: disabled app bundleID=\(bundleID)")
+            return
+        }
+
+        if config.avoidSecureTextFields, isFocusedSecureTextField() {
+            lastError = "Flowy is disabled in secure text fields."
+            FlowyLog.warn("Recording blocked: focused secure text field")
+            return
+        }
+
+        capturedApp = frontmostApp
         recordingStartedAt = Date()
         recordingStoppedAt = nil
         latestPartialText = ""
@@ -135,6 +158,7 @@ final class AppModel: ObservableObject {
             } : nil
             try speechRecorder.start(
                 deviceUID: config.inputDevice,
+                localeIdentifier: config.recognitionLocaleIdentifier,
                 maxSeconds: config.maxRecordingSecs,
                 onPartial: { [weak self] text in
                     Task { @MainActor in
@@ -279,7 +303,9 @@ final class AppModel: ObservableObject {
         let allTones = TonePreset.builtIns + snapshot.customTones
         let activeTone = snapshot.activeToneID.flatMap { id in allTones.first { $0.id == id } }
         let effectivePrompt: String?
-        if let tone = activeTone {
+        if !snapshot.experimentalFeaturesEnabled {
+            effectivePrompt = nil
+        } else if let tone = activeTone {
             effectivePrompt = tone.prompt.isEmpty ? nil : tone.prompt
         } else if snapshot.ollamaEnabled {
             effectivePrompt = snapshot.ollamaPrompt
@@ -310,7 +336,7 @@ final class AppModel: ObservableObject {
             FlowyLog.info(String(format: "Ollama enhancement latency %.2fs", latency))
         }
 
-        if snapshot.translationEnabled, let translate = translateText {
+        if snapshot.experimentalFeaturesEnabled, snapshot.translationEnabled, let translate = translateText {
             let started = Date()
             FlowyLog.info("Translation started target=\(snapshot.translationTargetLanguage)")
             do {
@@ -329,6 +355,16 @@ final class AppModel: ObservableObject {
         }
 
         let delivered: Bool
+        let effectiveOutputMode: OutputMode
+        if let bundleID = capturedApp?.bundleIdentifier,
+           snapshot.clipboardOnlyAppBundleIDs.contains(bundleID) {
+            effectiveOutputMode = .clipboard
+        } else if snapshot.outputMode != .clipboard && !AXIsProcessTrusted() {
+            effectiveOutputMode = .clipboard
+        } else {
+            effectiveOutputMode = snapshot.outputMode
+        }
+
         if streamingInjector.isActive {
             if snapshot.outputMode == .typeAndClipboard {
                 TextOutput.copyToClipboard(text)
@@ -338,10 +374,10 @@ final class AppModel: ObservableObject {
                 TextOutput.copyToClipboard(text)
             }
         } else {
-            delivered = await TextOutput.deliver(text, mode: snapshot.outputMode, capturedApp: capturedApp)
+            delivered = await TextOutput.deliver(text, mode: effectiveOutputMode, capturedApp: capturedApp)
         }
-        FlowyLog.info("Delivery finished ok=\(delivered) mode=\(snapshot.outputMode.rawValue)")
-        if !delivered, snapshot.outputMode != .clipboard {
+        FlowyLog.info("Delivery finished ok=\(delivered) mode=\(effectiveOutputMode.rawValue)")
+        if !delivered, effectiveOutputMode != .clipboard {
             lastError = "Auto-paste failed — text is in your clipboard. Open Settings › System › Permissions and re-grant Accessibility access. If Flowy is already listed, remove it and re-add it (each rebuild resets the trust)."
             FlowyLog.error(lastError ?? "Delivery failed")
         }
@@ -428,5 +464,28 @@ final class AppModel: ObservableObject {
             return "macOS says Siri and Dictation are disabled. Enable Dictation in System Settings > Keyboard > Dictation, then try again."
         }
         return message
+    }
+
+    private func isFocusedSecureTextField() -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+
+        let system = AXUIElementCreateSystemWide()
+        var focusedRef: CFTypeRef?
+        let focusedErr = AXUIElementCopyAttributeValue(
+            system,
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedRef
+        )
+        guard focusedErr == .success, let focusedRef else { return false }
+
+        let focused = focusedRef as! AXUIElement
+        var roleRef: CFTypeRef?
+        var subroleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(focused, kAXRoleAttribute as CFString, &roleRef)
+        AXUIElementCopyAttributeValue(focused, kAXSubroleAttribute as CFString, &subroleRef)
+
+        let role = roleRef as? String
+        let subrole = subroleRef as? String
+        return role == "AXTextField" && subrole == "AXSecureTextField"
     }
 }

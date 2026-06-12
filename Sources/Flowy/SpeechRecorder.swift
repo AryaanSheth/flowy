@@ -4,7 +4,7 @@ import Speech
 
 final class SpeechRecorder {
     private let engine = AVAudioEngine()
-    private let recognizer = SFSpeechRecognizer(locale: Locale.current)
+    private var recognizer = SFSpeechRecognizer(locale: Locale.current)
 
     // Incremented on every start() — stale callbacks bail out on mismatch.
     private var generation = 0
@@ -29,7 +29,8 @@ final class SpeechRecorder {
 
     // MARK: – Warm-up
 
-    func warmUpRecognizer() {
+    func warmUpRecognizer(localeIdentifier: String? = nil) {
+        recognizer = Self.makeRecognizer(localeIdentifier: localeIdentifier)
         guard recognizer?.isAvailable == true,
               SFSpeechRecognizer.authorizationStatus() == .authorized else { return }
         let req = SFSpeechAudioBufferRecognitionRequest()
@@ -48,6 +49,7 @@ final class SpeechRecorder {
 
     func start(
         deviceUID: String?,
+        localeIdentifier: String?,
         maxSeconds: Int,
         onPartial: ((String) -> Void)? = nil,
         onLevel: ((Double) -> Void)? = nil,
@@ -59,8 +61,10 @@ final class SpeechRecorder {
         guard SFSpeechRecognizer.authorizationStatus() == .authorized else {
             throw FlowyError.message("Speech Recognition is not authorized")
         }
+        recognizer = Self.makeRecognizer(localeIdentifier: localeIdentifier)
         guard recognizer != nil else {
-            throw FlowyError.message("Speech Recognition is unavailable for the current locale")
+            let localeName = localeIdentifier ?? Locale.current.identifier
+            throw FlowyError.message("Speech Recognition is unavailable for \(localeName). Choose another language in Settings.")
         }
         guard recognizer?.isAvailable == true else {
             throw FlowyError.message("macOS Speech Recognition is unavailable. Enable Siri and Dictation in System Settings, then try again.")
@@ -232,6 +236,13 @@ final class SpeechRecorder {
         guard status == noErr else {
             throw FlowyError.message("Could not switch to the selected microphone")
         }
+    }
+
+    private static func makeRecognizer(localeIdentifier: String?) -> SFSpeechRecognizer? {
+        guard let localeIdentifier, !localeIdentifier.isEmpty else {
+            return SFSpeechRecognizer(locale: Locale.current)
+        }
+        return SFSpeechRecognizer(locale: Locale(identifier: localeIdentifier))
     }
 
     private static func normalizedSpeechError(_ error: Error) -> Error {
