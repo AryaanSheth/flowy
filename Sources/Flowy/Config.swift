@@ -1,15 +1,21 @@
 import Foundation
 
 struct AppConfig: Codable, Equatable {
+    static let currentSchemaVersion = 2
+
+    var schemaVersion: Int
     var hotkey: String
+    var hotkeyMode: HotkeyMode
     var autostart: Bool
     var dictionary: [String: String]
     var inputDevice: String?
+    var recognitionLocaleIdentifier: String?
     var outputMode: OutputMode
     var maxRecordingSecs: Int
     var historySize: Int
     var activeToneID: String?
     var customTones: [TonePreset]
+    var experimentalFeaturesEnabled: Bool
     var translationEnabled: Bool
     var translationTargetLanguage: String
     var feedbackSoundsEnabled: Bool
@@ -23,15 +29,19 @@ struct AppConfig: Codable, Equatable {
     var ollamaPrompt: String
 
     init(
+        schemaVersion: Int = AppConfig.currentSchemaVersion,
         hotkey: String = "Alt+Space",
+        hotkeyMode: HotkeyMode = .hold,
         autostart: Bool = false,
         dictionary: [String: String] = [:],
         inputDevice: String? = nil,
+        recognitionLocaleIdentifier: String? = nil,
         outputMode: OutputMode = .typeAndClipboard,
         maxRecordingSecs: Int = 60,
         historySize: Int = 20,
         activeToneID: String? = nil,
         customTones: [TonePreset] = [],
+        experimentalFeaturesEnabled: Bool = false,
         translationEnabled: Bool = false,
         translationTargetLanguage: String = "en",
         feedbackSoundsEnabled: Bool = true,
@@ -44,15 +54,19 @@ struct AppConfig: Codable, Equatable {
         ollamaModel: String = "llama3.2:3b",
         ollamaPrompt: String = AppConfig.defaultOllamaPrompt
     ) {
+        self.schemaVersion = schemaVersion
         self.hotkey = hotkey
+        self.hotkeyMode = hotkeyMode
         self.autostart = autostart
         self.dictionary = dictionary
         self.inputDevice = inputDevice
+        self.recognitionLocaleIdentifier = recognitionLocaleIdentifier
         self.outputMode = outputMode
         self.maxRecordingSecs = maxRecordingSecs
         self.historySize = historySize
         self.activeToneID = activeToneID
         self.customTones = customTones
+        self.experimentalFeaturesEnabled = experimentalFeaturesEnabled
         self.translationEnabled = translationEnabled
         self.translationTargetLanguage = translationTargetLanguage
         self.feedbackSoundsEnabled = feedbackSoundsEnabled
@@ -67,15 +81,19 @@ struct AppConfig: Codable, Equatable {
     }
 
     enum CodingKeys: String, CodingKey {
+        case schemaVersion
         case hotkey
+        case hotkeyMode
         case autostart
         case dictionary
         case inputDevice
+        case recognitionLocaleIdentifier
         case outputMode
         case maxRecordingSecs
         case historySize
         case activeToneID
         case customTones
+        case experimentalFeaturesEnabled
         case translationEnabled
         case translationTargetLanguage
         case feedbackSoundsEnabled
@@ -91,15 +109,19 @@ struct AppConfig: Codable, Equatable {
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
+        schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
         hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey) ?? "Alt+Space"
+        hotkeyMode = try c.decodeIfPresent(HotkeyMode.self, forKey: .hotkeyMode) ?? .hold
         autostart = try c.decodeIfPresent(Bool.self, forKey: .autostart) ?? false
         dictionary = try c.decodeIfPresent([String: String].self, forKey: .dictionary) ?? [:]
         inputDevice = try c.decodeIfPresent(String.self, forKey: .inputDevice)
+        recognitionLocaleIdentifier = try c.decodeIfPresent(String.self, forKey: .recognitionLocaleIdentifier)
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .typeAndClipboard
         maxRecordingSecs = try c.decodeIfPresent(Int.self, forKey: .maxRecordingSecs) ?? 60
         historySize = try c.decodeIfPresent(Int.self, forKey: .historySize) ?? 20
         activeToneID = try c.decodeIfPresent(String.self, forKey: .activeToneID)
         customTones = try c.decodeIfPresent([TonePreset].self, forKey: .customTones) ?? []
+        experimentalFeaturesEnabled = try c.decodeIfPresent(Bool.self, forKey: .experimentalFeaturesEnabled) ?? false
         translationEnabled = try c.decodeIfPresent(Bool.self, forKey: .translationEnabled) ?? false
         translationTargetLanguage = try c.decodeIfPresent(String.self, forKey: .translationTargetLanguage) ?? "en"
         feedbackSoundsEnabled = try c.decodeIfPresent(Bool.self, forKey: .feedbackSoundsEnabled) ?? true
@@ -155,9 +177,19 @@ struct AppConfig: Codable, Equatable {
         var next = self
         let defaults = AppConfig()
 
+        next.schemaVersion = Self.currentSchemaVersion
+
         next.hotkey = next.hotkey.trimmingCharacters(in: .whitespacesAndNewlines)
         if next.hotkey.isEmpty {
             next.hotkey = defaults.hotkey
+        }
+
+        if let locale = next.recognitionLocaleIdentifier?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !locale.isEmpty,
+           locale.lowercased() != "system" {
+            next.recognitionLocaleIdentifier = locale
+        } else {
+            next.recognitionLocaleIdentifier = nil
         }
 
         if let device = next.inputDevice?.trimmingCharacters(in: .whitespacesAndNewlines), !device.isEmpty {

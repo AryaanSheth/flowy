@@ -14,6 +14,9 @@ let package = Package(
         .executableTarget(
             name: "Flowy",
             path: "Sources/Flowy",
+            swiftSettings: [
+                .unsafeFlags(["-parse-as-library"]),
+            ],
             linkerSettings: [
                 .linkedFramework("AppKit"),
                 .linkedFramework("ApplicationServices"),
@@ -24,6 +27,11 @@ let package = Package(
                 .linkedFramework("Speech"),
                 .linkedFramework("Translation"),
             ]
+        ),
+        .testTarget(
+            name: "FlowyTests",
+            dependencies: ["Flowy"],
+            path: "Tests/FlowyTests"
         ),
     ]
 )

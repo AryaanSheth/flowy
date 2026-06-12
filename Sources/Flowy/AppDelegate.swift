@@ -253,12 +253,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func installHotkey(_ hotkey: String) {
         do {
             if hotkeyMonitor == nil {
-                hotkeyMonitor = try HotkeyMonitor(hotkey: hotkey)
+                hotkeyMonitor = try HotkeyMonitor(hotkey: hotkey, mode: model.config.hotkeyMode)
                 hotkeyMonitor?.onStart = { [weak self] in self?.model.startRecording() }
                 hotkeyMonitor?.onStop = { [weak self] in self?.model.stopRecording() }
                 try hotkeyMonitor?.start()
             } else {
-                try hotkeyMonitor?.update(hotkey: hotkey)
+                try hotkeyMonitor?.update(hotkey: hotkey, mode: model.config.hotkeyMode)
             }
         } catch {
             model.lastError = error.localizedDescription

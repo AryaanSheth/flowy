@@ -1,5 +1,6 @@
 import AppKit
 import AVFoundation
+import Speech
 import SwiftUI
 
 // MARK: – Glass blur background
@@ -275,6 +276,31 @@ struct SettingsView: View {
 
                 Divider().padding(.horizontal, 14)
 
+                row("Hotkey mode") {
+                    Picker("", selection: $draft.hotkeyMode) {
+                        ForEach(HotkeyMode.allCases) { mode in
+                            Text(mode.title).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
+                }
+
+                Divider().padding(.horizontal, 14)
+
+                row("Language") {
+                    Picker("", selection: recognitionLocaleBinding) {
+                        Text("System").tag("")
+                        ForEach(Self.supportedSpeechLocales, id: \.identifier) { locale in
+                            Text(Self.localeDisplayName(locale)).tag(locale.identifier)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
+                }
+
+                Divider().padding(.horizontal, 14)
+
                 // Input device
                 row("Microphone") {
                     HStack(spacing: 8) {
@@ -469,6 +495,12 @@ struct SettingsView: View {
                 }
 
                 Divider().padding(.horizontal, 14)
+
+                row("Experimental AI") {
+                    Toggle("", isOn: $draft.experimentalFeaturesEnabled).labelsHidden().tint(G.teal)
+                }
+
+                Divider().padding(.horizontal, 14)
                 permRow("Speech Recognition", ok: model.permissions.speechAuthorized)
                 Divider().padding(.horizontal, 14)
                 permRow("Microphone",         ok: model.permissions.microphoneAuthorized)
@@ -623,6 +655,11 @@ struct SettingsView: View {
                 set: { draft.inputDevice = $0.isEmpty ? nil : $0 })
     }
 
+    private var recognitionLocaleBinding: Binding<String> {
+        Binding(get: { draft.recognitionLocaleIdentifier ?? "" },
+                set: { draft.recognitionLocaleIdentifier = $0.isEmpty ? nil : $0 })
+    }
+
     private var statusDot: Color {
         switch model.status {
         case .idle:         return G.faint
@@ -681,6 +718,15 @@ struct SettingsView: View {
     private static func dictRows(from d: [String: String]) -> [DictRow] {
         d.sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
          .map { DictRow(key: $0.key, value: $0.value) }
+    }
+
+    private static var supportedSpeechLocales: [Locale] {
+        SFSpeechRecognizer.supportedLocales()
+            .sorted { localeDisplayName($0) < localeDisplayName($1) }
+    }
+
+    private static func localeDisplayName(_ locale: Locale) -> String {
+        Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
     }
 }
 
