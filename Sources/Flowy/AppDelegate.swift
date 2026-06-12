@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         model.onStatusChanged = { [weak self] status in
             self?.applyStatus(status)
+            self?.playFeedbackSound(for: status)
         }
         model.onHotkeyChanged = { [weak self] hotkey in
             self?.installHotkey(hotkey)
@@ -55,6 +56,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         model.onStatsChanged = { [weak self] stats in
             self?.updateMenuStats(stats)
+        }
+        model.onConfigChanged = { [weak self] _ in
+            guard let self else { return }
+            self.applyStatus(self.model.status)
         }
 
         setupTranslation()
@@ -266,8 +271,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let image = NSImage(systemSymbolName: status.systemImageName, accessibilityDescription: status.label)
         image?.isTemplate = status != .recording
         statusItem?.button?.image = image
-        statusItem?.button?.imagePosition = .imageOnly
-        statusItem?.button?.title = status.menuBarTitle
+        let menuBarTitle = model.config.activeMenuBarLabelEnabled ? status.menuBarTitle : ""
+        statusItem?.button?.imagePosition = menuBarTitle.isEmpty ? .imageOnly : .imageLeading
+        statusItem?.button?.title = menuBarTitle
         statusItem?.button?.toolTip = status.toolTip
         menuStatusItem?.title = "Status: \(status.menuTitle)"
         menuOutputItem?.title = "Output: \(model.config.outputMode.title)"
@@ -276,6 +282,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         updateMenuError(model.lastError)
         updateMenuStats(model.stats)
         overlayController?.update(status: status)
+    }
+
+    private func playFeedbackSound(for status: AppStatus) {
+        guard model.config.feedbackSoundsEnabled else { return }
+
+        let soundName: String
+        switch status {
+        case .recording:
+            soundName = "Pop"
+        case .transcribing:
+            soundName = "Tink"
+        case .idle:
+            soundName = "Glass"
+        }
+
+        NSSound(named: NSSound.Name(soundName))?.play()
     }
 
     private func updateMenuError(_ error: String?) {
@@ -329,7 +351,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 private extension AppStatus {
     var menuBarTitle: String {
         switch self {
-        case .idle, .recording, .transcribing: return ""
+        case .idle: return ""
+        case .recording: return " REC"
+        case .transcribing: return " ..."
         }
     }
 

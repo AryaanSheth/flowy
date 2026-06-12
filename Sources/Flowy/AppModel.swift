@@ -27,6 +27,7 @@ final class AppModel: ObservableObject {
     var onAudioLevelChanged: ((Double) -> Void)?
     var onLastErrorChanged: ((String?) -> Void)?
     var onStatsChanged: ((DictationStats) -> Void)?
+    var onConfigChanged: ((AppConfig) -> Void)?
     /// Set by AppDelegate on macOS 14+ to provide Apple Translation support.
     var translateText: ((String, String) async throws -> String)?
 
@@ -83,6 +84,7 @@ final class AppModel: ObservableObject {
         let clean = nextConfig.sanitized()
         try clean.save()
         config = clean
+        onConfigChanged?(clean)
 
         if oldConfig.hotkey != clean.hotkey {
             onHotkeyChanged?(clean.hotkey)
