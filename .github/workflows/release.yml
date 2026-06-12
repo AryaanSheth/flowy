@@ -40,12 +40,34 @@ jobs:
       - name: Warm Swift module cache
         run: xcrun swift -e 'import Foundation; print("ok")'
 
+      - name: Install Sparkle
+        env:
+          FLOWY_SPARKLE_PUBLIC_ED_KEY: ${{ vars.FLOWY_SPARKLE_PUBLIC_ED_KEY }}
+        run: |
+          if [[ -n "${FLOWY_SPARKLE_PUBLIC_ED_KEY:-}" ]]; then
+            scripts/install-sparkle.sh
+          else
+            echo "FLOWY_SPARKLE_PUBLIC_ED_KEY is not configured; building without Sparkle auto-update"
+          fi
+
       - name: Build app
+        env:
+          FLOWY_SPARKLE_PUBLIC_ED_KEY: ${{ vars.FLOWY_SPARKLE_PUBLIC_ED_KEY }}
         run: scripts/build-macos.sh --check-only
         # --check-only builds the bundle and skips the launch hint
 
       - name: Package DMG
         run: scripts/package-dmg.sh "${{ steps.ver.outputs.version }}"
+
+      - name: Generate Sparkle appcast
+        env:
+          FLOWY_SPARKLE_PRIVATE_ED_KEY: ${{ secrets.FLOWY_SPARKLE_PRIVATE_ED_KEY }}
+        run: |
+          if [[ -n "${FLOWY_SPARKLE_PRIVATE_ED_KEY:-}" ]]; then
+            scripts/generate-appcast.sh "${{ steps.ver.outputs.version }}" "target/release/Flowy-${{ steps.ver.outputs.version }}.dmg"
+          else
+            echo "FLOWY_SPARKLE_PRIVATE_ED_KEY is not configured; skipping appcast generation"
+          fi
 
       - name: Create GitHub Release
         env:
@@ -58,6 +80,10 @@ jobs:
           # Stable name so the website's direct-download URL never changes
           DMG="target/release/Flowy.dmg"
           cp "$DMG_VERSIONED" "$DMG"
+          ASSETS=("$DMG_VERSIONED" "$DMG")
+          if [[ -f "target/release/appcast.xml" ]]; then
+            ASSETS+=("target/release/appcast.xml")
+          fi
 
           NOTES="## Flowy ${VERSION}
 
@@ -75,12 +101,12 @@ jobs:
           "
 
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            gh release create "$TAG" "$DMG_VERSIONED" "$DMG" \
+            gh release create "$TAG" "${ASSETS[@]}" \
               --title "Flowy ${VERSION}" \
               --notes "$NOTES" \
               --prerelease
           else
-            gh release create "$TAG" "$DMG_VERSIONED" "$DMG" \
+            gh release create "$TAG" "${ASSETS[@]}" \
               --title "Flowy ${VERSION}" \
               --notes "$NOTES"
           fi

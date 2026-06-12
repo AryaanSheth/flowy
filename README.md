@@ -70,6 +70,20 @@ make dmg        # package distributable DMG
 make check      # compile-only (no launch)
 ```
 
+### Auto-update release setup
+
+Flowy can bundle Sparkle for app updates. Local builds work without Sparkle;
+release builds enable it when the Sparkle key material is configured.
+
+1. Run `make sparkle-install` to download `Sparkle.framework` into `vendor/Sparkle`.
+2. Generate a Sparkle EdDSA key with `vendor/Sparkle/bin/generate_keys`.
+3. Add the public key to the GitHub repository variable `FLOWY_SPARKLE_PUBLIC_ED_KEY`.
+4. Export the private key and add it to the GitHub secret `FLOWY_SPARKLE_PRIVATE_ED_KEY`.
+
+Tagged releases upload `appcast.xml` when the private key is present. The app
+uses `https://github.com/AryaanSheth/flowy/releases/latest/download/appcast.xml`
+as its update feed.
+
 ---
 
 ## Configuration

@@ -15,8 +15,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuErrorItem: NSMenuItem?
     private var startRecordingItem: NSMenuItem?
     private var stopRecordingItem: NSMenuItem?
+    private var checkForUpdatesItem: NSMenuItem?
     private var allowQuit = false
     private var onboardingController: OnboardingWindowController?
+    private var autoUpdater: AutoUpdater?
     // Held alive so the SwiftUI translation task stays active (macOS 14+)
     private var translationBridge: AnyObject?
     private var translationWindow: NSWindow?
@@ -34,6 +36,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         FlowyLog.info("App launched bundle=\(Bundle.main.bundlePath) pid=\(ProcessInfo.processInfo.processIdentifier)")
         NSApp.setActivationPolicy(.accessory)
 
+        autoUpdater = AutoUpdater()
         settingsController = SettingsWindowController(model: model)
         overlayController = OverlayWindowController()
         buildStatusItem()
@@ -226,6 +229,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopRecordingItem = stopItem
         menu.addItem(startItem)
         menu.addItem(stopItem)
+        if let autoUpdater, autoUpdater.isAvailable {
+            menu.addItem(.separator())
+            let updateItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates), keyEquivalent: "")
+            checkForUpdatesItem = updateItem
+            menu.addItem(updateItem)
+        }
         menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Flowy", action: #selector(quit), keyEquivalent: "q"))
         for item in menu.items {
@@ -305,6 +314,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc private func stopRecording() {
         model.stopRecording()
+    }
+
+    @objc private func checkForUpdates(_ sender: Any?) {
+        autoUpdater?.checkForUpdates(sender)
     }
 
     @objc private func quit() {

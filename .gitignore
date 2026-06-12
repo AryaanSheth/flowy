@@ -1,5 +1,6 @@
 /target
 /.build
+/vendor/Sparkle
 Cargo.lock
 .DS_Store
 *.env

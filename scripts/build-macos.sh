@@ -61,7 +61,11 @@ TARGET_ROOT="$REPO_ROOT/target/$CONFIGURATION"
 APP_BUNDLE="$TARGET_ROOT/bundle/macos/$APP_NAME.app"
 EXECUTABLE="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 RESOURCES="$APP_BUNDLE/Contents/Resources"
+FRAMEWORKS_DIR="$APP_BUNDLE/Contents/Frameworks"
 MODULE_CACHE="$REPO_ROOT/.build/module-cache"
+SPARKLE_FRAMEWORK_PATH="${FLOWY_SPARKLE_FRAMEWORK_PATH:-$REPO_ROOT/vendor/Sparkle/Sparkle.framework}"
+SPARKLE_PUBLIC_ED_KEY="${FLOWY_SPARKLE_PUBLIC_ED_KEY:-}"
+SPARKLE_FEED_URL="${FLOWY_SPARKLE_FEED_URL:-https://github.com/AryaanSheth/flowy/releases/latest/download/appcast.xml}"
 
 if [[ "$CLEAN" -eq 1 ]]; then
   rm -rf "$BUILD_ROOT" "$APP_BUNDLE"
@@ -92,6 +96,35 @@ FRAMEWORKS=(
   -framework SwiftUI
   -Xlinker -weak_framework -Xlinker Translation
 )
+
+SPARKLE_PLIST=""
+if [[ -d "$SPARKLE_FRAMEWORK_PATH" ]]; then
+  SPARKLE_PARENT="$(dirname "$SPARKLE_FRAMEWORK_PATH")"
+  SWIFT_FLAGS+=(-F "$SPARKLE_PARENT")
+  FRAMEWORKS+=(
+    -F "$SPARKLE_PARENT"
+    -framework Sparkle
+    -Xlinker -rpath -Xlinker "@executable_path/../Frameworks"
+  )
+
+  mkdir -p "$FRAMEWORKS_DIR"
+  rm -rf "$FRAMEWORKS_DIR/Sparkle.framework"
+  cp -R "$SPARKLE_FRAMEWORK_PATH" "$FRAMEWORKS_DIR/Sparkle.framework"
+  echo "Bundling Sparkle.framework"
+
+  if [[ -n "$SPARKLE_PUBLIC_ED_KEY" ]]; then
+    SPARKLE_PLIST="  <key>SUFeedURL</key>
+  <string>$SPARKLE_FEED_URL</string>
+  <key>SUPublicEDKey</key>
+  <string>$SPARKLE_PUBLIC_ED_KEY</string>
+  <key>SUEnableAutomaticChecks</key>
+  <true/>
+  <key>SUAutomaticallyUpdate</key>
+  <false/>"
+  else
+    echo "FLOWY_SPARKLE_PUBLIC_ED_KEY is not set; Sparkle will be bundled but disabled at runtime"
+  fi
+fi
 
 echo "Building $APP_NAME ($CONFIGURATION, arm64 macOS $MIN_MACOS+)..."
 CLANG_MODULE_CACHE_PATH="$MODULE_CACHE" \
@@ -140,6 +173,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
   <false/>
   <key>NSSupportsSuddenTermination</key>
   <false/>
+$SPARKLE_PLIST
 </dict>
 </plist>
 EOF
