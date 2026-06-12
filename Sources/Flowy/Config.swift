@@ -12,6 +12,8 @@ struct AppConfig: Codable, Equatable {
     var customTones: [TonePreset]
     var translationEnabled: Bool
     var translationTargetLanguage: String
+    var feedbackSoundsEnabled: Bool
+    var activeMenuBarLabelEnabled: Bool
     var vadEnabled: Bool
     var vadSilenceSeconds: Double
     var vadSpeechThresholdDB: Double
@@ -32,6 +34,8 @@ struct AppConfig: Codable, Equatable {
         customTones: [TonePreset] = [],
         translationEnabled: Bool = false,
         translationTargetLanguage: String = "en",
+        feedbackSoundsEnabled: Bool = true,
+        activeMenuBarLabelEnabled: Bool = true,
         vadEnabled: Bool = true,
         vadSilenceSeconds: Double = 1.5,
         vadSpeechThresholdDB: Double = -25.0,
@@ -51,6 +55,8 @@ struct AppConfig: Codable, Equatable {
         self.customTones = customTones
         self.translationEnabled = translationEnabled
         self.translationTargetLanguage = translationTargetLanguage
+        self.feedbackSoundsEnabled = feedbackSoundsEnabled
+        self.activeMenuBarLabelEnabled = activeMenuBarLabelEnabled
         self.vadEnabled = vadEnabled
         self.vadSilenceSeconds = vadSilenceSeconds
         self.vadSpeechThresholdDB = vadSpeechThresholdDB
@@ -72,6 +78,8 @@ struct AppConfig: Codable, Equatable {
         case customTones
         case translationEnabled
         case translationTargetLanguage
+        case feedbackSoundsEnabled
+        case activeMenuBarLabelEnabled
         case vadEnabled
         case vadSilenceSeconds
         case vadSpeechThresholdDB
@@ -94,6 +102,8 @@ struct AppConfig: Codable, Equatable {
         customTones = try c.decodeIfPresent([TonePreset].self, forKey: .customTones) ?? []
         translationEnabled = try c.decodeIfPresent(Bool.self, forKey: .translationEnabled) ?? false
         translationTargetLanguage = try c.decodeIfPresent(String.self, forKey: .translationTargetLanguage) ?? "en"
+        feedbackSoundsEnabled = try c.decodeIfPresent(Bool.self, forKey: .feedbackSoundsEnabled) ?? true
+        activeMenuBarLabelEnabled = try c.decodeIfPresent(Bool.self, forKey: .activeMenuBarLabelEnabled) ?? true
         vadEnabled = try c.decodeIfPresent(Bool.self, forKey: .vadEnabled) ?? true
         vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 1.5
         let rawThreshold = try c.decodeIfPresent(Double.self, forKey: .vadSpeechThresholdDB) ?? -25.0

@@ -101,6 +101,8 @@ Settings save automatically. The config file lives at:
   "dictionary": {},
   "inputDevice": null,
   "maxRecordingSecs": 60,
+  "feedbackSoundsEnabled": true,
+  "activeMenuBarLabelEnabled": true,
   "vadEnabled": true,
   "vadSilenceSeconds": 0.6,
   "historySize": 20

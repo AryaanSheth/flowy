@@ -309,6 +309,18 @@ struct SettingsView: View {
                     Toggle("", isOn: $draft.vadEnabled).labelsHidden().tint(G.teal)
                 }
 
+                Divider().padding(.horizontal, 14)
+
+                row("Sound feedback") {
+                    Toggle("", isOn: $draft.feedbackSoundsEnabled).labelsHidden().tint(G.teal)
+                }
+
+                Divider().padding(.horizontal, 14)
+
+                row("Menu bar active label") {
+                    Toggle("", isOn: $draft.activeMenuBarLabelEnabled).labelsHidden().tint(G.teal)
+                }
+
                 if draft.vadEnabled {
                     Divider().padding(.horizontal, 14)
                     row("Silence delay") {
