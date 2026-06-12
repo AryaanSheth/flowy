@@ -4,6 +4,16 @@ set -euo pipefail
 APP_NAME="Flowy"
 MIN_MACOS="13.0"
 
+sparkle_build_version() {
+  local version="$1"
+  local major minor patch
+  IFS='.' read -r major minor patch <<< "$version"
+  major="${major:-0}"
+  minor="${minor:-0}"
+  patch="${patch:-0}"
+  printf '%d' "$((10#$major * 10000 + 10#$minor * 100 + 10#$patch))"
+}
+
 usage() {
   cat <<EOF
 Usage: scripts/generate-appcast.sh <version> <dmg-path> [output-path]
@@ -20,6 +30,7 @@ fi
 VERSION="$1"
 DMG_PATH="$2"
 OUT="${3:-target/release/appcast.xml}"
+BUILD_VERSION="$(sparkle_build_version "$VERSION")"
 
 REPO_ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 SIGN_UPDATE="${FLOWY_SPARKLE_SIGN_UPDATE:-$REPO_ROOT/vendor/Sparkle/bin/sign_update}"
@@ -59,7 +70,7 @@ cat > "$OUT" <<EOF
     <item>
       <title>$APP_NAME $VERSION</title>
       <link>$RELEASE_URL</link>
-      <sparkle:version>$VERSION</sparkle:version>
+      <sparkle:version>$BUILD_VERSION</sparkle:version>
       <sparkle:shortVersionString>$VERSION</sparkle:shortVersionString>
       <sparkle:releaseNotesLink>$RELEASE_URL</sparkle:releaseNotesLink>
       <pubDate>$PUB_DATE</pubDate>

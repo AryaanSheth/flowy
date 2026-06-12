@@ -3,8 +3,18 @@ set -euo pipefail
 
 APP_NAME="Flowy"
 BUNDLE_ID="com.flowy.app"
-VERSION="0.7.3"
+VERSION="0.7.4"
 MIN_MACOS="13.0"
+
+sparkle_build_version() {
+  local version="$1"
+  local major minor patch
+  IFS='.' read -r major minor patch <<< "$version"
+  major="${major:-0}"
+  minor="${minor:-0}"
+  patch="${patch:-0}"
+  printf '%d' "$((10#$major * 10000 + 10#$minor * 100 + 10#$patch))"
+}
 
 REPO_ROOT="$(cd -- "$(dirname -- "$0")/.." && pwd)"
 CONFIGURATION="release"
@@ -66,6 +76,7 @@ MODULE_CACHE="$REPO_ROOT/.build/module-cache"
 SPARKLE_FRAMEWORK_PATH="${FLOWY_SPARKLE_FRAMEWORK_PATH:-$REPO_ROOT/vendor/Sparkle/Sparkle.framework}"
 SPARKLE_PUBLIC_ED_KEY="${FLOWY_SPARKLE_PUBLIC_ED_KEY:-}"
 SPARKLE_FEED_URL="${FLOWY_SPARKLE_FEED_URL:-https://github.com/AryaanSheth/flowy/releases/latest/download/appcast.xml}"
+BUNDLE_VERSION="$(sparkle_build_version "$VERSION")"
 
 if [[ "$CLEAN" -eq 1 ]]; then
   rm -rf "$BUILD_ROOT" "$APP_BUNDLE"
@@ -158,7 +169,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" <<EOF
   <key>CFBundleShortVersionString</key>
   <string>$VERSION</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$BUNDLE_VERSION</string>
   <key>LSMinimumSystemVersion</key>
   <string>$MIN_MACOS</string>
   <key>LSUIElement</key>
