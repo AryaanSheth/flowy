@@ -59,6 +59,8 @@ final class FlowyLogicTests: XCTestCase {
             schemaVersion: 0,
             hotkey: " ",
             recognitionLocaleIdentifier: " system ",
+            disabledAppBundleIDs: [" com.apple.Terminal ", "com.apple.Terminal", ""],
+            clipboardOnlyAppBundleIDs: [" com.example.App "],
             ollamaEndpoint: " ",
             ollamaModel: " "
         ).sanitized()
@@ -66,6 +68,8 @@ final class FlowyLogicTests: XCTestCase {
         XCTAssertEqual(config.schemaVersion, AppConfig.currentSchemaVersion)
         XCTAssertEqual(config.hotkey, "Alt+Space")
         XCTAssertNil(config.recognitionLocaleIdentifier)
+        XCTAssertEqual(config.disabledAppBundleIDs, ["com.apple.Terminal"])
+        XCTAssertEqual(config.clipboardOnlyAppBundleIDs, ["com.example.App"])
         XCTAssertEqual(config.ollamaEndpoint, "http://localhost:11434")
         XCTAssertEqual(config.ollamaModel, "llama3.2:3b")
     }

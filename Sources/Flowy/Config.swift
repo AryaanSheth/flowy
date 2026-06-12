@@ -11,6 +11,9 @@ struct AppConfig: Codable, Equatable {
     var inputDevice: String?
     var recognitionLocaleIdentifier: String?
     var outputMode: OutputMode
+    var disabledAppBundleIDs: [String]
+    var clipboardOnlyAppBundleIDs: [String]
+    var avoidSecureTextFields: Bool
     var maxRecordingSecs: Int
     var historySize: Int
     var activeToneID: String?
@@ -37,6 +40,9 @@ struct AppConfig: Codable, Equatable {
         inputDevice: String? = nil,
         recognitionLocaleIdentifier: String? = nil,
         outputMode: OutputMode = .typeAndClipboard,
+        disabledAppBundleIDs: [String] = [],
+        clipboardOnlyAppBundleIDs: [String] = [],
+        avoidSecureTextFields: Bool = true,
         maxRecordingSecs: Int = 60,
         historySize: Int = 20,
         activeToneID: String? = nil,
@@ -62,6 +68,9 @@ struct AppConfig: Codable, Equatable {
         self.inputDevice = inputDevice
         self.recognitionLocaleIdentifier = recognitionLocaleIdentifier
         self.outputMode = outputMode
+        self.disabledAppBundleIDs = disabledAppBundleIDs
+        self.clipboardOnlyAppBundleIDs = clipboardOnlyAppBundleIDs
+        self.avoidSecureTextFields = avoidSecureTextFields
         self.maxRecordingSecs = maxRecordingSecs
         self.historySize = historySize
         self.activeToneID = activeToneID
@@ -89,6 +98,9 @@ struct AppConfig: Codable, Equatable {
         case inputDevice
         case recognitionLocaleIdentifier
         case outputMode
+        case disabledAppBundleIDs
+        case clipboardOnlyAppBundleIDs
+        case avoidSecureTextFields
         case maxRecordingSecs
         case historySize
         case activeToneID
@@ -117,6 +129,9 @@ struct AppConfig: Codable, Equatable {
         inputDevice = try c.decodeIfPresent(String.self, forKey: .inputDevice)
         recognitionLocaleIdentifier = try c.decodeIfPresent(String.self, forKey: .recognitionLocaleIdentifier)
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .typeAndClipboard
+        disabledAppBundleIDs = try c.decodeIfPresent([String].self, forKey: .disabledAppBundleIDs) ?? []
+        clipboardOnlyAppBundleIDs = try c.decodeIfPresent([String].self, forKey: .clipboardOnlyAppBundleIDs) ?? []
+        avoidSecureTextFields = try c.decodeIfPresent(Bool.self, forKey: .avoidSecureTextFields) ?? true
         maxRecordingSecs = try c.decodeIfPresent(Int.self, forKey: .maxRecordingSecs) ?? 60
         historySize = try c.decodeIfPresent(Int.self, forKey: .historySize) ?? 20
         activeToneID = try c.decodeIfPresent(String.self, forKey: .activeToneID)
@@ -202,6 +217,8 @@ struct AppConfig: Codable, Equatable {
         next.historySize = min(200, max(1, next.historySize))
         next.vadSilenceSeconds = min(5.0, max(0.5, next.vadSilenceSeconds))
         next.vadSpeechThresholdDB = min(-10.0, max(-45.0, next.vadSpeechThresholdDB))
+        next.disabledAppBundleIDs = Self.cleanedBundleIDs(next.disabledAppBundleIDs)
+        next.clipboardOnlyAppBundleIDs = Self.cleanedBundleIDs(next.clipboardOnlyAppBundleIDs)
 
         next.ollamaEndpoint = next.ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         if next.ollamaEndpoint.isEmpty {
@@ -229,6 +246,18 @@ struct AppConfig: Codable, Equatable {
         next.dictionary = cleanDictionary
 
         return next
+    }
+
+    private static func cleanedBundleIDs(_ ids: [String]) -> [String] {
+        var seen = Set<String>()
+        var cleaned: [String] = []
+        for id in ids {
+            let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty, !seen.contains(trimmed) else { continue }
+            seen.insert(trimmed)
+            cleaned.append(trimmed)
+        }
+        return cleaned
     }
 }
 

@@ -123,7 +123,21 @@ final class AppModel: ObservableObject {
             FlowyLog.warn("Recording fallback: accessibility is not trusted; clipboard-only delivery expected")
         }
 
-        capturedApp = NSWorkspace.shared.frontmostApplication
+        let frontmostApp = NSWorkspace.shared.frontmostApplication
+        if let bundleID = frontmostApp?.bundleIdentifier,
+           config.disabledAppBundleIDs.contains(bundleID) {
+            lastError = "Flowy is disabled in \(frontmostApp?.localizedName ?? bundleID)."
+            FlowyLog.warn("Recording blocked: disabled app bundleID=\(bundleID)")
+            return
+        }
+
+        if config.avoidSecureTextFields, isFocusedSecureTextField() {
+            lastError = "Flowy is disabled in secure text fields."
+            FlowyLog.warn("Recording blocked: focused secure text field")
+            return
+        }
+
+        capturedApp = frontmostApp
         recordingStartedAt = Date()
         recordingStoppedAt = nil
         latestPartialText = ""
@@ -342,7 +356,10 @@ final class AppModel: ObservableObject {
 
         let delivered: Bool
         let effectiveOutputMode: OutputMode
-        if snapshot.outputMode != .clipboard && !AXIsProcessTrusted() {
+        if let bundleID = capturedApp?.bundleIdentifier,
+           snapshot.clipboardOnlyAppBundleIDs.contains(bundleID) {
+            effectiveOutputMode = .clipboard
+        } else if snapshot.outputMode != .clipboard && !AXIsProcessTrusted() {
             effectiveOutputMode = .clipboard
         } else {
             effectiveOutputMode = snapshot.outputMode
@@ -447,5 +464,28 @@ final class AppModel: ObservableObject {
             return "macOS says Siri and Dictation are disabled. Enable Dictation in System Settings > Keyboard > Dictation, then try again."
         }
         return message
+    }
+
+    private func isFocusedSecureTextField() -> Bool {
+        guard AXIsProcessTrusted() else { return false }
+
+        let system = AXUIElementCreateSystemWide()
+        var focusedRef: CFTypeRef?
+        let focusedErr = AXUIElementCopyAttributeValue(
+            system,
+            kAXFocusedUIElementAttribute as CFString,
+            &focusedRef
+        )
+        guard focusedErr == .success, let focusedRef else { return false }
+
+        let focused = focusedRef as! AXUIElement
+        var roleRef: CFTypeRef?
+        var subroleRef: CFTypeRef?
+        AXUIElementCopyAttributeValue(focused, kAXRoleAttribute as CFString, &roleRef)
+        AXUIElementCopyAttributeValue(focused, kAXSubroleAttribute as CFString, &subroleRef)
+
+        let role = roleRef as? String
+        let subrole = subroleRef as? String
+        return role == "AXTextField" && subrole == "AXSecureTextField"
     }
 }

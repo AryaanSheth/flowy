@@ -501,6 +501,34 @@ struct SettingsView: View {
                 }
 
                 Divider().padding(.horizontal, 14)
+
+                row("Avoid password fields") {
+                    Toggle("", isOn: $draft.avoidSecureTextFields).labelsHidden().tint(G.teal)
+                }
+
+                Divider().padding(.horizontal, 14)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Disabled apps")
+                        .font(.system(size: 13))
+                        .foregroundStyle(G.text)
+                    TextField("com.apple.Terminal, com.example.app", text: disabledAppsBinding)
+                        .textFieldStyle(GlassField())
+                }
+                .padding(.vertical, 10).padding(.horizontal, 14)
+
+                Divider().padding(.horizontal, 14)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Clipboard-only apps")
+                        .font(.system(size: 13))
+                        .foregroundStyle(G.text)
+                    TextField("com.apple.Terminal, com.example.app", text: clipboardOnlyAppsBinding)
+                        .textFieldStyle(GlassField())
+                }
+                .padding(.vertical, 10).padding(.horizontal, 14)
+
+                Divider().padding(.horizontal, 14)
                 permRow("Speech Recognition", ok: model.permissions.speechAuthorized)
                 Divider().padding(.horizontal, 14)
                 permRow("Microphone",         ok: model.permissions.microphoneAuthorized)
@@ -660,6 +688,16 @@ struct SettingsView: View {
                 set: { draft.recognitionLocaleIdentifier = $0.isEmpty ? nil : $0 })
     }
 
+    private var disabledAppsBinding: Binding<String> {
+        Binding(get: { draft.disabledAppBundleIDs.joined(separator: ", ") },
+                set: { draft.disabledAppBundleIDs = Self.bundleIDs(from: $0) })
+    }
+
+    private var clipboardOnlyAppsBinding: Binding<String> {
+        Binding(get: { draft.clipboardOnlyAppBundleIDs.joined(separator: ", ") },
+                set: { draft.clipboardOnlyAppBundleIDs = Self.bundleIDs(from: $0) })
+    }
+
     private var statusDot: Color {
         switch model.status {
         case .idle:         return G.faint
@@ -727,6 +765,12 @@ struct SettingsView: View {
 
     private static func localeDisplayName(_ locale: Locale) -> String {
         Locale.current.localizedString(forIdentifier: locale.identifier) ?? locale.identifier
+    }
+
+    private static func bundleIDs(from text: String) -> [String] {
+        text.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
     }
 }
 
