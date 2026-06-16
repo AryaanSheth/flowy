@@ -97,4 +97,41 @@ final class FlowyLogicTests: XCTestCase {
             maxLiveRollbackCharacters: 48
         ))
     }
+
+    func testStreamingPlannerRejectsResetPartialAlreadyContainedInCommittedText() {
+        let committed = """
+        We need some R and D testing on adding custom memory to the model. Can dynamically fetch memory based on conversation and update memory based on conversation as well so I want to create this branch to test a couple things in benchmark.
+        """
+        let resetPartial = "Can dynamically fetch memory based on conversation and update memory based on conversation as well"
+
+        XCTAssertNil(StreamingContinuationPlanner.continuationText(
+            committed: committed,
+            resetTarget: resetPartial,
+            maxLiveRollbackCharacters: 48
+        ))
+    }
+
+    func testStreamingPlannerRejectsResetPartialWithoutReliableOverlap() {
+        let committed = "This is a long dictated paragraph with enough words to be well past the rollback threshold. Existing text should stay untouched when a reset-like partial has no suffix overlap."
+        let resetPartial = "A totally different sentence from the recognizer"
+
+        XCTAssertNil(StreamingContinuationPlanner.continuationText(
+            committed: committed,
+            resetTarget: resetPartial,
+            maxLiveRollbackCharacters: 48
+        ))
+    }
+
+    func testStreamingPlannerAppendsOnlyNewWordsAfterSuffixOverlap() {
+        let committed = "This is a long dictated paragraph with enough words to be well past the rollback threshold. Can dynamically fetch memory based on conversation."
+        let resetPartial = "Can dynamically fetch memory based on conversation and update memory next"
+
+        let continuation = StreamingContinuationPlanner.continuationText(
+            committed: committed,
+            resetTarget: resetPartial,
+            maxLiveRollbackCharacters: 48
+        )
+
+        XCTAssertEqual(continuation, " and update memory next")
+    }
 }

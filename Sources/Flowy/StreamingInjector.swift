@@ -164,8 +164,19 @@ enum StreamingContinuationPlanner {
 
         let committedLower = committed.lowercased()
         let targetLower = target.lowercased()
+        let committedTokens = wordTokens(in: committed)
+        let targetTokens = wordTokens(in: target)
 
         if committedLower.hasPrefix(targetLower) {
+            return nil
+        }
+
+        guard !targetTokens.isEmpty else { return nil }
+
+        if containsWordSequence(
+            committedTokens.map(\.normalized),
+            targetTokens.map(\.normalized)
+        ) {
             return nil
         }
 
@@ -173,32 +184,93 @@ enum StreamingContinuationPlanner {
             return nil
         }
 
-        let overlap = suffixPrefixOverlap(committed, target)
-        let start = target.index(target.startIndex, offsetBy: overlap)
-        let tail = String(target[start...])
+        guard let overlap = suffixPrefixOverlap(committedTokens, targetTokens) else {
+            return nil
+        }
+
+        let minimumOverlap = min(5, max(2, targetTokens.count / 4))
+        guard overlap.wordCount >= minimumOverlap else {
+            return nil
+        }
+
+        let tail = String(target[overlap.targetEndIndex...])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !tail.isEmpty else { return nil }
 
         return separator(beforeAppending: tail, to: committed) + tail
     }
 
-    private static func suffixPrefixOverlap(_ lhs: String, _ rhs: String) -> Int {
-        let left = Array(lhs.lowercased())
-        let right = Array(rhs.lowercased())
-        guard !left.isEmpty, !right.isEmpty else { return 0 }
+    private struct WordToken {
+        let normalized: String
+        let endIndex: String.Index
+    }
 
-        let maxOverlap = min(left.count, right.count, 160)
-        guard maxOverlap > 0 else { return 0 }
+    private struct WordOverlap {
+        let wordCount: Int
+        let targetEndIndex: String.Index
+    }
 
-        for length in stride(from: maxOverlap, through: 1, by: -1) {
-            let leftStart = left.count - length
+    private static func wordTokens(in text: String) -> [WordToken] {
+        var tokens: [WordToken] = []
+        var current = ""
+        var index = text.startIndex
+
+        while index < text.endIndex {
+            let character = text[index]
+            if isWordCharacter(character) {
+                current.append(character)
+            } else if !current.isEmpty {
+                tokens.append(WordToken(normalized: current.lowercased(), endIndex: index))
+                current = ""
+            }
+            index = text.index(after: index)
+        }
+
+        if !current.isEmpty {
+            tokens.append(WordToken(normalized: current.lowercased(), endIndex: text.endIndex))
+        }
+
+        return tokens
+    }
+
+    private static func isWordCharacter(_ character: Character) -> Bool {
+        character.unicodeScalars.allSatisfy { CharacterSet.alphanumerics.contains($0) }
+    }
+
+    private static func containsWordSequence(_ haystack: [String], _ needle: [String]) -> Bool {
+        guard !needle.isEmpty, needle.count <= haystack.count else { return false }
+
+        for start in 0...(haystack.count - needle.count) {
             var matches = true
-            for i in 0..<length where left[leftStart + i] != right[i] {
+            for offset in 0..<needle.count where haystack[start + offset] != needle[offset] {
                 matches = false
                 break
             }
-            if matches { return length }
+            if matches { return true }
         }
-        return 0
+
+        return false
+    }
+
+    private static func suffixPrefixOverlap(_ lhs: [WordToken], _ rhs: [WordToken]) -> WordOverlap? {
+        guard !lhs.isEmpty, !rhs.isEmpty else { return nil }
+
+        let maxOverlap = min(lhs.count, rhs.count, 40)
+        guard maxOverlap > 0 else { return nil }
+
+        for length in stride(from: maxOverlap, through: 1, by: -1) {
+            let leftStart = lhs.count - length
+            var matches = true
+            for i in 0..<length where lhs[leftStart + i].normalized != rhs[i].normalized {
+                matches = false
+                break
+            }
+            if matches {
+                return WordOverlap(wordCount: length, targetEndIndex: rhs[length - 1].endIndex)
+            }
+        }
+
+        return nil
     }
 
     private static func separator(beforeAppending tail: String, to committed: String) -> String {
