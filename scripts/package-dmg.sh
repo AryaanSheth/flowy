@@ -14,6 +14,33 @@ BACKGROUND_DIR="$STAGING/.background"
 BACKGROUND="$BACKGROUND_DIR/background.png"
 MODULE_CACHE="$REPO_ROOT/.build/module-cache"
 
+hdiutil_retry() {
+  local attempts=4
+  local delay=2
+  local output
+  local status
+
+  for attempt in $(seq 1 "$attempts"); do
+    set +e
+    output="$(hdiutil "$@" 2>&1)"
+    status=$?
+    set -e
+
+    if [[ "$status" -eq 0 ]]; then
+      printf '%s\n' "$output"
+      return 0
+    fi
+
+    if [[ "$attempt" -eq "$attempts" || "$output" != *"Resource busy"* ]]; then
+      printf '%s\n' "$output" >&2
+      return "$status"
+    fi
+
+    printf 'hdiutil %s failed with Resource busy; retrying (%d/%d)...\n' "$1" "$attempt" "$attempts" >&2
+    sleep "$delay"
+  done
+}
+
 cleanup() {
   [[ -n "${MOUNT_POINT:-}" ]] && hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
   rm -rf "$STAGING"
@@ -36,7 +63,7 @@ CLANG_MODULE_CACHE_PATH="$MODULE_CACHE" \
   xcrun swift "$REPO_ROOT/scripts/dmg-background.swift" "$BACKGROUND"
 
 echo "Creating $DMG_NAME..."
-hdiutil create \
+hdiutil_retry create \
   -volname "$APP_NAME" \
   -srcfolder "$STAGING" \
   -fs HFS+ \
@@ -44,7 +71,7 @@ hdiutil create \
   -format UDRW \
   "$RW_DMG"
 
-MOUNT_OUTPUT="$(hdiutil attach "$RW_DMG" -readwrite -noverify -noautoopen)"
+MOUNT_OUTPUT="$(hdiutil_retry attach "$RW_DMG" -readwrite -noverify -noautoopen)"
 MOUNT_POINT="$(printf '%s\n' "$MOUNT_OUTPUT" | awk '/\/Volumes\// {print substr($0, index($0, "/Volumes/")); exit}')"
 
 if [[ -z "$MOUNT_POINT" || ! -d "$MOUNT_POINT" ]]; then
@@ -80,10 +107,10 @@ end tell
 EOF
 
 sync
-hdiutil detach "$MOUNT_POINT"
+hdiutil_retry detach "$MOUNT_POINT"
 MOUNT_POINT=""
 
-hdiutil convert "$RW_DMG" \
+hdiutil_retry convert "$RW_DMG" \
   -format UDZO \
   -imagekey zlib-level=9 \
   -ov \
