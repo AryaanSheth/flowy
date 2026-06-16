@@ -1,66 +1,9 @@
-#!/usr/bin/env zsh
-set -euo pipefail
-
-APP_NAME="Flowy"
-
-usage() {
-  cat <<EOF
-Usage: scripts/generate-release-notes.sh <version> [output-path]
-
-Generates the small HTML page Sparkle renders inside its update window.
-EOF
-}
-
-if [[ $# -lt 1 || $# -gt 2 ]]; then
-  usage >&2
-  exit 2
-fi
-
-VERSION="$1"
-OUT="${2:-target/release/release-notes.html}"
-
-case "$VERSION" in
-  1.0.0)
-    LEAD="$APP_NAME $VERSION is the first stable release, with hardened release automation and safer dictation delivery paths."
-    ITEMS='
-        <li>Fixes release version propagation so the app bundle, DMG, GitHub release, and Sparkle metadata agree.</li>
-        <li>Adds CI coverage for macOS app builds, Swift tests, release-candidate DMG packaging, and mounted DMG contents.</li>
-        <li>Keeps the streaming duplicate fix, append-only reset protection, and inject-only clipboard preservation in the stable release.</li>
-        <li>Confirms unsigned install expectations: right-click Open on first launch, then guided permissions for Microphone, Speech Recognition, and Accessibility.</li>'
-    ;;
-  0.8.1)
-    LEAD="$APP_NAME $VERSION fixes a live dictation duplication bug and tightens the active recording overlay."
-    ITEMS='
-        <li>Fixes reset-like speech partials being appended repeatedly during longer dictation sessions.</li>
-        <li>Keeps live streaming append-only protection, but now requires reliable word overlap before adding continuation text.</li>
-        <li>Adds regression coverage for duplicate reset partials and valid reset continuations.</li>
-        <li>Shrinks the active dictation wave pill so it stays lighter at the top of the screen.</li>'
-    ;;
-  0.8.0)
-    LEAD="$APP_NAME $VERSION adds the v1 foundations: safer app rules, language selection, toggle dictation, schema migrations, and test coverage."
-    ITEMS='
-        <li>Adds a language picker so dictation no longer depends only on the system locale.</li>
-        <li>Adds hold or toggle hotkey modes for short commands and long-form dictation.</li>
-        <li>Adds per-app safety rules, including disabled apps, clipboard-only apps, and secure-field avoidance.</li>
-        <li>Adds schema-versioned config migration plus focused logic tests for the risky text-rewrite paths.</li>'
-    ;;
-  *)
-    LEAD="$APP_NAME $VERSION includes the latest Flowy fixes and refinements."
-    ITEMS='
-        <li>Includes the newest app fixes, UI refinements, and reliability improvements.</li>
-        <li>Keeps Flowy local, lightweight, and focused on fast macOS dictation.</li>'
-    ;;
-esac
-
-mkdir -p "$(dirname "$OUT")"
-
-cat > "$OUT" <<EOF
 <!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>$APP_NAME $VERSION Release Notes</title>
+  <title>Flowy 1.0.0 Release Notes</title>
   <style>
     :root {
       color-scheme: dark;
@@ -197,20 +140,21 @@ cat > "$OUT" <<EOF
       <div class="mark" aria-hidden="true"><span class="wave">~</span>flowy</div>
       <div>
         <p class="eyebrow">Update available</p>
-        <h1>$APP_NAME $VERSION</h1>
+        <h1>Flowy 1.0.0</h1>
       </div>
     </header>
 
     <section class="body" aria-label="Release notes">
-      <p class="lead">$LEAD</p>
+      <p class="lead">Flowy 1.0.0 is the first stable release, with hardened release automation and safer dictation delivery paths.</p>
       <ul>
-$ITEMS
+
+        <li>Fixes release version propagation so the app bundle, DMG, GitHub release, and Sparkle metadata agree.</li>
+        <li>Adds CI coverage for macOS app builds, Swift tests, release-candidate DMG packaging, and mounted DMG contents.</li>
+        <li>Keeps the streaming duplicate fix, append-only reset protection, and inject-only clipboard preservation in the stable release.</li>
+        <li>Confirms unsigned install expectations: right-click Open on first launch, then guided permissions for Microphone, Speech Recognition, and Accessibility.</li>
       </ul>
       <p class="foot">Local speech-to-text for macOS. No telemetry. No account. No subscription.</p>
     </section>
   </main>
 </body>
 </html>
-EOF
-
-echo "Generated release notes: $OUT"

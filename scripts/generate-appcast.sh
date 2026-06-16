@@ -40,6 +40,14 @@ DMG_NAME="$(basename "$DMG_PATH")"
 DMG_URL="$RELEASE_BASE_URL/$DMG_NAME"
 RELEASE_URL="https://github.com/AryaanSheth/flowy/releases/tag/v$VERSION"
 case "$VERSION" in
+  1.0.0)
+    NOTES_LEAD="v1.0.0 is Flowy's first stable release, focused on reliable local dictation and a hardened unsigned release path."
+    NOTES_ITEMS='
+            <li><strong>Release confidence:</strong> The app bundle, DMG, GitHub release, and Sparkle appcast now use the same tag-derived version.</li>
+            <li><strong>CI coverage:</strong> macOS CI builds the app, runs Swift tests, packages a release-candidate DMG, and verifies mounted DMG contents.</li>
+            <li><strong>Dictation stability:</strong> Includes the streaming duplicate fix, append-only reset protection, and inject-only clipboard preservation.</li>
+            <li><strong>Unsigned install clarity:</strong> Keeps the right-click Open first-launch path and guided permission recovery for Microphone, Speech Recognition, and Accessibility.</li>'
+    ;;
   0.8.1)
     NOTES_LEAD="v0.8.1 fixes live dictation duplication and makes the active recording overlay smaller."
     NOTES_ITEMS='
