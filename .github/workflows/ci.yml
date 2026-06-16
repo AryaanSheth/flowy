@@ -43,3 +43,58 @@ jobs:
 
       - name: Run Swift tests
         run: swift test
+
+      - name: Build release candidate app
+        env:
+          FLOWY_VERSION: 1.2.3
+        run: scripts/build-macos.sh --release --check-only --clean
+
+      - name: Package release candidate DMG
+        run: scripts/package-dmg.sh 1.2.3
+
+      - name: Verify release candidate metadata
+        run: |
+          PLIST="target/release/bundle/macos/Flowy.app/Contents/Info.plist"
+          SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
+          BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+
+          if [[ "$SHORT_VERSION" != "1.2.3" ]]; then
+            echo "CFBundleShortVersionString mismatch: expected 1.2.3, got $SHORT_VERSION" >&2
+            exit 1
+          fi
+
+          if [[ "$BUILD_VERSION" != "10203" ]]; then
+            echo "CFBundleVersion mismatch: expected 10203, got $BUILD_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Verify release candidate DMG contents
+        run: |
+          DMG="target/release/Flowy-1.2.3.dmg"
+          if [[ ! -f "$DMG" ]]; then
+            echo "DMG not found: $DMG" >&2
+            exit 1
+          fi
+
+          MOUNT_OUTPUT="$(hdiutil attach "$DMG" -readonly -noverify -noautoopen)"
+          MOUNT_POINT="$(printf '%s\n' "$MOUNT_OUTPUT" | awk '/\/Volumes\// {print substr($0, index($0, "/Volumes/")); exit}')"
+          cleanup() {
+            [[ -n "${MOUNT_POINT:-}" ]] && hdiutil detach "$MOUNT_POINT" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          if [[ -z "$MOUNT_POINT" || ! -d "$MOUNT_POINT" ]]; then
+            echo "Could not mount DMG" >&2
+            printf '%s\n' "$MOUNT_OUTPUT" >&2
+            exit 1
+          fi
+
+          test -d "$MOUNT_POINT/Flowy.app"
+          test -L "$MOUNT_POINT/Applications"
+          test "$(readlink "$MOUNT_POINT/Applications")" = "/Applications"
+
+      - name: Upload release candidate DMG
+        uses: actions/upload-artifact@v4
+        with:
+          name: Flowy-1.2.3-dmg
+          path: target/release/Flowy-1.2.3.dmg
