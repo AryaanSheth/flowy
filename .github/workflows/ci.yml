@@ -21,7 +21,25 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode.app
 
       - name: Build app bundle
+        env:
+          FLOWY_VERSION: 1.2.3
         run: scripts/build-macos.sh --debug --check-only
+
+      - name: Verify app version override
+        run: |
+          PLIST="target/debug/bundle/macos/Flowy.app/Contents/Info.plist"
+          SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
+          BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+
+          if [[ "$SHORT_VERSION" != "1.2.3" ]]; then
+            echo "CFBundleShortVersionString mismatch: expected 1.2.3, got $SHORT_VERSION" >&2
+            exit 1
+          fi
+
+          if [[ "$BUILD_VERSION" != "10203" ]]; then
+            echo "CFBundleVersion mismatch: expected 10203, got $BUILD_VERSION" >&2
+            exit 1
+          fi
 
       - name: Run Swift tests
         run: swift test
