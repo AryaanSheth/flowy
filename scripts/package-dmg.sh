@@ -18,22 +18,22 @@ hdiutil_retry() {
   local attempts=4
   local delay=2
   local output
-  local status
+  local status_code
 
   for attempt in $(seq 1 "$attempts"); do
     set +e
     output="$(hdiutil "$@" 2>&1)"
-    status=$?
+    status_code=$?
     set -e
 
-    if [[ "$status" -eq 0 ]]; then
+    if [[ "$status_code" -eq 0 ]]; then
       printf '%s\n' "$output"
       return 0
     fi
 
     if [[ "$attempt" -eq "$attempts" || "$output" != *"Resource busy"* ]]; then
       printf '%s\n' "$output" >&2
-      return "$status"
+      return "$status_code"
     fi
 
     printf 'hdiutil %s failed with Resource busy; retrying (%d/%d)...\n' "$1" "$attempt" "$attempts" >&2
