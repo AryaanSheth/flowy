@@ -9,7 +9,7 @@ final class OverlayWindowController {
 
     init() {
         panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 112, height: 58),
+            contentRect: NSRect(x: 0, y: 0, width: 58, height: 30),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: false
@@ -109,8 +109,8 @@ private struct OverlayPill: View {
         ZStack {
             Capsule(style: .continuous)
                 .fill(statusColor.opacity(glowOpacity * 0.72))
-                .frame(width: 72 + level * 6, height: 26 + level * 2)
-                .blur(radius: 7)
+                .frame(width: 36 + level * 3, height: 13 + level)
+                .blur(radius: 3.5)
 
             ZStack {
                 Capsule(style: .continuous)
@@ -131,18 +131,18 @@ private struct OverlayPill: View {
                     isTranscribing: model.status == .transcribing,
                     pulse: transcribingPulse
                 )
-                .frame(width: 86, height: 28)
+                .frame(width: 43, height: 14)
 
                 Capsule(style: .continuous)
-                    .strokeBorder(statusColor.opacity(model.status == .recording ? 0.32 : 0.16), lineWidth: 0.7)
+                    .strokeBorder(statusColor.opacity(model.status == .recording ? 0.32 : 0.16), lineWidth: 0.5)
             }
-            .frame(width: 86, height: 30)
+            .frame(width: 43, height: 15)
             .clipShape(Capsule(style: .continuous))
         }
         .compositingGroup()
-        .shadow(color: statusColor.opacity(model.status == .recording ? 0.18 : 0.08), radius: 7, x: 0, y: 0)
-        .shadow(color: .black.opacity(0.38), radius: 6, x: 0, y: 2)
-        .padding(12)
+        .shadow(color: statusColor.opacity(model.status == .recording ? 0.18 : 0.08), radius: 3.5, x: 0, y: 0)
+        .shadow(color: .black.opacity(0.38), radius: 3, x: 0, y: 1)
+        .padding(6)
         .animation(.easeInOut(duration: 0.22), value: model.status)
         .onAppear { updatePulse(for: model.status) }
         .onChange(of: model.status) { updatePulse(for: $0) }
@@ -199,9 +199,9 @@ private struct WaveMark: View {
     }
 
     private let strokes: [Stroke] = [
-        Stroke(y: 0.28, thickness: 1.8, amplitude: 2.6, opacity: 0.46, drift: 0.34),
-        Stroke(y: 0.50, thickness: 3.2, amplitude: 4.0, opacity: 0.94, drift: 0.44),
-        Stroke(y: 0.72, thickness: 1.4, amplitude: 2.0, opacity: 0.38, drift: 0.28),
+        Stroke(y: 0.28, thickness: 0.9, amplitude: 1.3, opacity: 0.46, drift: 0.34),
+        Stroke(y: 0.50, thickness: 1.6, amplitude: 2.0, opacity: 0.94, drift: 0.44),
+        Stroke(y: 0.72, thickness: 0.7, amplitude: 1.0, opacity: 0.38, drift: 0.28),
     ]
 
     var body: some View {
@@ -220,9 +220,9 @@ private struct WaveMark: View {
                     let breath = sin(CGFloat(elapsed) * 0.24 + CGFloat(index) * 1.2)
                     let amplitude = stroke.amplitude * (0.20 + drawLevel * 1.65) * (0.92 + breath * 0.08)
                     let phase = CGFloat(elapsed) * driftRate * stroke.drift + CGFloat(index) * 0.9
-                    let step: CGFloat = 2
+                    let step: CGFloat = 1
 
-                    let horizontalBleed: CGFloat = 4
+                    let horizontalBleed: CGFloat = 2
                     let drawableWidth = max(1, size.width + horizontalBleed * 2)
 
                     path.move(to: CGPoint(x: -horizontalBleed, y: midY))
