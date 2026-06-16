@@ -39,6 +39,30 @@ RELEASE_BASE_URL="${FLOWY_RELEASE_BASE_URL:-https://github.com/AryaanSheth/flowy
 DMG_NAME="$(basename "$DMG_PATH")"
 DMG_URL="$RELEASE_BASE_URL/$DMG_NAME"
 RELEASE_URL="https://github.com/AryaanSheth/flowy/releases/tag/v$VERSION"
+case "$VERSION" in
+  0.8.1)
+    NOTES_LEAD="v0.8.1 fixes live dictation duplication and makes the active recording overlay smaller."
+    NOTES_ITEMS='
+            <li><strong>Streaming fix:</strong> Reset-like speech partials no longer get appended repeatedly during long dictation sessions.</li>
+            <li><strong>Safer continuation:</strong> Live insertion now requires reliable word overlap before appending reset continuation text.</li>
+            <li><strong>Regression coverage:</strong> Adds focused tests for duplicate reset partials and valid reset continuations.</li>
+            <li><strong>Smaller overlay:</strong> The active dictation wave pill is about half its previous size.</li>'
+    ;;
+  0.8.0)
+    NOTES_LEAD="v0.8 adds the foundations Flowy needs before a stable v1."
+    NOTES_ITEMS='
+            <li><strong>Language picker:</strong> Choose a dictation locale instead of relying only on the system locale.</li>
+            <li><strong>Toggle dictation:</strong> Use the hotkey as hold-to-talk or tap-to-start/tap-to-stop.</li>
+            <li><strong>Per-app safety:</strong> Disable Flowy or force clipboard-only behavior for specific apps, with secure-field avoidance.</li>
+            <li><strong>v1 groundwork:</strong> Schema-versioned config migration, experimental AI gating, and focused logic tests.</li>'
+    ;;
+  *)
+    NOTES_LEAD="v$VERSION includes the latest Flowy fixes and refinements."
+    NOTES_ITEMS='
+            <li><strong>Latest fixes:</strong> Includes the newest app fixes, UI refinements, and reliability improvements.</li>
+            <li><strong>Local dictation:</strong> Keeps Flowy local, lightweight, and focused on fast macOS speech-to-text.</li>'
+    ;;
+esac
 if [[ -z "$PRIVATE_KEY" ]]; then
   echo "FLOWY_SPARKLE_PRIVATE_ED_KEY is required to generate a signed Sparkle appcast" >&2
   exit 1
@@ -82,12 +106,9 @@ cat > "$OUT" <<EOF
             strong { color: #57d9cf; font-weight: 700; }
           </style>
           <h3>Flowy $VERSION</h3>
-          <p>v0.8 adds the foundations Flowy needs before a stable v1.</p>
+          <p>$NOTES_LEAD</p>
           <ul>
-            <li><strong>Language picker:</strong> Choose a dictation locale instead of relying only on the system locale.</li>
-            <li><strong>Toggle dictation:</strong> Use the hotkey as hold-to-talk or tap-to-start/tap-to-stop.</li>
-            <li><strong>Per-app safety:</strong> Disable Flowy or force clipboard-only behavior for specific apps, with secure-field avoidance.</li>
-            <li><strong>v1 groundwork:</strong> Schema-versioned config migration, experimental AI gating, and focused logic tests.</li>
+$NOTES_ITEMS
           </ul>
         ]]>
       </description>
