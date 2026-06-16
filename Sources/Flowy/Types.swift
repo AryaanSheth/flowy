@@ -57,6 +57,25 @@ enum OutputMode: String, Codable, CaseIterable, Identifiable {
     }
 }
 
+enum OutputModeResolver {
+    static func effectiveMode(
+        configuredMode: OutputMode,
+        capturedBundleID: String?,
+        clipboardOnlyBundleIDs: [String],
+        accessibilityTrusted: Bool
+    ) -> OutputMode {
+        if let capturedBundleID, clipboardOnlyBundleIDs.contains(capturedBundleID) {
+            return .clipboard
+        }
+
+        if configuredMode != .clipboard && !accessibilityTrusted {
+            return .clipboard
+        }
+
+        return configuredMode
+    }
+}
+
 enum HotkeyMode: String, Codable, CaseIterable, Identifiable {
     case hold
     case toggle

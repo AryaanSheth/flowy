@@ -74,6 +74,45 @@ final class FlowyLogicTests: XCTestCase {
         XCTAssertEqual(config.ollamaModel, "llama3.2:3b")
     }
 
+    func testEffectiveOutputModeHonorsClipboardOnlyAppRule() {
+        let config = AppConfig(
+            outputMode: .typeAndClipboard,
+            clipboardOnlyAppBundleIDs: ["com.example.Notes"]
+        )
+
+        XCTAssertEqual(
+            OutputModeResolver.effectiveMode(
+                configuredMode: config.outputMode,
+                capturedBundleID: "com.example.Notes",
+                clipboardOnlyBundleIDs: config.clipboardOnlyAppBundleIDs,
+                accessibilityTrusted: true
+            ),
+            .clipboard
+        )
+    }
+
+    func testEffectiveOutputModeFallsBackToClipboardWithoutAccessibility() {
+        XCTAssertEqual(
+            OutputModeResolver.effectiveMode(
+                configuredMode: .type,
+                capturedBundleID: "com.example.Editor",
+                clipboardOnlyBundleIDs: [],
+                accessibilityTrusted: false
+            ),
+            .clipboard
+        )
+
+        XCTAssertEqual(
+            OutputModeResolver.effectiveMode(
+                configuredMode: .clipboard,
+                capturedBundleID: nil,
+                clipboardOnlyBundleIDs: [],
+                accessibilityTrusted: false
+            ),
+            .clipboard
+        )
+    }
+
     func testStreamingPlannerTreatsLargeRecognizerResetAsAppendOnlyContinuation() {
         let committed = "This is a long dictated paragraph with enough words to be well past the rollback threshold. It should never be deleted just because recognition restarts."
         let resetPartial = "recognition restarts and then continues with the next sentence"

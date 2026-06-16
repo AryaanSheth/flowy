@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_NAME="Flowy"
 BUNDLE_ID="com.flowy.app"
-VERSION="0.8.1"
+VERSION="${FLOWY_VERSION:-0.8.1}"
 MIN_MACOS="13.0"
 
 sparkle_build_version() {
@@ -23,7 +23,7 @@ CLEAN=0
 
 usage() {
   cat <<EOF
-Usage: scripts/build-macos.sh [--debug] [--release] [--check-only] [--clean]
+Usage: scripts/build-macos.sh [--debug] [--release] [--check-only] [--clean] [--version <version>]
 
 Build the native macOS-only Flowy app bundle.
 
@@ -32,6 +32,7 @@ Options:
   --release     Compile with release settings into target/release. Default.
   --check-only  Build the bundle but do not print launch instructions.
   --clean       Remove this configuration's native build output first.
+  --version     Set CFBundleShortVersionString. Defaults to FLOWY_VERSION or 0.8.1.
 EOF
 }
 
@@ -49,6 +50,15 @@ while [[ $# -gt 0 ]]; do
     --clean)
       CLEAN=1
       ;;
+    --version)
+      if [[ $# -lt 2 || -z "$2" ]]; then
+        echo "--version requires a value" >&2
+        usage >&2
+        exit 2
+      fi
+      VERSION="$2"
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -61,6 +71,11 @@ while [[ $# -gt 0 ]]; do
   esac
   shift
 done
+
+if [[ ! "$VERSION" =~ '^[0-9]+[.][0-9]+[.][0-9]+$' ]]; then
+  echo "Version must be numeric semantic version X.Y.Z, got: $VERSION" >&2
+  exit 2
+fi
 
 cd "$REPO_ROOT"
 
