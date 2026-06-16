@@ -4,12 +4,6 @@ on:
   push:
     tags:
       - 'v*.*.*'
-  workflow_dispatch:
-    inputs:
-      version:
-        description: 'Version (e.g. 0.5.1)'
-        required: true
-        default: '0.5.1'
 
 jobs:
   build:
@@ -28,14 +22,10 @@ jobs:
       - name: Resolve version
         id: ver
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
-            echo "tag=v${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
-          else
-            TAG="${{ github.ref_name }}"
-            echo "tag=$TAG" >> "$GITHUB_OUTPUT"
-            echo "version=${TAG#v}" >> "$GITHUB_OUTPUT"
-          fi
+          TAG="${{ github.ref_name }}"
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
 
       - name: Warm Swift module cache
         run: xcrun swift -e 'import Foundation; print("ok")'
@@ -53,8 +43,28 @@ jobs:
       - name: Build app
         env:
           FLOWY_SPARKLE_PUBLIC_ED_KEY: ${{ vars.FLOWY_SPARKLE_PUBLIC_ED_KEY }}
+          FLOWY_VERSION: ${{ steps.ver.outputs.version }}
         run: scripts/build-macos.sh --check-only
         # --check-only builds the bundle and skips the launch hint
+
+      - name: Verify built app version
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          PLIST="target/release/bundle/macos/Flowy.app/Contents/Info.plist"
+          SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
+          BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          EXPECTED_BUILD="$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))"
+
+          if [[ "$SHORT_VERSION" != "$VERSION" ]]; then
+            echo "CFBundleShortVersionString mismatch: expected $VERSION, got $SHORT_VERSION" >&2
+            exit 1
+          fi
+
+          if [[ "$BUILD_VERSION" != "$EXPECTED_BUILD" ]]; then
+            echo "CFBundleVersion mismatch: expected $EXPECTED_BUILD, got $BUILD_VERSION" >&2
+            exit 1
+          fi
 
       - name: Package DMG
         run: scripts/package-dmg.sh "${{ steps.ver.outputs.version }}"
@@ -99,20 +109,13 @@ jobs:
           1. Download the .dmg below
           2. Open it and drag **Flowy** to Applications
           3. Launch Flowy — it lives in your menu bar
-          4. Grant Microphone and Speech Recognition when prompted
+          4. Grant Microphone, Speech Recognition, and Accessibility when prompted
           5. Set your hotkey in Settings and start speaking
 
           > First launch: macOS may say the app is from an unidentified developer.
           > Right-click the app → **Open** → **Open** to bypass Gatekeeper once.
           "
 
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            gh release create "$TAG" "${ASSETS[@]}" \
-              --title "Flowy ${VERSION}" \
-              --notes "$NOTES" \
-              --prerelease
-          else
-            gh release create "$TAG" "${ASSETS[@]}" \
-              --title "Flowy ${VERSION}" \
-              --notes "$NOTES"
-          fi
+          gh release create "$TAG" "${ASSETS[@]}" \
+            --title "Flowy ${VERSION}" \
+            --notes "$NOTES"

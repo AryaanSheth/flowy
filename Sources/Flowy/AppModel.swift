@@ -355,15 +355,12 @@ final class AppModel: ObservableObject {
         }
 
         let delivered: Bool
-        let effectiveOutputMode: OutputMode
-        if let bundleID = capturedApp?.bundleIdentifier,
-           snapshot.clipboardOnlyAppBundleIDs.contains(bundleID) {
-            effectiveOutputMode = .clipboard
-        } else if snapshot.outputMode != .clipboard && !AXIsProcessTrusted() {
-            effectiveOutputMode = .clipboard
-        } else {
-            effectiveOutputMode = snapshot.outputMode
-        }
+        let effectiveOutputMode = OutputModeResolver.effectiveMode(
+            configuredMode: snapshot.outputMode,
+            capturedBundleID: capturedApp?.bundleIdentifier,
+            clipboardOnlyBundleIDs: snapshot.clipboardOnlyAppBundleIDs,
+            accessibilityTrusted: AXIsProcessTrusted()
+        )
 
         if streamingInjector.isActive {
             if snapshot.outputMode == .typeAndClipboard {
