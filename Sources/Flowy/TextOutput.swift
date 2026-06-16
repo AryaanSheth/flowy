@@ -19,7 +19,7 @@ enum TextOutput {
             return ok
 
         case .type:
-            let ok = await typeText(text, capturedApp: capturedApp)
+            let ok = await typeText(text, capturedApp: capturedApp, preserveClipboard: true)
             if !ok {
                 copyToClipboard(text)
             }
@@ -27,7 +27,7 @@ enum TextOutput {
 
         case .typeAndClipboard:
             copyToClipboard(text)
-            return await typeText(text, capturedApp: capturedApp)
+            return await typeText(text, capturedApp: capturedApp, preserveClipboard: false)
         }
     }
 
@@ -40,7 +40,11 @@ enum TextOutput {
         return ok
     }
 
-    private static func typeText(_ text: String, capturedApp: NSRunningApplication?) async -> Bool {
+    private static func typeText(
+        _ text: String,
+        capturedApp: NSRunningApplication?,
+        preserveClipboard: Bool
+    ) async -> Bool {
         if let capturedApp, !capturedApp.isTerminated {
             let alreadyFront = NSWorkspace.shared.frontmostApplication?
                 .processIdentifier == capturedApp.processIdentifier
@@ -53,23 +57,28 @@ enum TextOutput {
             FlowyLog.warn("No captured app available for delivery")
         }
 
+        let snapshot = preserveClipboard ? PasteboardSnapshot.capture() : nil
         guard copyToClipboard(text) else {
             FlowyLog.error("Delivery failed: clipboard write failed")
             return false
         }
+        let copiedChangeCount = NSPasteboard.general.changeCount
 
         if pasteClipboard() {
             FlowyLog.info("Delivery attempted via Cmd+V")
+            await restoreClipboard(snapshot, copiedChangeCount: copiedChangeCount)
             return true
         }
 
         if insertWithAccessibility(text) {
             FlowyLog.info("Delivery succeeded via AX insertion")
+            await restoreClipboard(snapshot, copiedChangeCount: copiedChangeCount)
             return true
         }
 
         if typeUnicode(text) {
             FlowyLog.info("Delivery succeeded via Unicode typing")
+            await restoreClipboard(snapshot, copiedChangeCount: copiedChangeCount)
             return true
         }
 
@@ -77,7 +86,18 @@ enum TextOutput {
             showAccessibilityAlert()
         }
 
+        await restoreClipboard(snapshot, copiedChangeCount: copiedChangeCount)
         return false
+    }
+
+    private static func restoreClipboard(
+        _ snapshot: PasteboardSnapshot?,
+        copiedChangeCount: Int
+    ) async {
+        guard let snapshot else { return }
+
+        try? await Task.sleep(nanoseconds: 120_000_000)
+        snapshot.restoreIfUnchanged(since: copiedChangeCount)
     }
 
     private static func pasteClipboard() -> Bool {
@@ -258,5 +278,30 @@ enum TextOutput {
         }
 
         return true
+    }
+
+    private struct PasteboardSnapshot {
+        let items: [NSPasteboardItem]
+
+        static func capture() -> PasteboardSnapshot {
+            let copiedItems = NSPasteboard.general.pasteboardItems?.compactMap {
+                $0.copy() as? NSPasteboardItem
+            } ?? []
+            return PasteboardSnapshot(items: copiedItems)
+        }
+
+        func restoreIfUnchanged(since changeCount: Int) {
+            let pasteboard = NSPasteboard.general
+            guard pasteboard.changeCount == changeCount else {
+                FlowyLog.info("Clipboard restore skipped because pasteboard changed")
+                return
+            }
+
+            pasteboard.clearContents()
+            if !items.isEmpty {
+                pasteboard.writeObjects(items)
+            }
+            FlowyLog.info("Clipboard restored after inject-only delivery")
+        }
     }
 }

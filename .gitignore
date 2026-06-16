@@ -1,6 +1,10 @@
 /target
 /.build
 /vendor/Sparkle
+/node_modules
+/.claude
+/package.json
+/package-lock.json
 Cargo.lock
 .DS_Store
 *.env

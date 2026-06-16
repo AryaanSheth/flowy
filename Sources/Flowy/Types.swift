@@ -50,7 +50,7 @@ enum OutputMode: String, Codable, CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .type: return "Paste into the focused window"
+        case .type: return "Paste into the focused window and restore clipboard"
         case .clipboard: return "Copy text without pasting"
         case .typeAndClipboard: return "Paste and leave text on the clipboard"
         }
