@@ -1,5 +1,5 @@
 APP_NAME := Flowy
-VERSION  := 0.8.1
+VERSION  := 1.0.0
 APP_BUNDLE := target/release/bundle/macos/$(APP_NAME).app
 APPLICATIONS_BUNDLE := /Applications/$(APP_NAME).app
 
@@ -32,10 +32,10 @@ doctor:
 	./scripts/doctor-swift.sh
 
 dev:
-	./scripts/build-macos.sh --debug
+	./scripts/build-macos.sh --debug --version "$(VERSION)"
 
 build:
-	./scripts/build-macos.sh
+	./scripts/build-macos.sh --version "$(VERSION)"
 
 dmg: build
 	./scripts/package-dmg.sh $(VERSION)
@@ -82,10 +82,10 @@ open-installed:
 	open "$(APPLICATIONS_BUNDLE)"
 
 check:
-	./scripts/build-macos.sh --debug --check-only
+	./scripts/build-macos.sh --debug --check-only --version "$(VERSION)"
 
 test:
-	./scripts/build-macos.sh --debug --check-only
+	./scripts/build-macos.sh --debug --check-only --version "$(VERSION)"
 	/usr/bin/file "target/debug/bundle/macos/$(APP_NAME).app/Contents/MacOS/$(APP_NAME)" | grep -q "arm64"
 
 logs:

@@ -145,7 +145,12 @@ final class AppModel: ObservableObject {
         liveWPM = 0
         liveDurationSeconds = 0
         streamingInjector.reset()
-        streamingEnabledForRecording = config.outputMode != .clipboard && AXIsProcessTrusted()
+        streamingEnabledForRecording = OutputModeResolver.shouldStreamPartials(
+            configuredMode: config.outputMode,
+            capturedBundleID: frontmostApp?.bundleIdentifier,
+            clipboardOnlyBundleIDs: config.clipboardOnlyAppBundleIDs,
+            accessibilityTrusted: AXIsProcessTrusted()
+        )
 
         do {
             setStatus(.recording)
@@ -362,7 +367,7 @@ final class AppModel: ObservableObject {
             accessibilityTrusted: AXIsProcessTrusted()
         )
 
-        if streamingInjector.isActive {
+        if streamingInjector.isActive, effectiveOutputMode != .clipboard {
             if snapshot.outputMode == .typeAndClipboard {
                 TextOutput.copyToClipboard(text)
             }

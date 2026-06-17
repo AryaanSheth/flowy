@@ -34,11 +34,11 @@ jobs:
         env:
           FLOWY_SPARKLE_PUBLIC_ED_KEY: ${{ vars.FLOWY_SPARKLE_PUBLIC_ED_KEY }}
         run: |
-          if [[ -n "${FLOWY_SPARKLE_PUBLIC_ED_KEY:-}" ]]; then
-            scripts/install-sparkle.sh
-          else
-            echo "FLOWY_SPARKLE_PUBLIC_ED_KEY is not configured; building without Sparkle auto-update"
+          if [[ -z "${FLOWY_SPARKLE_PUBLIC_ED_KEY:-}" ]]; then
+            echo "FLOWY_SPARKLE_PUBLIC_ED_KEY is required for release builds" >&2
+            exit 1
           fi
+          scripts/install-sparkle.sh
 
       - name: Build app
         env:
@@ -76,11 +76,47 @@ jobs:
         env:
           FLOWY_SPARKLE_PRIVATE_ED_KEY: ${{ secrets.FLOWY_SPARKLE_PRIVATE_ED_KEY }}
         run: |
-          if [[ -n "${FLOWY_SPARKLE_PRIVATE_ED_KEY:-}" ]]; then
-            scripts/generate-appcast.sh "${{ steps.ver.outputs.version }}" "target/release/Flowy-${{ steps.ver.outputs.version }}.dmg"
-          else
-            echo "FLOWY_SPARKLE_PRIVATE_ED_KEY is not configured; skipping appcast generation"
+          if [[ -z "${FLOWY_SPARKLE_PRIVATE_ED_KEY:-}" ]]; then
+            echo "FLOWY_SPARKLE_PRIVATE_ED_KEY is required for release builds" >&2
+            exit 1
           fi
+          scripts/generate-appcast.sh "${{ steps.ver.outputs.version }}" "target/release/Flowy-${{ steps.ver.outputs.version }}.dmg"
+
+      - name: Verify Sparkle appcast
+        run: |
+          VERSION="${{ steps.ver.outputs.version }}"
+          APPCAST="target/release/appcast.xml"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$VERSION"
+          EXPECTED_BUILD="$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))"
+          EXPECTED_DMG_URL="https://github.com/AryaanSheth/flowy/releases/download/v${VERSION}/Flowy-${VERSION}.dmg"
+
+          if [[ ! -f "$APPCAST" ]]; then
+            echo "Appcast not found: $APPCAST" >&2
+            exit 1
+          fi
+
+          xmllint --noout "$APPCAST"
+
+          grep -Fq "<sparkle:shortVersionString>${VERSION}</sparkle:shortVersionString>" "$APPCAST" || {
+            echo "Appcast short version does not match $VERSION" >&2
+            exit 1
+          }
+          grep -Fq "<sparkle:version>${EXPECTED_BUILD}</sparkle:version>" "$APPCAST" || {
+            echo "Appcast build version does not match $EXPECTED_BUILD" >&2
+            exit 1
+          }
+          grep -Fq "url=\"${EXPECTED_DMG_URL}\"" "$APPCAST" || {
+            echo "Appcast enclosure URL does not match $EXPECTED_DMG_URL" >&2
+            exit 1
+          }
+          grep -Fq 'sparkle:edSignature="' "$APPCAST" || {
+            echo "Appcast enclosure is missing sparkle:edSignature" >&2
+            exit 1
+          }
+          grep -Fq 'length="' "$APPCAST" || {
+            echo "Appcast enclosure is missing length" >&2
+            exit 1
+          }
 
       - name: Create GitHub Release
         env:

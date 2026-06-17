@@ -12,6 +12,8 @@ jobs:
   macos:
     name: macOS Build & Tests
     runs-on: macos-15
+    env:
+      FLOWY_CI_VERSION: 1.2.3
 
     steps:
       - name: Checkout
@@ -21,23 +23,23 @@ jobs:
         run: sudo xcode-select -s /Applications/Xcode.app
 
       - name: Build app bundle
-        env:
-          FLOWY_VERSION: 1.2.3
-        run: scripts/build-macos.sh --debug --check-only
+        run: scripts/build-macos.sh --debug --check-only --version "$FLOWY_CI_VERSION"
 
       - name: Verify app version override
         run: |
           PLIST="target/debug/bundle/macos/Flowy.app/Contents/Info.plist"
           SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
           BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$FLOWY_CI_VERSION"
+          EXPECTED_BUILD="$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))"
 
-          if [[ "$SHORT_VERSION" != "1.2.3" ]]; then
-            echo "CFBundleShortVersionString mismatch: expected 1.2.3, got $SHORT_VERSION" >&2
+          if [[ "$SHORT_VERSION" != "$FLOWY_CI_VERSION" ]]; then
+            echo "CFBundleShortVersionString mismatch: expected $FLOWY_CI_VERSION, got $SHORT_VERSION" >&2
             exit 1
           fi
 
-          if [[ "$BUILD_VERSION" != "10203" ]]; then
-            echo "CFBundleVersion mismatch: expected 10203, got $BUILD_VERSION" >&2
+          if [[ "$BUILD_VERSION" != "$EXPECTED_BUILD" ]]; then
+            echo "CFBundleVersion mismatch: expected $EXPECTED_BUILD, got $BUILD_VERSION" >&2
             exit 1
           fi
 
@@ -45,32 +47,32 @@ jobs:
         run: swift test
 
       - name: Build release candidate app
-        env:
-          FLOWY_VERSION: 1.2.3
-        run: scripts/build-macos.sh --release --check-only --clean
+        run: scripts/build-macos.sh --release --check-only --clean --version "$FLOWY_CI_VERSION"
 
       - name: Package release candidate DMG
-        run: scripts/package-dmg.sh 1.2.3
+        run: scripts/package-dmg.sh "$FLOWY_CI_VERSION"
 
       - name: Verify release candidate metadata
         run: |
           PLIST="target/release/bundle/macos/Flowy.app/Contents/Info.plist"
           SHORT_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$PLIST")"
           BUILD_VERSION="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$PLIST")"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$FLOWY_CI_VERSION"
+          EXPECTED_BUILD="$((10#$MAJOR * 10000 + 10#$MINOR * 100 + 10#$PATCH))"
 
-          if [[ "$SHORT_VERSION" != "1.2.3" ]]; then
-            echo "CFBundleShortVersionString mismatch: expected 1.2.3, got $SHORT_VERSION" >&2
+          if [[ "$SHORT_VERSION" != "$FLOWY_CI_VERSION" ]]; then
+            echo "CFBundleShortVersionString mismatch: expected $FLOWY_CI_VERSION, got $SHORT_VERSION" >&2
             exit 1
           fi
 
-          if [[ "$BUILD_VERSION" != "10203" ]]; then
-            echo "CFBundleVersion mismatch: expected 10203, got $BUILD_VERSION" >&2
+          if [[ "$BUILD_VERSION" != "$EXPECTED_BUILD" ]]; then
+            echo "CFBundleVersion mismatch: expected $EXPECTED_BUILD, got $BUILD_VERSION" >&2
             exit 1
           fi
 
       - name: Verify release candidate DMG contents
         run: |
-          DMG="target/release/Flowy-1.2.3.dmg"
+          DMG="target/release/Flowy-${FLOWY_CI_VERSION}.dmg"
           if [[ ! -f "$DMG" ]]; then
             echo "DMG not found: $DMG" >&2
             exit 1
@@ -96,5 +98,5 @@ jobs:
       - name: Upload release candidate DMG
         uses: actions/upload-artifact@v4
         with:
-          name: Flowy-1.2.3-dmg
-          path: target/release/Flowy-1.2.3.dmg
+          name: Flowy-${{ env.FLOWY_CI_VERSION }}-dmg
+          path: target/release/Flowy-${{ env.FLOWY_CI_VERSION }}.dmg

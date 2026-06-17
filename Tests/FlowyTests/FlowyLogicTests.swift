@@ -113,6 +113,35 @@ final class FlowyLogicTests: XCTestCase {
         )
     }
 
+    func testStreamingPartialsFollowEffectiveOutputMode() {
+        XCTAssertTrue(
+            OutputModeResolver.shouldStreamPartials(
+                configuredMode: .typeAndClipboard,
+                capturedBundleID: "com.example.Editor",
+                clipboardOnlyBundleIDs: [],
+                accessibilityTrusted: true
+            )
+        )
+
+        XCTAssertFalse(
+            OutputModeResolver.shouldStreamPartials(
+                configuredMode: .typeAndClipboard,
+                capturedBundleID: "com.example.Notes",
+                clipboardOnlyBundleIDs: ["com.example.Notes"],
+                accessibilityTrusted: true
+            )
+        )
+
+        XCTAssertFalse(
+            OutputModeResolver.shouldStreamPartials(
+                configuredMode: .type,
+                capturedBundleID: "com.example.Editor",
+                clipboardOnlyBundleIDs: [],
+                accessibilityTrusted: false
+            )
+        )
+    }
+
     func testStreamingPlannerTreatsLargeRecognizerResetAsAppendOnlyContinuation() {
         let committed = "This is a long dictated paragraph with enough words to be well past the rollback threshold. It should never be deleted just because recognition restarts."
         let resetPartial = "recognition restarts and then continues with the next sentence"

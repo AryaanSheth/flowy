@@ -74,6 +74,20 @@ enum OutputModeResolver {
 
         return configuredMode
     }
+
+    static func shouldStreamPartials(
+        configuredMode: OutputMode,
+        capturedBundleID: String?,
+        clipboardOnlyBundleIDs: [String],
+        accessibilityTrusted: Bool
+    ) -> Bool {
+        effectiveMode(
+            configuredMode: configuredMode,
+            capturedBundleID: capturedBundleID,
+            clipboardOnlyBundleIDs: clipboardOnlyBundleIDs,
+            accessibilityTrusted: accessibilityTrusted
+        ) != .clipboard
+    }
 }
 
 enum HotkeyMode: String, Codable, CaseIterable, Identifiable {
