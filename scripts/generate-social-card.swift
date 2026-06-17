@@ -13,13 +13,12 @@ let scale: CGFloat = 1
 let image = NSImage(size: NSSize(width: width, height: height))
 image.lockFocus()
 
-let blue = NSColor(calibratedRed: 0.08, green: 0.53, blue: 0.92, alpha: 1)
-let deepBlue = NSColor(calibratedRed: 0.02, green: 0.30, blue: 0.72, alpha: 1)
+let blue = NSColor(calibratedRed: 0x17 / 255.0, green: 0xae / 255.0, blue: 0xab / 255.0, alpha: 1)
 let white = NSColor(calibratedWhite: 1, alpha: 1)
 let softWhite = NSColor(calibratedWhite: 1, alpha: 0.82)
 
-let backgroundGradient = NSGradient(colors: [blue, deepBlue])!
-backgroundGradient.draw(in: NSRect(x: 0, y: 0, width: width, height: height), angle: -18)
+blue.setFill()
+NSRect(x: 0, y: 0, width: width, height: height).fill()
 
 func drawText(_ text: String, x: CGFloat, yFromTop: CGFloat, width: CGFloat, font: NSFont, color: NSColor, lineHeight: CGFloat? = nil) {
     let paragraph = NSMutableParagraphStyle()
