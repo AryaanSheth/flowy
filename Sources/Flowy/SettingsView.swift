@@ -80,6 +80,7 @@ struct SettingsView: View {
     @State private var hoveredTab: Tab?   = nil
     @State private var hoveredHistory: Int? = nil
     @State private var autosaveTask: Task<Void, Never>? = nil
+    @StateObject private var ollamaManager = OllamaManager()
 
     private let permissionTimer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
 
@@ -106,7 +107,11 @@ struct SettingsView: View {
             }
         }
         .environment(\.colorScheme, .dark)
-        .onAppear { refreshDevices(); model.refreshPermissions() }
+        .onAppear {
+            refreshDevices()
+            model.refreshPermissions()
+            Task { await ollamaManager.checkStatus(endpoint: draft.ollamaEndpoint) }
+        }
         .onReceive(permissionTimer) { _ in model.refreshPermissions() }
         .onChange(of: draft)    { _ in scheduleAutosave() }
         .onChange(of: dictRows) { _ in scheduleAutosave() }
@@ -206,6 +211,7 @@ struct SettingsView: View {
                 case .record:     recordTab
                 case .dictionary: dictionaryTab
                 case .history:    historyTab
+                case .ai:         aiTab
                 case .system:     systemTab
                 }
             }
@@ -253,7 +259,7 @@ struct SettingsView: View {
                     onRelease: model.stopRecording
                 )
                 .frame(maxWidth: .infinity, minHeight: 34)
-                Text("Hold to record · text appears live")
+                Text(draft.liveStreamingEnabled ? "Hold to record · text appears live" : "Hold to record · final text appears on release")
                     .font(.system(size: 11))
                     .foregroundStyle(G.faint)
             }
@@ -334,6 +340,18 @@ struct SettingsView: View {
                 row("Auto-stop on silence") {
                     Toggle("", isOn: $draft.vadEnabled).labelsHidden().tint(G.teal)
                 }
+
+                Divider().padding(.horizontal, 14)
+
+                row("Live text streaming") {
+                    Toggle("", isOn: $draft.liveStreamingEnabled).labelsHidden().tint(G.teal)
+                }
+
+                Text("Insert partial words while recording. Off is safer; on feels faster.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(G.faint)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
 
                 Divider().padding(.horizontal, 14)
 
@@ -486,18 +504,124 @@ struct SettingsView: View {
         }
     }
 
+    private var aiTab: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            tabTitle("AI")
+
+            glassCard {
+                row("Polish with local model") {
+                    Toggle("", isOn: $draft.ollamaEnabled).labelsHidden().tint(G.teal)
+                }
+
+                Text("Runs a local Ollama model after transcription and falls back to the original text if polish fails.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(G.faint)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 10)
+
+                Divider().padding(.horizontal, 14)
+
+                row("Ollama") {
+                    HStack(spacing: 8) {
+                        Circle()
+                            .fill(ollamaStatusColor)
+                            .frame(width: 6, height: 6)
+                        Text(ollamaStatusLabel)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(G.dim)
+                        Button { Task { await ollamaManager.checkStatus(endpoint: draft.ollamaEndpoint) } } label: {
+                            Image(systemName: "arrow.clockwise").font(.system(size: 10))
+                        }
+                        .buttonStyle(NudgeBtn())
+                        ollamaStatusAction
+                    }
+                }
+
+                if !ollamaManager.installMessage.isEmpty {
+                    Text(ollamaManager.installMessage)
+                        .font(.system(size: 10))
+                        .foregroundStyle(G.warn)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 10)
+                }
+
+                Divider().padding(.horizontal, 14)
+
+                row("Endpoint") {
+                    TextField("http://localhost:11434", text: $draft.ollamaEndpoint)
+                        .textFieldStyle(GlassField())
+                        .frame(width: 220)
+                }
+
+                Divider().padding(.horizontal, 14)
+
+                row("Model") {
+                    Picker("", selection: $draft.ollamaModel) {
+                        Text(draft.ollamaModel).tag(draft.ollamaModel)
+                        ForEach(ollamaManager.installedModels, id: \.self) { model in
+                            Text(model).tag(model)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 220)
+                }
+
+                Divider().padding(.horizontal, 14)
+
+                row("Tone") {
+                    Picker("", selection: activeToneBinding) {
+                        Text("Custom prompt").tag("")
+                        ForEach(TonePreset.builtIns) { tone in
+                            Text(tone.name).tag(tone.id)
+                        }
+                        ForEach(draft.customTones) { tone in
+                            Text(tone.name).tag(tone.id)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 220)
+                }
+
+                Divider().padding(.horizontal, 14)
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Custom prompt")
+                        .font(.system(size: 13))
+                        .foregroundStyle(G.text)
+                    TextEditor(text: $draft.ollamaPrompt)
+                        .font(.system(size: 11))
+                        .foregroundStyle(G.text)
+                        .scrollContentBackground(.hidden)
+                        .frame(minHeight: 88)
+                        .padding(8)
+                        .background(G.fill, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .overlay(RoundedRectangle(cornerRadius: 6, style: .continuous)
+                            .strokeBorder(G.border, lineWidth: 1))
+                    Text("Used when Tone is Custom prompt. Raw bypasses model polish.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(G.faint)
+                }
+                .padding(.vertical, 10)
+                .padding(.horizontal, 14)
+            }
+
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Recommended models")
+                    .font(.system(size: 11))
+                    .foregroundStyle(G.faint)
+                ForEach(OllamaManager.recommendedModels) { model in
+                    recommendedModelRow(model)
+                }
+            }
+        }
+    }
+
     private var systemTab: some View {
         VStack(alignment: .leading, spacing: 0) {
             tabTitle("System")
             glassCard {
                 row("Launch at login") {
                     Toggle("", isOn: $draft.autostart).labelsHidden().tint(G.teal)
-                }
-
-                Divider().padding(.horizontal, 14)
-
-                row("Experimental AI") {
-                    Toggle("", isOn: $draft.experimentalFeaturesEnabled).labelsHidden().tint(G.teal)
                 }
 
                 Divider().padding(.horizontal, 14)
@@ -630,6 +754,104 @@ struct SettingsView: View {
         .padding(.horizontal, 14)
     }
 
+    private var ollamaStatusLabel: String {
+        switch ollamaManager.installStatus {
+        case .checking:     "checking"
+        case .notInstalled: "not installed"
+        case .stopped:      "stopped"
+        case .running:      "running"
+        case .installing:   "installing"
+        }
+    }
+
+    private var ollamaStatusColor: Color {
+        switch ollamaManager.installStatus {
+        case .running:      G.teal
+        case .installing,
+             .checking:     G.warn
+        case .notInstalled,
+             .stopped:      G.danger.opacity(0.8)
+        }
+    }
+
+    @ViewBuilder
+    private var ollamaStatusAction: some View {
+        switch ollamaManager.installStatus {
+        case .notInstalled:
+            Button("Install") {
+                Task { await ollamaManager.installOllama() }
+            }
+            .buttonStyle(NudgeBtn())
+        case .stopped:
+            Button("Start") {
+                ollamaManager.startServer(endpoint: draft.ollamaEndpoint)
+            }
+            .buttonStyle(NudgeBtn())
+        default:
+            EmptyView()
+        }
+    }
+
+    private func recommendedModelRow(_ model: RecommendedModel) -> some View {
+        let state = ollamaManager.pullStates[model.name]
+        let installed = ollamaManager.isInstalled(model.name)
+
+        return HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(model.label)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(G.text)
+                    Text(model.sizeLabel)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(G.faint)
+                }
+                Text(model.tagline)
+                    .font(.system(size: 10))
+                    .foregroundStyle(G.dim)
+                if let state {
+                    Text(modelPullLabel(state))
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(state.error == nil ? G.faint : G.danger)
+                }
+            }
+
+            Spacer()
+
+            if installed {
+                Button(draft.ollamaModel == model.name ? "Selected" : "Use") {
+                    draft.ollamaModel = model.name
+                }
+                .buttonStyle(NudgeBtn())
+                .disabled(draft.ollamaModel == model.name)
+            } else if state != nil {
+                Button("Cancel") {
+                    ollamaManager.cancelPull(model.name)
+                }
+                .buttonStyle(NudgeBtn())
+            } else {
+                Button("Pull") {
+                    ollamaManager.pullModel(model.name, endpoint: draft.ollamaEndpoint)
+                }
+                .buttonStyle(NudgeBtn())
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .background(G.fill, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .strokeBorder(G.border, lineWidth: 1))
+    }
+
+    private func modelPullLabel(_ state: ModelPullState) -> String {
+        if let error = state.error { return error }
+        if state.done { return "installed" }
+        if let progress = state.progress {
+            return "\(Int((progress * 100).rounded()))%"
+        }
+        return "starting"
+    }
+
     private func permRow(_ title: String, ok: Bool) -> some View {
         HStack {
             Circle().fill(ok ? G.teal : G.danger.opacity(0.8)).frame(width: 5, height: 5)
@@ -688,6 +910,11 @@ struct SettingsView: View {
                 set: { draft.recognitionLocaleIdentifier = $0.isEmpty ? nil : $0 })
     }
 
+    private var activeToneBinding: Binding<String> {
+        Binding(get: { draft.activeToneID ?? "" },
+                set: { draft.activeToneID = $0.isEmpty ? nil : $0 })
+    }
+
     private var disabledAppsBinding: Binding<String> {
         Binding(get: { draft.disabledAppBundleIDs.joined(separator: ", ") },
                 set: { draft.disabledAppBundleIDs = Self.bundleIDs(from: $0) })
@@ -722,7 +949,6 @@ struct SettingsView: View {
     private func saveDraft() {
         var c = draft
         c.dictionary = collectedDict()
-        c.outputMode = .typeAndClipboard
         do {
             try model.saveConfig(c)
             saveMsg = ""
@@ -776,7 +1002,7 @@ struct SettingsView: View {
 
 // MARK: – Tab enum
 private enum Tab: String, CaseIterable, Identifiable {
-    case record, dictionary, history, system
+    case record, dictionary, history, ai, system
     var id: String { rawValue }
 
     var label: String {
@@ -784,6 +1010,7 @@ private enum Tab: String, CaseIterable, Identifiable {
         case .record:     "Record"
         case .dictionary: "Dictionary"
         case .history:    "History"
+        case .ai:         "AI"
         case .system:     "System"
         }
     }
@@ -793,6 +1020,7 @@ private enum Tab: String, CaseIterable, Identifiable {
         case .record:     "waveform"
         case .dictionary: "book"
         case .history:    "clock.arrow.circlepath"
+        case .ai:         "sparkles"
         case .system:     "gearshape"
         }
     }

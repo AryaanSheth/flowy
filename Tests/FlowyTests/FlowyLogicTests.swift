@@ -46,6 +46,7 @@ final class FlowyLogicTests: XCTestCase {
         XCTAssertEqual(decoded.hotkeyMode, .hold)
         XCTAssertNil(decoded.recognitionLocaleIdentifier)
         XCTAssertFalse(decoded.experimentalFeaturesEnabled)
+        XCTAssertFalse(decoded.liveStreamingEnabled)
 
         let migrated = decoded.sanitized()
         XCTAssertEqual(migrated.schemaVersion, AppConfig.currentSchemaVersion)
@@ -116,6 +117,7 @@ final class FlowyLogicTests: XCTestCase {
     func testStreamingPartialsFollowEffectiveOutputMode() {
         XCTAssertTrue(
             OutputModeResolver.shouldStreamPartials(
+                liveStreamingEnabled: true,
                 configuredMode: .typeAndClipboard,
                 capturedBundleID: "com.example.Editor",
                 clipboardOnlyBundleIDs: [],
@@ -125,6 +127,17 @@ final class FlowyLogicTests: XCTestCase {
 
         XCTAssertFalse(
             OutputModeResolver.shouldStreamPartials(
+                liveStreamingEnabled: false,
+                configuredMode: .typeAndClipboard,
+                capturedBundleID: "com.example.Editor",
+                clipboardOnlyBundleIDs: [],
+                accessibilityTrusted: true
+            )
+        )
+
+        XCTAssertFalse(
+            OutputModeResolver.shouldStreamPartials(
+                liveStreamingEnabled: true,
                 configuredMode: .typeAndClipboard,
                 capturedBundleID: "com.example.Notes",
                 clipboardOnlyBundleIDs: ["com.example.Notes"],
@@ -134,10 +147,51 @@ final class FlowyLogicTests: XCTestCase {
 
         XCTAssertFalse(
             OutputModeResolver.shouldStreamPartials(
+                liveStreamingEnabled: true,
                 configuredMode: .type,
                 capturedBundleID: "com.example.Editor",
                 clipboardOnlyBundleIDs: [],
                 accessibilityTrusted: false
+            )
+        )
+    }
+
+    func testLocalPolishPromptResolutionUsesOllamaWithoutExperimentalGate() {
+        XCTAssertEqual(
+            LocalPolishResolver.prompt(
+                ollamaEnabled: true,
+                activeToneID: "clean",
+                customTones: [],
+                fallbackPrompt: "fallback"
+            ),
+            TonePreset.builtIns.first { $0.id == "clean" }?.prompt
+        )
+
+        XCTAssertNil(
+            LocalPolishResolver.prompt(
+                ollamaEnabled: true,
+                activeToneID: "raw",
+                customTones: [],
+                fallbackPrompt: "fallback"
+            )
+        )
+
+        XCTAssertEqual(
+            LocalPolishResolver.prompt(
+                ollamaEnabled: true,
+                activeToneID: nil,
+                customTones: [],
+                fallbackPrompt: "fallback"
+            ),
+            "fallback"
+        )
+
+        XCTAssertNil(
+            LocalPolishResolver.prompt(
+                ollamaEnabled: false,
+                activeToneID: "clean",
+                customTones: [],
+                fallbackPrompt: "fallback"
             )
         )
     }

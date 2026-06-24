@@ -76,17 +76,37 @@ enum OutputModeResolver {
     }
 
     static func shouldStreamPartials(
+        liveStreamingEnabled: Bool,
         configuredMode: OutputMode,
         capturedBundleID: String?,
         clipboardOnlyBundleIDs: [String],
         accessibilityTrusted: Bool
     ) -> Bool {
-        effectiveMode(
+        guard liveStreamingEnabled else { return false }
+
+        return effectiveMode(
             configuredMode: configuredMode,
             capturedBundleID: capturedBundleID,
             clipboardOnlyBundleIDs: clipboardOnlyBundleIDs,
             accessibilityTrusted: accessibilityTrusted
         ) != .clipboard
+    }
+}
+
+enum LocalPolishResolver {
+    static func prompt(
+        ollamaEnabled: Bool,
+        activeToneID: String?,
+        customTones: [TonePreset],
+        fallbackPrompt: String
+    ) -> String? {
+        guard ollamaEnabled else { return nil }
+
+        let allTones = TonePreset.builtIns + customTones
+        let rawPrompt = activeToneID.flatMap { id in allTones.first { $0.id == id }?.prompt }
+        let prompt = rawPrompt ?? fallbackPrompt
+        let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 }
 

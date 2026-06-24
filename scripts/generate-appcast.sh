@@ -40,6 +40,14 @@ DMG_NAME="$(basename "$DMG_PATH")"
 DMG_URL="$RELEASE_BASE_URL/$DMG_NAME"
 RELEASE_URL="https://github.com/AryaanSheth/flowy/releases/tag/v$VERSION"
 case "$VERSION" in
+  1.1.0)
+    NOTES_LEAD="v1.1.0 adds optional live streaming and first-class local AI polish with Ollama."
+    NOTES_ITEMS='
+            <li><strong>Safer streaming:</strong> Live partial insertion is now optional and off by default, while final text delivery remains the safe default.</li>
+            <li><strong>Local AI polish:</strong> Adds a dedicated AI tab for Ollama status, endpoint, model selection, tone presets, custom prompts, and recommended model pulls.</li>
+            <li><strong>Local-first:</strong> Apple Speech still performs dictation locally, and model polish uses only the configured local Ollama endpoint.</li>
+            <li><strong>Settings fix:</strong> Saving preferences no longer silently resets output mode.</li>'
+    ;;
   1.0.0)
     NOTES_LEAD="v1.0.0 is Flowy's first stable release, focused on reliable local dictation and a hardened unsigned release path."
     NOTES_ITEMS='

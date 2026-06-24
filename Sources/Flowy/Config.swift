@@ -1,7 +1,7 @@
 import Foundation
 
 struct AppConfig: Codable, Equatable {
-    static let currentSchemaVersion = 2
+    static let currentSchemaVersion = 3
 
     var schemaVersion: Int
     var hotkey: String
@@ -11,6 +11,7 @@ struct AppConfig: Codable, Equatable {
     var inputDevice: String?
     var recognitionLocaleIdentifier: String?
     var outputMode: OutputMode
+    var liveStreamingEnabled: Bool
     var disabledAppBundleIDs: [String]
     var clipboardOnlyAppBundleIDs: [String]
     var avoidSecureTextFields: Bool
@@ -40,6 +41,7 @@ struct AppConfig: Codable, Equatable {
         inputDevice: String? = nil,
         recognitionLocaleIdentifier: String? = nil,
         outputMode: OutputMode = .typeAndClipboard,
+        liveStreamingEnabled: Bool = false,
         disabledAppBundleIDs: [String] = [],
         clipboardOnlyAppBundleIDs: [String] = [],
         avoidSecureTextFields: Bool = true,
@@ -68,6 +70,7 @@ struct AppConfig: Codable, Equatable {
         self.inputDevice = inputDevice
         self.recognitionLocaleIdentifier = recognitionLocaleIdentifier
         self.outputMode = outputMode
+        self.liveStreamingEnabled = liveStreamingEnabled
         self.disabledAppBundleIDs = disabledAppBundleIDs
         self.clipboardOnlyAppBundleIDs = clipboardOnlyAppBundleIDs
         self.avoidSecureTextFields = avoidSecureTextFields
@@ -98,6 +101,7 @@ struct AppConfig: Codable, Equatable {
         case inputDevice
         case recognitionLocaleIdentifier
         case outputMode
+        case liveStreamingEnabled
         case disabledAppBundleIDs
         case clipboardOnlyAppBundleIDs
         case avoidSecureTextFields
@@ -129,6 +133,7 @@ struct AppConfig: Codable, Equatable {
         inputDevice = try c.decodeIfPresent(String.self, forKey: .inputDevice)
         recognitionLocaleIdentifier = try c.decodeIfPresent(String.self, forKey: .recognitionLocaleIdentifier)
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .typeAndClipboard
+        liveStreamingEnabled = try c.decodeIfPresent(Bool.self, forKey: .liveStreamingEnabled) ?? false
         disabledAppBundleIDs = try c.decodeIfPresent([String].self, forKey: .disabledAppBundleIDs) ?? []
         clipboardOnlyAppBundleIDs = try c.decodeIfPresent([String].self, forKey: .clipboardOnlyAppBundleIDs) ?? []
         avoidSecureTextFields = try c.decodeIfPresent(Bool.self, forKey: .avoidSecureTextFields) ?? true

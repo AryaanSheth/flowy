@@ -24,7 +24,7 @@ Fully offline. No telemetry. No account. No subscription.
 | Feature | Detail |
 |---|---|
 | **Local only** | Uses macOS on-device Speech Recognition — no API keys, no cloud |
-| **Live push-to-talk** | Hold a global hotkey while speaking; text streams into the focused window from partial recognition results |
+| **Push-to-talk** | Hold a global hotkey while speaking; final text inserts on release, with optional live streaming |
 | **Voice punctuation** | Say "period", "comma", "new line", "new paragraph", and related commands to insert punctuation and line breaks |
 | **Guided onboarding** | First-launch wizard walks through all required permissions |
 | **Autosave settings** | Changes save automatically — no Save button |
@@ -125,8 +125,8 @@ Global hotkey (Carbon RegisterEventHotKey)
        │
    dictionary substitution + spoken punctuation
        │
-   StreamingInjector partial reconciliation ──► focused app
-   (fallback: NSPasteboard)
+   optional StreamingInjector partial reconciliation ──► focused app
+   (fallback / default: final NSPasteboard delivery)
        │
    final pass: amendments / optional local rewrite / translation
        │

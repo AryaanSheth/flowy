@@ -146,6 +146,7 @@ final class AppModel: ObservableObject {
         liveDurationSeconds = 0
         streamingInjector.reset()
         streamingEnabledForRecording = OutputModeResolver.shouldStreamPartials(
+            liveStreamingEnabled: config.liveStreamingEnabled,
             configuredMode: config.outputMode,
             capturedBundleID: frontmostApp?.bundleIdentifier,
             clipboardOnlyBundleIDs: config.clipboardOnlyAppBundleIDs,
@@ -307,16 +308,12 @@ final class AppModel: ObservableObject {
         // An empty prompt (Raw tone) means skip Ollama entirely.
         let allTones = TonePreset.builtIns + snapshot.customTones
         let activeTone = snapshot.activeToneID.flatMap { id in allTones.first { $0.id == id } }
-        let effectivePrompt: String?
-        if !snapshot.experimentalFeaturesEnabled {
-            effectivePrompt = nil
-        } else if let tone = activeTone {
-            effectivePrompt = tone.prompt.isEmpty ? nil : tone.prompt
-        } else if snapshot.ollamaEnabled {
-            effectivePrompt = snapshot.ollamaPrompt
-        } else {
-            effectivePrompt = nil
-        }
+        let effectivePrompt = LocalPolishResolver.prompt(
+            ollamaEnabled: snapshot.ollamaEnabled,
+            activeToneID: snapshot.activeToneID,
+            customTones: snapshot.customTones,
+            fallbackPrompt: snapshot.ollamaPrompt
+        )
 
         if effectivePrompt == nil {
             text = AmendmentRewriter.apply(text)

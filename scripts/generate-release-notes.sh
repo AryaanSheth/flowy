@@ -20,6 +20,14 @@ VERSION="$1"
 OUT="${2:-target/release/release-notes.html}"
 
 case "$VERSION" in
+  1.1.0)
+    LEAD="$APP_NAME $VERSION adds optional live streaming and first-class local AI polish with Ollama."
+    ITEMS='
+        <li>Makes live text streaming optional and off by default for safer final-text delivery.</li>
+        <li>Adds a dedicated AI settings tab for local Ollama polish, model selection, tone presets, and recommended model pulls.</li>
+        <li>Keeps transcripts local: Apple Speech handles dictation and Ollama polish runs only against the configured local endpoint.</li>
+        <li>Fixes settings persistence so output mode is no longer silently reset while saving other preferences.</li>'
+    ;;
   1.0.0)
     LEAD="$APP_NAME $VERSION is the first stable release, with hardened release automation and safer dictation delivery paths."
     ITEMS='
