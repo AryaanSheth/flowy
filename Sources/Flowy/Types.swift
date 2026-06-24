@@ -94,6 +94,10 @@ enum OutputModeResolver {
 }
 
 enum LocalPolishResolver {
+    static let maxBlockingSeconds: TimeInterval = 1.2
+    static let requestTimeoutSeconds: TimeInterval = 1.5
+    static let warmUpTimeoutSeconds: TimeInterval = 1.0
+
     static func prompt(
         ollamaEnabled: Bool,
         activeToneID: String?,
@@ -107,6 +111,17 @@ enum LocalPolishResolver {
         let prompt = rawPrompt ?? fallbackPrompt
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? nil : trimmed
+    }
+}
+
+enum OllamaGenerationPolicy {
+    static let warmUpMaxResponseTokens = 1
+
+    static func maxResponseTokens(for text: String) -> Int {
+        let words = text.unicodeScalars.split { scalar in
+            !CharacterSet.alphanumerics.contains(scalar)
+        }.count
+        return min(256, max(48, words * 2 + 24))
     }
 }
 

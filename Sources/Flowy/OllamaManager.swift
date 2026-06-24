@@ -44,15 +44,15 @@ final class OllamaManager: ObservableObject {
 
     private var pullTasks: [String: Task<Void, Never>] = [:]
 
-    static let binaryPaths = [
+    nonisolated static let binaryPaths = [
         "/opt/homebrew/bin/ollama",
         "/usr/local/bin/ollama",
         "/usr/bin/ollama",
     ]
 
-    static let recommendedModels: [RecommendedModel] = [
-        .init(id: "gemma3:1b",       name: "gemma3:1b",       label: "Gemma 3 1B",    tagline: "Fastest",      sizeMB: 815),
-        .init(id: "llama3.2:3b",     name: "llama3.2:3b",     label: "Llama 3.2 3B",  tagline: "Recommended",  sizeMB: 2000),
+    nonisolated static let recommendedModels: [RecommendedModel] = [
+        .init(id: "gemma3:1b",       name: "gemma3:1b",       label: "Gemma 3 1B",    tagline: "Recommended",  sizeMB: 815),
+        .init(id: "llama3.2:3b",     name: "llama3.2:3b",     label: "Llama 3.2 3B",  tagline: "Better quality", sizeMB: 2000),
         .init(id: "phi4-mini:3.8b",  name: "phi4-mini:3.8b",  label: "Phi 4 Mini",    tagline: "Balanced",     sizeMB: 2500),
         .init(id: "mistral:7b",      name: "mistral:7b",       label: "Mistral 7B",   tagline: "Best quality", sizeMB: 4100),
     ]

@@ -372,7 +372,7 @@ struct SettingsView: View {
                             Text(String(format: "%.1f s", draft.vadSilenceSeconds))
                                 .font(.system(size: 12)).foregroundStyle(G.text)
                                 .frame(width: 36, alignment: .trailing)
-                            Stepper("", value: $draft.vadSilenceSeconds, in: 0.5...5.0, step: 0.5)
+                            Stepper("", value: $draft.vadSilenceSeconds, in: 0.5...5.0, step: 0.1)
                                 .labelsHidden()
                         }
                     }

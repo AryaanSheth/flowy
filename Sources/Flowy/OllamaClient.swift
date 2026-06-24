@@ -21,10 +21,26 @@ enum OllamaClient {
         let system: String
         let stream: Bool
         let options: Options
+        let keepAlive: String
+
+        enum CodingKeys: String, CodingKey {
+            case model
+            case prompt
+            case system
+            case stream
+            case options
+            case keepAlive = "keep_alive"
+        }
     }
 
     private struct Options: Encodable {
         let temperature: Double
+        let numPredict: Int
+
+        enum CodingKeys: String, CodingKey {
+            case temperature
+            case numPredict = "num_predict"
+        }
     }
 
     private struct GenerateResponse: Decodable {
@@ -39,28 +55,70 @@ enum OllamaClient {
         let name: String
     }
 
-    static func enhance(endpoint: String, model: String, system: String, text: String) async throws -> String {
+    static func enhance(
+        endpoint: String,
+        model: String,
+        system: String,
+        text: String,
+        timeoutSeconds: TimeInterval = LocalPolishResolver.requestTimeoutSeconds
+    ) async throws -> String {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return "" }
 
         let url = try apiURL(endpoint: endpoint, path: "/api/generate")
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
-        request.timeoutInterval = 6
+        request.timeoutInterval = timeoutSeconds
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(GenerateRequest(
             model: model,
             prompt: "Input: \(trimmed)\nOutput:",
             system: system,
             stream: false,
-            options: Options(temperature: 0.1)
+            options: Options(
+                temperature: 0.1,
+                numPredict: OllamaGenerationPolicy.maxResponseTokens(for: trimmed)
+            ),
+            keepAlive: "10m"
         ))
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await withTimeout(seconds: timeoutSeconds) {
+            try await URLSession.shared.data(for: request)
+        }
         try validate(response: response, data: data)
         return try JSONDecoder().decode(GenerateResponse.self, from: data)
             .response
             .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    static func warmUp(endpoint: String, model: String) async {
+        do {
+            let url = try apiURL(endpoint: endpoint, path: "/api/generate")
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.timeoutInterval = LocalPolishResolver.warmUpTimeoutSeconds
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+            request.httpBody = try JSONEncoder().encode(GenerateRequest(
+                model: model,
+                prompt: "ok",
+                system: "Reply with ok.",
+                stream: false,
+                options: Options(
+                    temperature: 0,
+                    numPredict: OllamaGenerationPolicy.warmUpMaxResponseTokens
+                ),
+                keepAlive: "10m"
+            ))
+
+            let (_, response) = try await withTimeout(seconds: LocalPolishResolver.warmUpTimeoutSeconds) {
+                try await URLSession.shared.data(for: request)
+            }
+            if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                FlowyLog.warn("Ollama warm-up returned HTTP \(http.statusCode)")
+            }
+        } catch {
+            FlowyLog.warn("Ollama warm-up skipped: \(error.localizedDescription)")
+        }
     }
 
     static func isReachable(endpoint: String) async -> Bool {
@@ -139,6 +197,26 @@ enum OllamaClient {
         guard (200..<300).contains(http.statusCode) else {
             let body = String(data: data, encoding: .utf8) ?? "HTTP \(http.statusCode)"
             throw FlowyError.message(body)
+        }
+    }
+
+    private static func withTimeout<T>(
+        seconds: TimeInterval,
+        operation: @escaping () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask {
+                try await operation()
+            }
+            group.addTask {
+                let nanoseconds = UInt64(max(0.1, seconds) * 1_000_000_000)
+                try await Task.sleep(nanoseconds: nanoseconds)
+                throw FlowyError.message("Timed out after \(String(format: "%.1f", seconds))s")
+            }
+
+            let result = try await group.next()!
+            group.cancelAll()
+            return result
         }
     }
 }

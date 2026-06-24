@@ -1,7 +1,7 @@
 import Foundation
 
 struct AppConfig: Codable, Equatable {
-    static let currentSchemaVersion = 3
+    static let currentSchemaVersion = 6
 
     var schemaVersion: Int
     var hotkey: String
@@ -55,11 +55,11 @@ struct AppConfig: Codable, Equatable {
         feedbackSoundsEnabled: Bool = true,
         activeMenuBarLabelEnabled: Bool = true,
         vadEnabled: Bool = true,
-        vadSilenceSeconds: Double = 1.5,
+        vadSilenceSeconds: Double = 0.6,
         vadSpeechThresholdDB: Double = -25.0,
         ollamaEnabled: Bool = false,
         ollamaEndpoint: String = "http://localhost:11434",
-        ollamaModel: String = "llama3.2:3b",
+        ollamaModel: String = "gemma3:1b",
         ollamaPrompt: String = AppConfig.defaultOllamaPrompt
     ) {
         self.schemaVersion = schemaVersion
@@ -126,6 +126,7 @@ struct AppConfig: Codable, Equatable {
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+        let decodedSchemaVersion = schemaVersion
         hotkey = try c.decodeIfPresent(String.self, forKey: .hotkey) ?? "Alt+Space"
         hotkeyMode = try c.decodeIfPresent(HotkeyMode.self, forKey: .hotkeyMode) ?? .hold
         autostart = try c.decodeIfPresent(Bool.self, forKey: .autostart) ?? false
@@ -147,17 +148,26 @@ struct AppConfig: Codable, Equatable {
         feedbackSoundsEnabled = try c.decodeIfPresent(Bool.self, forKey: .feedbackSoundsEnabled) ?? true
         activeMenuBarLabelEnabled = try c.decodeIfPresent(Bool.self, forKey: .activeMenuBarLabelEnabled) ?? true
         vadEnabled = try c.decodeIfPresent(Bool.self, forKey: .vadEnabled) ?? true
-        vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 1.5
+        vadSilenceSeconds = try c.decodeIfPresent(Double.self, forKey: .vadSilenceSeconds) ?? 0.6
+        if decodedSchemaVersion < 4, abs(vadSilenceSeconds - 1.5) < 0.001 {
+            vadSilenceSeconds = 0.6
+        }
         let rawThreshold = try c.decodeIfPresent(Double.self, forKey: .vadSpeechThresholdDB) ?? -25.0
         vadSpeechThresholdDB = min(-10.0, max(-45.0, rawThreshold))
         ollamaEnabled = try c.decodeIfPresent(Bool.self, forKey: .ollamaEnabled) ?? false
         ollamaEndpoint = try c.decodeIfPresent(String.self, forKey: .ollamaEndpoint) ?? "http://localhost:11434"
-        ollamaModel = try c.decodeIfPresent(String.self, forKey: .ollamaModel) ?? "llama3.2:3b"
+        ollamaModel = try c.decodeIfPresent(String.self, forKey: .ollamaModel) ?? "gemma3:1b"
+        if decodedSchemaVersion < 5, ollamaModel.trimmingCharacters(in: .whitespacesAndNewlines) == "llama3.2:3b" {
+            ollamaModel = "gemma3:1b"
+        }
         ollamaPrompt = try c.decodeIfPresent(String.self, forKey: .ollamaPrompt) ?? AppConfig.defaultOllamaPrompt
+        if decodedSchemaVersion < 6, Self.isLegacyDefaultOllamaPrompt(ollamaPrompt) {
+            ollamaPrompt = AppConfig.defaultOllamaPrompt
+        }
     }
 
     static let defaultOllamaPrompt = """
-    You are a transcription cleaner. You receive raw speech-to-text output labeled "Input:" and must return only the cleaned version after "Output:". Fix punctuation, capitalization, and grammar. If the speaker self-corrects using phrases like "actually", "I mean", "I meant", "scratch that", or "no wait", apply the correction and output only the final intended text with the amendment resolved. Otherwise, preserve the speaker's exact words and meaning. Never ask questions, never add explanations or commentary. Return only the cleaned text.
+    Smart polish dictation. Infer intent; make unclear fragments coherent. Fix grammar, punctuation, capitalization, transcription errors, and self-corrections. Do not invent facts. Use bullets for lists, tasks, options, or pros/cons; numbered lists for ordered steps. Otherwise write a paragraph. Return only final text.
     """
 
     static var configURL: URL {
@@ -263,6 +273,16 @@ struct AppConfig: Codable, Equatable {
             cleaned.append(trimmed)
         }
         return cleaned
+    }
+
+    private static func isLegacyDefaultOllamaPrompt(_ prompt: String) -> Bool {
+        let normalized = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        return [
+            "Clean dictation. Fix punctuation, capitalization, grammar, and spoken self-corrections. Preserve meaning. Return only the final text.",
+            """
+            You are a transcription cleaner. You receive raw speech-to-text output labeled "Input:" and must return only the cleaned version after "Output:". Fix punctuation, capitalization, and grammar. If the speaker self-corrects using phrases like "actually", "I mean", "I meant", "scratch that", or "no wait", apply the correction and output only the final intended text with the amendment resolved. Otherwise, preserve the speaker's exact words and meaning. Never ask questions, never add explanations or commentary. Return only the cleaned text.
+            """.trimmingCharacters(in: .whitespacesAndNewlines),
+        ].contains(normalized)
     }
 }
 

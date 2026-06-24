@@ -20,6 +20,14 @@ VERSION="$1"
 OUT="${2:-target/release/release-notes.html}"
 
 case "$VERSION" in
+  1.1.1)
+    LEAD="$APP_NAME $VERSION makes local AI polish faster and smarter."
+    ITEMS='
+        <li>Warms up Ollama when recording starts so model load happens while you speak instead of after release.</li>
+        <li>Switches the default recommended local polish model to Gemma 3 1B for lower latency.</li>
+        <li>Adds Smart Polish prompting that infers intent, repairs unclear fragments, and uses bullets or numbered lists when the dictated structure calls for it.</li>
+        <li>Keeps local model polish bounded with short timeouts, compact prompts, and capped response tokens.</li>'
+    ;;
   1.1.0)
     LEAD="$APP_NAME $VERSION adds optional live streaming and first-class local AI polish with Ollama."
     ITEMS='

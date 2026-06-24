@@ -40,6 +40,7 @@ final class AppModel: ObservableObject {
     private var recordingStoppedAt: Date?
     private var latestPartialText = ""
     private var streamingEnabledForRecording = false
+    private var ollamaWarmUpTask: Task<Void, Never>?
 
     init(config: AppConfig = .load()) {
         self.config = config
@@ -152,6 +153,7 @@ final class AppModel: ObservableObject {
             clipboardOnlyBundleIDs: config.clipboardOnlyAppBundleIDs,
             accessibilityTrusted: AXIsProcessTrusted()
         )
+        warmUpLocalPolishIfNeeded(config)
 
         do {
             setStatus(.recording)
@@ -191,6 +193,8 @@ final class AppModel: ObservableObject {
             recordingStartedAt = nil
             recordingStoppedAt = nil
             latestPartialText = ""
+            ollamaWarmUpTask?.cancel()
+            ollamaWarmUpTask = nil
             statsTick?.cancel()
             statsTick = nil
             recordingTimeout?.cancel()
@@ -267,6 +271,27 @@ final class AppModel: ObservableObject {
         streamingInjector.update(to: text)
     }
 
+    private func warmUpLocalPolishIfNeeded(_ snapshot: AppConfig) {
+        let effectivePrompt = LocalPolishResolver.prompt(
+            ollamaEnabled: snapshot.ollamaEnabled,
+            activeToneID: snapshot.activeToneID,
+            customTones: snapshot.customTones,
+            fallbackPrompt: snapshot.ollamaPrompt
+        )
+        guard effectivePrompt != nil else { return }
+
+        ollamaWarmUpTask?.cancel()
+        ollamaWarmUpTask = Task {
+            let started = Date()
+            await OllamaClient.warmUp(
+                endpoint: snapshot.ollamaEndpoint,
+                model: snapshot.ollamaModel
+            )
+            guard !Task.isCancelled else { return }
+            FlowyLog.info(String(format: "Ollama warm-up latency %.2fs", Date().timeIntervalSince(started)))
+        }
+    }
+
     private func processRecognition(_ result: Result<String, Error>) async {
         defer {
             capturedApp = nil
@@ -276,6 +301,8 @@ final class AppModel: ObservableObject {
             statsTick?.cancel()
             statsTick = nil
             streamingEnabledForRecording = false
+            ollamaWarmUpTask?.cancel()
+            ollamaWarmUpTask = nil
             streamingInjector.reset()
             onAudioLevelChanged?(0)
             setStatus(.idle)
@@ -303,6 +330,7 @@ final class AppModel: ObservableObject {
             rawText,
             config: snapshot
         )
+        text = AmendmentRewriter.apply(text)
 
         // Resolve the effective Ollama prompt: active tone overrides ollamaPrompt.
         // An empty prompt (Raw tone) means skip Ollama entirely.
@@ -315,10 +343,6 @@ final class AppModel: ObservableObject {
             fallbackPrompt: snapshot.ollamaPrompt
         )
 
-        if effectivePrompt == nil {
-            text = AmendmentRewriter.apply(text)
-        }
-
         if let prompt = effectivePrompt {
             let started = Date()
             let toneLabel = activeTone?.name ?? "ollama"
@@ -328,11 +352,12 @@ final class AppModel: ObservableObject {
                     endpoint: snapshot.ollamaEndpoint,
                     model: snapshot.ollamaModel,
                     system: prompt,
-                    text: text
+                    text: text,
+                    timeoutSeconds: LocalPolishResolver.maxBlockingSeconds
                 )
                 if !enhanced.isEmpty { text = enhanced }
             } catch {
-                FlowyLog.warn("Ollama enhancement failed: \(error.localizedDescription)")
+                FlowyLog.warn("Ollama enhancement skipped: \(error.localizedDescription)")
             }
             let latency = Date().timeIntervalSince(started)
             FlowyLog.info(String(format: "Ollama enhancement latency %.2fs", latency))

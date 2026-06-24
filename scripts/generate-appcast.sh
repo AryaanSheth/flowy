@@ -40,6 +40,14 @@ DMG_NAME="$(basename "$DMG_PATH")"
 DMG_URL="$RELEASE_BASE_URL/$DMG_NAME"
 RELEASE_URL="https://github.com/AryaanSheth/flowy/releases/tag/v$VERSION"
 case "$VERSION" in
+  1.1.1)
+    NOTES_LEAD="v1.1.1 makes local AI polish faster and smarter."
+    NOTES_ITEMS='
+            <li><strong>Faster AI polish:</strong> Ollama now warms up when recording starts, so model load can happen while you speak instead of after release.</li>
+            <li><strong>Fast default model:</strong> New and default-model installs use Gemma 3 1B for lower-latency local polish.</li>
+            <li><strong>Smart Polish:</strong> The default polish prompt now infers intent, fixes unclear fragments, and formats spoken lists as bullets or numbered steps when appropriate.</li>
+            <li><strong>Latency guardrails:</strong> Local model polish uses compact prompts, capped response tokens, and short timeouts so dictation falls back quickly if Ollama is slow.</li>'
+    ;;
   1.1.0)
     NOTES_LEAD="v1.1.0 adds optional live streaming and first-class local AI polish with Ollama."
     NOTES_ITEMS='

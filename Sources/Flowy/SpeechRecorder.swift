@@ -18,6 +18,7 @@ final class SpeechRecorder {
     private var stopping = false
     private var tapInstalled = false
     private var finalTimeout: DispatchWorkItem?
+    private var lastLevelSentAt: TimeInterval = 0
 
     // VAD: fires when the recognizer produces no new text for vadSilenceTimeout seconds.
     // This is transcription-stability based — the speech engine already knows when
@@ -78,6 +79,7 @@ final class SpeechRecorder {
         finished = false
         stopping = false
         finalTimeout = nil
+        lastLevelSentAt = 0
         vadCallback = onVADStop
         vadSilenceTimeout = vadSilenceSeconds
         vadWorkItem?.cancel()
@@ -137,9 +139,13 @@ final class SpeechRecorder {
             throw FlowyError.message("No microphone input format is available")
         }
 
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak request] buffer, _ in
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self, weak request] buffer, _ in
             request?.append(buffer)
-            if let onLevel {
+            if let self, let onLevel,
+               Self.shouldEmitLevel(
+                   now: ProcessInfo.processInfo.systemUptime,
+                   lastSentAt: &self.lastLevelSentAt
+               ) {
                 onLevel(Self.normalizedLevel(from: buffer))
             }
         }
@@ -251,6 +257,18 @@ final class SpeechRecorder {
             return FlowyError.message("macOS says Siri and Dictation are disabled. Enable Dictation in System Settings > Keyboard > Dictation, then try again.")
         }
         return error
+    }
+
+    static func shouldEmitLevel(
+        now: TimeInterval,
+        lastSentAt: inout TimeInterval,
+        minInterval: TimeInterval = 1.0 / 15.0
+    ) -> Bool {
+        guard lastSentAt == 0 || now - lastSentAt >= minInterval else {
+            return false
+        }
+        lastSentAt = now
+        return true
     }
 
     private static func normalizedLevel(from buffer: AVAudioPCMBuffer) -> Double {

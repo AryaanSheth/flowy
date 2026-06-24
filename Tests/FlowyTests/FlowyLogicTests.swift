@@ -55,6 +55,49 @@ final class FlowyLogicTests: XCTestCase {
         XCTAssertEqual(migrated.dictionary, ["flowy": "Flowy"])
     }
 
+    func testV3DefaultVADSilenceMigratesToFasterStop() throws {
+        let json = """
+        {
+          "schemaVersion": 3,
+          "vadSilenceSeconds": 1.5
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(AppConfig.self, from: json)
+
+        XCTAssertEqual(decoded.vadSilenceSeconds, 0.6)
+        XCTAssertEqual(decoded.sanitized().schemaVersion, AppConfig.currentSchemaVersion)
+    }
+
+    func testLegacyDefaultOllamaModelMigratesToFastModel() throws {
+        let json = """
+        {
+          "schemaVersion": 4,
+          "ollamaModel": "llama3.2:3b"
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(AppConfig.self, from: json)
+
+        XCTAssertEqual(decoded.ollamaModel, "gemma3:1b")
+        XCTAssertEqual(decoded.sanitized().schemaVersion, AppConfig.currentSchemaVersion)
+    }
+
+    func testLegacyDefaultOllamaPromptMigratesToSmartPolish() throws {
+        let json = """
+        {
+          "schemaVersion": 5,
+          "ollamaPrompt": "Clean dictation. Fix punctuation, capitalization, grammar, and spoken self-corrections. Preserve meaning. Return only the final text."
+        }
+        """.data(using: .utf8)!
+
+        let decoded = try JSONDecoder().decode(AppConfig.self, from: json)
+
+        XCTAssertEqual(decoded.ollamaPrompt, AppConfig.defaultOllamaPrompt)
+        XCTAssertTrue(decoded.ollamaPrompt.localizedCaseInsensitiveContains("coherent"))
+        XCTAssertTrue(decoded.ollamaPrompt.localizedCaseInsensitiveContains("bullets"))
+    }
+
     func testConfigSanitizesSystemLocaleToNil() {
         let config = AppConfig(
             schemaVersion: 0,
@@ -72,7 +115,7 @@ final class FlowyLogicTests: XCTestCase {
         XCTAssertEqual(config.disabledAppBundleIDs, ["com.apple.Terminal"])
         XCTAssertEqual(config.clipboardOnlyAppBundleIDs, ["com.example.App"])
         XCTAssertEqual(config.ollamaEndpoint, "http://localhost:11434")
-        XCTAssertEqual(config.ollamaModel, "llama3.2:3b")
+        XCTAssertEqual(config.ollamaModel, "gemma3:1b")
     }
 
     func testEffectiveOutputModeHonorsClipboardOnlyAppRule() {
@@ -194,6 +237,65 @@ final class FlowyLogicTests: XCTestCase {
                 fallbackPrompt: "fallback"
             )
         )
+    }
+
+    func testLocalPolishPolicyUsesShortBlockingBudget() {
+        XCTAssertLessThanOrEqual(LocalPolishResolver.maxBlockingSeconds, 1.5)
+        XCTAssertLessThanOrEqual(LocalPolishResolver.requestTimeoutSeconds, 2.0)
+        XCTAssertGreaterThanOrEqual(LocalPolishResolver.requestTimeoutSeconds, LocalPolishResolver.maxBlockingSeconds)
+    }
+
+    func testOllamaGenerationPolicyCapsResponseTokens() {
+        XCTAssertEqual(
+            OllamaGenerationPolicy.maxResponseTokens(for: "short note"),
+            48
+        )
+
+        let longText = Array(repeating: "word", count: 500).joined(separator: " ")
+        XCTAssertEqual(
+            OllamaGenerationPolicy.maxResponseTokens(for: longText),
+            256
+        )
+    }
+
+    func testOllamaWarmUpPolicyIsTinyAndShortLived() {
+        XCTAssertLessThanOrEqual(LocalPolishResolver.warmUpTimeoutSeconds, 1.0)
+        XCTAssertEqual(OllamaGenerationPolicy.warmUpMaxResponseTokens, 1)
+    }
+
+    func testRecommendedOllamaModelDefaultsToFastOneBModel() {
+        XCTAssertEqual(OllamaManager.recommendedModels.first?.name, "gemma3:1b")
+        XCTAssertEqual(OllamaManager.recommendedModels.first?.tagline, "Recommended")
+    }
+
+    func testBuiltInPolishPromptsStayCompactForLatency() {
+        XCTAssertLessThanOrEqual(AppConfig.defaultOllamaPrompt.count, 520)
+
+        for tone in TonePreset.builtIns where !tone.prompt.isEmpty {
+            XCTAssertLessThanOrEqual(tone.prompt.count, 520, tone.name)
+        }
+    }
+
+    func testDefaultAndCleanPromptsUseSmartPolishBehavior() {
+        let cleanPrompt = TonePreset.builtIns.first { $0.id == "clean" }?.prompt ?? ""
+
+        XCTAssertEqual(cleanPrompt, AppConfig.defaultOllamaPrompt)
+        XCTAssertTrue(cleanPrompt.localizedCaseInsensitiveContains("coherent"))
+        XCTAssertTrue(cleanPrompt.localizedCaseInsensitiveContains("do not invent"))
+        XCTAssertTrue(cleanPrompt.localizedCaseInsensitiveContains("bullets"))
+        XCTAssertTrue(cleanPrompt.localizedCaseInsensitiveContains("numbered"))
+        XCTAssertTrue(cleanPrompt.localizedCaseInsensitiveContains("return only"))
+    }
+
+    func testSpeechRecorderThrottlesLevelUpdates() {
+        var lastSentAt: TimeInterval = 0
+
+        XCTAssertTrue(SpeechRecorder.shouldEmitLevel(now: 10.0, lastSentAt: &lastSentAt, minInterval: 0.1))
+        XCTAssertEqual(lastSentAt, 10.0)
+        XCTAssertFalse(SpeechRecorder.shouldEmitLevel(now: 10.05, lastSentAt: &lastSentAt, minInterval: 0.1))
+        XCTAssertEqual(lastSentAt, 10.0)
+        XCTAssertTrue(SpeechRecorder.shouldEmitLevel(now: 10.11, lastSentAt: &lastSentAt, minInterval: 0.1))
+        XCTAssertEqual(lastSentAt, 10.11)
     }
 
     func testStreamingPlannerTreatsLargeRecognizerResetAsAppendOnlyContinuation() {
