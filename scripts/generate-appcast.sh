@@ -40,6 +40,11 @@ DMG_NAME="$(basename "$DMG_PATH")"
 DMG_URL="$RELEASE_BASE_URL/$DMG_NAME"
 RELEASE_URL="https://github.com/AryaanSheth/flowy/releases/tag/v$VERSION"
 case "$VERSION" in
+  1.1.2)
+    NOTES_LEAD="v1.1.2 captures the last words you speak before stopping."
+    NOTES_ITEMS='
+            <li><strong>No more dropped tail:</strong> Stopping dictation right after you finish talking no longer loses the final ~1 second of speech. Flowy now waits for the recognizer to flush its buffer instead of cutting off early.</li>'
+    ;;
   1.1.1)
     NOTES_LEAD="v1.1.1 makes local AI polish faster and smarter."
     NOTES_ITEMS='

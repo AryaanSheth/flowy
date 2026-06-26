@@ -20,6 +20,11 @@ VERSION="$1"
 OUT="${2:-target/release/release-notes.html}"
 
 case "$VERSION" in
+  1.1.2)
+    LEAD="$APP_NAME $VERSION captures the last words you speak before stopping."
+    ITEMS='
+        <li>Fixes the final ~1 second of speech being dropped when you stop dictation immediately after talking. Flowy now waits for the recognizer to flush its buffer instead of cutting off early.</li>'
+    ;;
   1.1.1)
     LEAD="$APP_NAME $VERSION makes local AI polish faster and smarter."
     ITEMS='
