@@ -7,7 +7,10 @@ import Speech
 final class AppModel: ObservableObject {
     @Published private(set) var status: AppStatus = .idle
     @Published private(set) var config: AppConfig
-    @Published private(set) var history: [String] = []
+    @Published private(set) var history: [String] = [] {
+        didSet { UserDefaults.standard.set(history, forKey: Self.historyKey) }
+    }
+    private static let historyKey = "history.entries"
     @Published private(set) var permissions = PermissionState()
     @Published private(set) var stats: DictationStats {
         didSet {
@@ -45,6 +48,8 @@ final class AppModel: ObservableObject {
     init(config: AppConfig = .load()) {
         self.config = config
         self.stats = .load()
+        let saved = UserDefaults.standard.stringArray(forKey: Self.historyKey) ?? []
+        self.history = Array(saved.prefix(config.historySize))
         refreshPermissions()
     }
 
@@ -168,6 +173,7 @@ final class AppModel: ObservableObject {
                 deviceUID: config.inputDevice,
                 localeIdentifier: config.recognitionLocaleIdentifier,
                 maxSeconds: config.maxRecordingSecs,
+                contextualStrings: dictionaryContextualStrings(config),
                 onPartial: { [weak self] text in
                     Task { @MainActor in
                         self?.updateLiveStats(partialText: text)
@@ -405,6 +411,16 @@ final class AppModel: ObservableObject {
             lastError = "Auto-paste failed — text is in your clipboard. Open Settings › System › Permissions and re-grant Accessibility access. If Flowy is already listed, remove it and re-add it (each rebuild resets the trust)."
             FlowyLog.error(lastError ?? "Delivery failed")
         }
+    }
+
+    /// The corrected/desired words from the custom dictionary, fed to the
+    /// recognizer as contextual strings to bias it toward the user's vocabulary.
+    private func dictionaryContextualStrings(_ config: AppConfig) -> [String] {
+        Array(Set(
+            config.dictionary.values
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+        ))
     }
 
     private func prepareRecognizedText(

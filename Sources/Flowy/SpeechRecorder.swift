@@ -52,6 +52,7 @@ final class SpeechRecorder {
         deviceUID: String?,
         localeIdentifier: String?,
         maxSeconds: Int,
+        contextualStrings: [String] = [],
         onPartial: ((String) -> Void)? = nil,
         onLevel: ((Double) -> Void)? = nil,
         onVADStop: (() -> Void)? = nil,
@@ -91,6 +92,11 @@ final class SpeechRecorder {
         let request = SFSpeechAudioBufferRecognitionRequest()
         request.shouldReportPartialResults = true
         request.taskHint = .dictation
+        // Bias recognition toward the user's custom vocabulary so names/jargon
+        // are heard correctly up front, not just patched afterwards.
+        if !contextualStrings.isEmpty {
+            request.contextualStrings = contextualStrings
+        }
         if recognizer?.supportsOnDeviceRecognition == true {
             request.requiresOnDeviceRecognition = true
         }
