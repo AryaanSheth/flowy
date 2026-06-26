@@ -119,11 +119,6 @@ final class SpeechRecorder {
                 return
             }
 
-            if self.stopping, !self.bestText.isEmpty {
-                self.finish(.success(self.bestText))
-                return
-            }
-
             if let error {
                 if self.stopping, !self.bestText.isEmpty {
                     self.finish(.success(self.bestText))
@@ -166,19 +161,18 @@ final class SpeechRecorder {
         }
         engine.stop()
 
-        if !bestText.isEmpty {
-            recognitionRequest?.endAudio()
-            finish(.success(bestText))
-            return
-        }
-
+        // Tell the recognizer no more audio is coming, then wait for it to flush
+        // the last buffered audio into a final result. The streaming recognizer
+        // lags realtime by ~1s, so finishing immediately here drops the trailing
+        // words the user just spoke. The timeout is a safety net if isFinal never
+        // arrives — on-device flush of ~1s of audio is much faster than realtime.
         recognitionRequest?.endAudio()
         let timeout = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.finish(.success(self.bestText))
         }
         finalTimeout = timeout
-        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(150), execute: timeout)
+        DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(1500), execute: timeout)
     }
 
     // MARK: – Transcription-stability VAD
