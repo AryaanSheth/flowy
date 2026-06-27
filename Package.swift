@@ -10,9 +10,15 @@ let package = Package(
     products: [
         .executable(name: "Flowy", targets: ["Flowy"]),
     ],
+    dependencies: [
+        .package(url: "https://github.com/argmaxinc/WhisperKit.git", .upToNextMinor(from: "0.18.0")),
+    ],
     targets: [
         .executableTarget(
             name: "Flowy",
+            dependencies: [
+                .product(name: "WhisperKit", package: "WhisperKit"),
+            ],
             path: "Sources/Flowy",
             swiftSettings: [
                 .unsafeFlags(["-parse-as-library"]),

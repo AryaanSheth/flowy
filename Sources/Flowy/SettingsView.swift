@@ -307,6 +307,26 @@ struct SettingsView: View {
 
                 Divider().padding(.horizontal, 14)
 
+                row("Engine") {
+                    Picker("", selection: $draft.recognitionBackend) {
+                        ForEach(RecognitionBackend.allCases) { backend in
+                            Text(backend.title).tag(backend)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 180)
+                }
+
+                if draft.recognitionBackend == .whisper {
+                    Text("Local Whisper (base model, ~150 MB) downloads on first use. More accurate, but no live streaming, live WPM, or auto-stop on silence.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(G.faint)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 10)
+                }
+
+                Divider().padding(.horizontal, 14)
+
                 // Input device
                 row("Microphone") {
                     HStack(spacing: 8) {

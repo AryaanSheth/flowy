@@ -271,7 +271,7 @@ final class SpeechRecorder {
         return true
     }
 
-    private static func normalizedLevel(from buffer: AVAudioPCMBuffer) -> Double {
+    static func normalizedLevel(from buffer: AVAudioPCMBuffer) -> Double {
         guard let channelData = buffer.floatChannelData else { return 0 }
         let channelCount = max(1, Int(buffer.format.channelCount))
         let frameLength = Int(buffer.frameLength)

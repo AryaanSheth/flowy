@@ -33,6 +33,20 @@ enum AppStatus: String {
     }
 }
 
+enum RecognitionBackend: String, Codable, CaseIterable, Identifiable {
+    case apple
+    case whisper
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .apple: return "Apple (on-device)"
+        case .whisper: return "Whisper (local)"
+        }
+    }
+}
+
 enum OutputMode: String, Codable, CaseIterable, Identifiable {
     case type
     case clipboard

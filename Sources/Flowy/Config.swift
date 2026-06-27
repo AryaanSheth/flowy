@@ -1,7 +1,7 @@
 import Foundation
 
 struct AppConfig: Codable, Equatable {
-    static let currentSchemaVersion = 6
+    static let currentSchemaVersion = 7
 
     var schemaVersion: Int
     var hotkey: String
@@ -10,6 +10,8 @@ struct AppConfig: Codable, Equatable {
     var dictionary: [String: String]
     var inputDevice: String?
     var recognitionLocaleIdentifier: String?
+    var recognitionBackend: RecognitionBackend
+    var whisperModel: String
     var outputMode: OutputMode
     var liveStreamingEnabled: Bool
     var disabledAppBundleIDs: [String]
@@ -40,6 +42,8 @@ struct AppConfig: Codable, Equatable {
         dictionary: [String: String] = [:],
         inputDevice: String? = nil,
         recognitionLocaleIdentifier: String? = nil,
+        recognitionBackend: RecognitionBackend = .apple,
+        whisperModel: String = "base",
         outputMode: OutputMode = .typeAndClipboard,
         liveStreamingEnabled: Bool = false,
         disabledAppBundleIDs: [String] = [],
@@ -69,6 +73,8 @@ struct AppConfig: Codable, Equatable {
         self.dictionary = dictionary
         self.inputDevice = inputDevice
         self.recognitionLocaleIdentifier = recognitionLocaleIdentifier
+        self.recognitionBackend = recognitionBackend
+        self.whisperModel = whisperModel
         self.outputMode = outputMode
         self.liveStreamingEnabled = liveStreamingEnabled
         self.disabledAppBundleIDs = disabledAppBundleIDs
@@ -100,6 +106,8 @@ struct AppConfig: Codable, Equatable {
         case dictionary
         case inputDevice
         case recognitionLocaleIdentifier
+        case recognitionBackend
+        case whisperModel
         case outputMode
         case liveStreamingEnabled
         case disabledAppBundleIDs
@@ -133,6 +141,8 @@ struct AppConfig: Codable, Equatable {
         dictionary = try c.decodeIfPresent([String: String].self, forKey: .dictionary) ?? [:]
         inputDevice = try c.decodeIfPresent(String.self, forKey: .inputDevice)
         recognitionLocaleIdentifier = try c.decodeIfPresent(String.self, forKey: .recognitionLocaleIdentifier)
+        recognitionBackend = try c.decodeIfPresent(RecognitionBackend.self, forKey: .recognitionBackend) ?? .apple
+        whisperModel = try c.decodeIfPresent(String.self, forKey: .whisperModel) ?? "base"
         outputMode = try c.decodeIfPresent(OutputMode.self, forKey: .outputMode) ?? .typeAndClipboard
         liveStreamingEnabled = try c.decodeIfPresent(Bool.self, forKey: .liveStreamingEnabled) ?? false
         disabledAppBundleIDs = try c.decodeIfPresent([String].self, forKey: .disabledAppBundleIDs) ?? []
@@ -234,6 +244,11 @@ struct AppConfig: Codable, Equatable {
         next.vadSpeechThresholdDB = min(-10.0, max(-45.0, next.vadSpeechThresholdDB))
         next.disabledAppBundleIDs = Self.cleanedBundleIDs(next.disabledAppBundleIDs)
         next.clipboardOnlyAppBundleIDs = Self.cleanedBundleIDs(next.clipboardOnlyAppBundleIDs)
+
+        next.whisperModel = next.whisperModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        if next.whisperModel.isEmpty {
+            next.whisperModel = defaults.whisperModel
+        }
 
         next.ollamaEndpoint = next.ollamaEndpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         if next.ollamaEndpoint.isEmpty {

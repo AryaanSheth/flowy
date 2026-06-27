@@ -35,6 +35,8 @@ final class AppModel: ObservableObject {
     var translateText: ((String, String) async throws -> String)?
 
     private let speechRecorder = SpeechRecorder()
+    private let whisperRecorder = WhisperRecorder()
+    private var activeBackendIsWhisper = false
     private let streamingInjector = StreamingInjector()
     private var capturedApp: NSRunningApplication?
     private var recordingTimeout: DispatchWorkItem?
@@ -100,6 +102,13 @@ final class AppModel: ObservableObject {
             speechRecorder.warmUpRecognizer(localeIdentifier: clean.recognitionLocaleIdentifier)
         }
 
+        // Preload (and on first use, download) the Whisper model when the user
+        // switches to it or picks a different model, so the first recording isn't slow.
+        if clean.recognitionBackend == .whisper,
+           oldConfig.recognitionBackend != .whisper || oldConfig.whisperModel != clean.whisperModel {
+            whisperRecorder.warmUp(model: clean.whisperModel)
+        }
+
         if oldConfig.autostart != clean.autostart {
             applyAutostart(enabled: clean.autostart)
         }
@@ -117,11 +126,14 @@ final class AppModel: ObservableObject {
             requestInitialPermissions()
             return
         }
-        guard permissions.speechAuthorized else {
-            lastError = "Speech Recognition is not authorized."
-            FlowyLog.warn("Recording blocked: speech recognition is not authorized")
-            requestInitialPermissions()
-            return
+        let useWhisper = config.recognitionBackend == .whisper
+        if !useWhisper {
+            guard permissions.speechAuthorized else {
+                lastError = "Speech Recognition is not authorized."
+                FlowyLog.warn("Recording blocked: speech recognition is not authorized")
+                requestInitialPermissions()
+                return
+            }
         }
 
         if config.outputMode != .clipboard && !permissions.accessibilityTrusted {
@@ -162,35 +174,48 @@ final class AppModel: ObservableObject {
 
         do {
             setStatus(.recording)
-            FlowyLog.info("Recording started inputDevice=\(config.inputDevice ?? "default")")
-            let vadStop: (() -> Void)? = config.vadEnabled ? { [weak self] in
-                Task { @MainActor in
-                    FlowyLog.info("VAD silence detected — stopping recording")
-                    self?.stopRecording()
+            activeBackendIsWhisper = useWhisper
+            let onLevel: (Double) -> Void = { [weak self] level in
+                DispatchQueue.main.async {
+                    guard self?.status == .recording else { return }
+                    self?.onAudioLevelChanged?(level)
                 }
-            } : nil
-            try speechRecorder.start(
-                deviceUID: config.inputDevice,
-                localeIdentifier: config.recognitionLocaleIdentifier,
-                maxSeconds: config.maxRecordingSecs,
-                contextualStrings: dictionaryContextualStrings(config),
-                onPartial: { [weak self] text in
+            }
+            if useWhisper {
+                FlowyLog.info("Recording started (whisper) model=\(config.whisperModel) inputDevice=\(config.inputDevice ?? "default")")
+                try whisperRecorder.start(
+                    deviceUID: config.inputDevice,
+                    model: config.whisperModel,
+                    onLevel: onLevel
+                ) { [weak self] result in
+                    Task { @MainActor in self?.handleRecognition(result) }
+                }
+            } else {
+                FlowyLog.info("Recording started inputDevice=\(config.inputDevice ?? "default")")
+                let vadStop: (() -> Void)? = config.vadEnabled ? { [weak self] in
                     Task { @MainActor in
-                        self?.updateLiveStats(partialText: text)
-                        self?.handlePartialRecognition(text)
+                        FlowyLog.info("VAD silence detected — stopping recording")
+                        self?.stopRecording()
                     }
-                },
-                onLevel: { [weak self] level in
-                    DispatchQueue.main.async {
-                        guard self?.status == .recording else { return }
-                        self?.onAudioLevelChanged?(level)
-                    }
-                },
-                onVADStop: vadStop,
-                vadSilenceSeconds: config.vadSilenceSeconds,
-                vadSpeechThresholdDB: Float(config.vadSpeechThresholdDB)
-            ) { [weak self] result in
-                Task { @MainActor in self?.handleRecognition(result) }
+                } : nil
+                try speechRecorder.start(
+                    deviceUID: config.inputDevice,
+                    localeIdentifier: config.recognitionLocaleIdentifier,
+                    maxSeconds: config.maxRecordingSecs,
+                    contextualStrings: dictionaryContextualStrings(config),
+                    onPartial: { [weak self] text in
+                        Task { @MainActor in
+                            self?.updateLiveStats(partialText: text)
+                            self?.handlePartialRecognition(text)
+                        }
+                    },
+                    onLevel: onLevel,
+                    onVADStop: vadStop,
+                    vadSilenceSeconds: config.vadSilenceSeconds,
+                    vadSpeechThresholdDB: Float(config.vadSpeechThresholdDB)
+                ) { [weak self] result in
+                    Task { @MainActor in self?.handleRecognition(result) }
+                }
             }
             scheduleRecordingTimeout()
             scheduleStatsTick()
@@ -224,7 +249,11 @@ final class AppModel: ObservableObject {
         statsTick = nil
         setStatus(.transcribing)
         onAudioLevelChanged?(0)
-        speechRecorder.stop()
+        if activeBackendIsWhisper {
+            whisperRecorder.stop()
+        } else {
+            speechRecorder.stop()
+        }
     }
 
     func clearHistory() {
