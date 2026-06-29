@@ -31,7 +31,9 @@ let package = Package(
                 .linkedFramework("Carbon"),
                 .linkedFramework("ServiceManagement"),
                 .linkedFramework("Speech"),
-                .linkedFramework("Translation"),
+                // Translation is macOS 14+. Weak-link it so the binary still
+                // launches on macOS 13 (TranslationBridge gates use at runtime).
+                .unsafeFlags(["-Xlinker", "-weak_framework", "-Xlinker", "Translation"]),
             ]
         ),
         .testTarget(

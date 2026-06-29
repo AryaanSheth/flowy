@@ -97,39 +97,23 @@ if [[ "$CLEAN" -eq 1 ]]; then
   rm -rf "$BUILD_ROOT" "$APP_BUNDLE"
 fi
 
-mkdir -p "$BUILD_ROOT" "$APP_BUNDLE/Contents/MacOS" "$RESOURCES" "$MODULE_CACHE"
+mkdir -p "$APP_BUNDLE/Contents/MacOS" "$RESOURCES"
 
-SWIFT_FLAGS=(
-  -target "arm64-apple-macos$MIN_MACOS"
-  -module-cache-path "$MODULE_CACHE"
-  -parse-as-library
-)
+# Build via SwiftPM so package dependencies (WhisperKit and its transitive
+# deps) are compiled and linked. Sparkle is a vendored prebuilt framework, so
+# it is passed through as framework search/link flags rather than as a package.
+SPM_CONFIG="release"
+[[ "$CONFIGURATION" == "debug" ]] && SPM_CONFIG="debug"
 
-if [[ "$CONFIGURATION" == "release" ]]; then
-  SWIFT_FLAGS+=(-O -whole-module-optimization)
-else
-  SWIFT_FLAGS+=(-Onone -g)
-fi
-
-FRAMEWORKS=(
-  -framework AppKit
-  -framework ApplicationServices
-  -framework AudioToolbox
-  -framework AVFoundation
-  -framework Carbon
-  -framework ServiceManagement
-  -framework Speech
-  -framework SwiftUI
-  -Xlinker -weak_framework -Xlinker Translation
-)
+BUILD_FLAGS=(-c "$SPM_CONFIG" --product "$APP_NAME")
 
 SPARKLE_PLIST=""
 if [[ -d "$SPARKLE_FRAMEWORK_PATH" ]]; then
   SPARKLE_PARENT="$(dirname "$SPARKLE_FRAMEWORK_PATH")"
-  SWIFT_FLAGS+=(-F "$SPARKLE_PARENT")
-  FRAMEWORKS+=(
-    -F "$SPARKLE_PARENT"
-    -framework Sparkle
+  BUILD_FLAGS+=(
+    -Xswiftc -F -Xswiftc "$SPARKLE_PARENT"
+    -Xlinker -F -Xlinker "$SPARKLE_PARENT"
+    -Xlinker -framework -Xlinker Sparkle
     -Xlinker -rpath -Xlinker "@executable_path/../Frameworks"
   )
 
@@ -152,9 +136,19 @@ if [[ -d "$SPARKLE_FRAMEWORK_PATH" ]]; then
   fi
 fi
 
-echo "Building $APP_NAME ($CONFIGURATION, arm64 macOS $MIN_MACOS+)..."
-CLANG_MODULE_CACHE_PATH="$MODULE_CACHE" \
-xcrun swiftc "${SWIFT_FLAGS[@]}" Sources/Flowy/*.swift "${FRAMEWORKS[@]}" -o "$EXECUTABLE"
+echo "Building $APP_NAME ($SPM_CONFIG via SwiftPM)..."
+swift build "${BUILD_FLAGS[@]}"
+BIN_DIR="$(swift build "${BUILD_FLAGS[@]}" --show-bin-path)"
+cp -f "$BIN_DIR/$APP_NAME" "$EXECUTABLE"
+
+# Copy any SwiftPM resource bundles (WhisperKit, swift-transformers, etc.)
+# next to the app resources so Bundle.module resolves them at runtime.
+for bundle in "$BIN_DIR"/*.bundle; do
+  [[ -e "$bundle" ]] || continue
+  rm -rf "$RESOURCES/${bundle:t}"
+  cp -R "$bundle" "$RESOURCES/"
+  echo "Bundling resource ${bundle:t}"
+done
 
 if [[ -f "$REPO_ROOT/icons/icon.icns" ]]; then
   cp "$REPO_ROOT/icons/icon.icns" "$RESOURCES/icon.icns"
@@ -206,7 +200,24 @@ EOF
 
 if command -v codesign >/dev/null 2>&1; then
   CODESIGN_IDENTITY="${FLOWY_CODESIGN_IDENTITY:--}"
-  codesign --force --deep --sign "$CODESIGN_IDENTITY" "$APP_BUNDLE" >/dev/null
+  sign() { codesign --force --sign "$CODESIGN_IDENTITY" "$1" >/dev/null; }
+
+  # Sparkle's installer helpers must be signed individually, inside-out.
+  # `--deep` signs nested code in the wrong order (and is unsupported for
+  # signing per Apple), which makes "Install & Relaunch" silently fail: the
+  # installer XPC service fails its signature check and never runs.
+  BUNDLED_SPARKLE="$FRAMEWORKS_DIR/Sparkle.framework"
+  if [[ -d "$BUNDLED_SPARKLE" ]]; then
+    SPARKLE_V="$BUNDLED_SPARKLE/Versions/B"
+    sign "$SPARKLE_V/XPCServices/Downloader.xpc"
+    sign "$SPARKLE_V/XPCServices/Installer.xpc"
+    sign "$SPARKLE_V/Updater.app"
+    sign "$SPARKLE_V/Autoupdate"
+    sign "$BUNDLED_SPARKLE"
+  fi
+
+  # Sign the app last so the outer signature seals the already-signed nested code.
+  sign "$APP_BUNDLE"
 fi
 
 echo "Built: $APP_BUNDLE"
