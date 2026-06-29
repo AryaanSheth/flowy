@@ -20,6 +20,13 @@ VERSION="$1"
 OUT="${2:-target/release/release-notes.html}"
 
 case "$VERSION" in
+  1.2.1)
+    LEAD="$APP_NAME $VERSION adds an optional local Whisper engine for higher accuracy."
+    ITEMS='
+        <li>Adds a local Whisper engine (Settings &rsaquo; Engine) for more accurate on-device transcription. The base model (~150 MB) downloads on first use.</li>
+        <li>Keeps the Apple on-device engine as the default, with live streaming, live WPM, and auto-stop on silence.</li>
+        <li>Biases recognition toward your custom dictionary words and persists history across launches.</li>'
+    ;;
   1.1.2)
     LEAD="$APP_NAME $VERSION captures the last words you speak before stopping."
     ITEMS='

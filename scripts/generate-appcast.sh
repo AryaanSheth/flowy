@@ -40,6 +40,13 @@ DMG_NAME="$(basename "$DMG_PATH")"
 DMG_URL="$RELEASE_BASE_URL/$DMG_NAME"
 RELEASE_URL="https://github.com/AryaanSheth/flowy/releases/tag/v$VERSION"
 case "$VERSION" in
+  1.2.1)
+    NOTES_LEAD="v1.2.1 adds an optional local Whisper engine for higher accuracy."
+    NOTES_ITEMS='
+            <li><strong>Local Whisper engine:</strong> Choose Whisper (local) under Settings &rsaquo; Engine for more accurate on-device transcription. The base model (~150 MB) downloads on first use.</li>
+            <li><strong>Apple still default:</strong> The Apple on-device engine remains the default and keeps live streaming, live WPM, and auto-stop on silence.</li>
+            <li><strong>Sharper recognition:</strong> Custom dictionary words now bias the recognizer up front, and history persists across launches.</li>'
+    ;;
   1.1.2)
     NOTES_LEAD="v1.1.2 captures the last words you speak before stopping."
     NOTES_ITEMS='
